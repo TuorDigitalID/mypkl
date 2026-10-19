@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { MahasiswaSidang, PenilaianPenguji, SupabaseConfig, MasterSiswaPKL } from '../types/index.ts';
+import type { MahasiswaSidang, PenilaianPenguji, SupabaseConfig, MasterSiswaPKL } from '../types/index.ts';
 
 const STORAGE_KEY_SUPABASE = 'my_pkl_supabase_config';
 const STORAGE_KEY_PESERTA = 'my_pkl_peserta_sidang';
@@ -642,7 +642,33 @@ export function subscribeToRealtimeUpdates(
 }
 
 /**
- * Test Supabase connection
+ * Security Guard: Memeriksa apakah token adalah service_role (Super Admin).
+ * Kunci service_role TIDAK BOLEH berada di frontend browser karena membobol RLS dan hak akses.
+ */
+export function isServiceRoleKey(key: string): boolean {
+  if (!key || typeof key !== 'string') return false;
+  try {
+    const parts = key.split('.');
+    if (parts.length === 3) {
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const parsed = JSON.parse(jsonPayload);
+      return parsed.role === 'service_role';
+    }
+  } catch {
+    // abaikan jika bukan format JWT
+  }
+  return false;
+}
+
+/**
+ * Test Supabase connection with security verification
  */
 export async function testSupabaseConnection(
   url: string,
@@ -652,6 +678,16 @@ export async function testSupabaseConnection(
     if (!url || !anonKey) {
       return { success: false, message: 'URL dan Anon Key Supabase wajib diisi.' };
     }
+
+    // Security Check: Cegah kebocoran service_role key di browser
+    if (isServiceRoleKey(anonKey)) {
+      return {
+        success: false,
+        message:
+          '🚨 PERINGATAN KEAMANAN: Kunci yang Anda masukkan adalah "service_role" (Super Admin). Kunci ini TIDAK BOLEH digunakan di frontend karena dapat disalahgunakan untuk memodifikasi seluruh database! Harap salin kunci "anon" (public).',
+      };
+    }
+
     const testClient = createClient(url, anonKey);
     // Simple ping check
     const { error } = await testClient.from('peserta_sidang').select('id').limit(1);
