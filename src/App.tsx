@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Sidebar } from './components/Sidebar.tsx';
 import { Header } from './components/Header.tsx';
 import { LiveEvaluationRoom } from './components/LiveEvaluationRoom.tsx';
 import { MasterSiswaTable } from './components/MasterSiswaTable.tsx';
@@ -37,6 +38,7 @@ export default function App() {
   const [activePesertaId, setActivePesertaId] = useState<string>('m1');
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(getSupabaseConfig());
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [beritaAcaraMahasiswaId, setBeritaAcaraMahasiswaId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -138,105 +140,125 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
+    <div className="min-h-screen flex bg-slate-50 text-slate-800">
       
-      {/* Header Bar */}
-      <Header
+      {/* Left Sidebar with Groups & Submenus */}
+      <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
         activePenguji={activePenguji}
         setActivePenguji={setActivePenguji}
         supabaseConfig={supabaseConfig}
-        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+        onOpenSupabaseModal={() => setIsMobileSidebarOpen(false)}
+        siswaCount={masterSiswaList.length}
+        jurusanCount={masterJurusanList.length}
+        pesertaCount={pesertaList.length}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-500">
-            <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-            <p className="text-sm font-semibold">Memuat Data Sidang PKL Real-Time...</p>
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        
+        {/* Sleek Topbar Header */}
+        <Header
+          activeTab={activeTab}
+          onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          activePenguji={activePenguji}
+          setActivePenguji={setActivePenguji}
+          supabaseConfig={supabaseConfig}
+          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+        />
+
+        {/* Viewport Content */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-500">
+              <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+              <p className="text-sm font-semibold">Memuat Data Sidang PKL Real-Time...</p>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'live' && (
+                <LiveEvaluationRoom
+                  pesertaList={pesertaList}
+                  activePesertaId={activePesertaId}
+                  setActivePesertaId={setActivePesertaId}
+                  activePenguji={activePenguji}
+                  penilaianList={penilaianList}
+                  onOpenBeritaAcara={handleOpenBeritaAcara}
+                />
+              )}
+
+              {activeTab === 'master' && (
+                <MasterSiswaTable
+                  siswaList={masterSiswaList}
+                  jurusanList={masterJurusanList}
+                  filterJurusanParam={filterJurusanForSiswa}
+                  onSiswaUpdated={loadData}
+                  onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+                  onNavigateToJurusan={() => setActiveTab('jurusan')}
+                />
+              )}
+
+              {activeTab === 'jurusan' && (
+                <MasterJurusanTable
+                  jurusanList={masterJurusanList}
+                  siswaList={masterSiswaList}
+                  onJurusanUpdated={loadData}
+                  onFilterSiswaByJurusan={(namaJurusan) => {
+                    setFilterJurusanForSiswa(namaJurusan);
+                    setActiveTab('master');
+                  }}
+                />
+              )}
+
+              {activeTab === 'peserta' && (
+                <PesertaList
+                  pesertaList={pesertaList}
+                  penilaianList={penilaianList}
+                  onSelectPesertaForSidang={handleSelectPesertaForSidang}
+                  onOpenBeritaAcara={handleOpenBeritaAcara}
+                />
+              )}
+
+              {activeTab === 'rekap' && (
+                <RekapitulasiView
+                  pesertaList={pesertaList}
+                  penilaianList={penilaianList}
+                  onOpenBeritaAcara={handleOpenBeritaAcara}
+                  onSelectPesertaForSidang={handleSelectPesertaForSidang}
+                />
+              )}
+
+              {activeTab === 'rubrik' && <RubrikGuide />}
+            </>
+          )}
+        </main>
+
+        {/* Footer */}
+        <footer className="border-t border-slate-200 bg-white py-4 mt-auto">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+            <p>© {new Date().getFullYear()} My PKL — Aplikasi Penilaian Sidang Praktik Kerja Lapangan Real-Time.</p>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsSupabaseModalOpen(true)}
+                className="hover:text-emerald-700 font-semibold"
+              >
+                Setup Supabase & Schema SQL
+              </button>
+              <span>•</span>
+              <button
+                onClick={() => setActiveTab('rubrik')}
+                className="hover:text-emerald-700 font-semibold"
+              >
+                Pedoman Rubrik
+              </button>
+            </div>
           </div>
-        ) : (
-          <>
-            {activeTab === 'live' && (
-              <LiveEvaluationRoom
-                pesertaList={pesertaList}
-                activePesertaId={activePesertaId}
-                setActivePesertaId={setActivePesertaId}
-                activePenguji={activePenguji}
-                penilaianList={penilaianList}
-                onOpenBeritaAcara={handleOpenBeritaAcara}
-              />
-            )}
+        </footer>
 
-            {activeTab === 'master' && (
-              <MasterSiswaTable
-                siswaList={masterSiswaList}
-                jurusanList={masterJurusanList}
-                filterJurusanParam={filterJurusanForSiswa}
-                onSiswaUpdated={loadData}
-                onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
-                onNavigateToJurusan={() => setActiveTab('jurusan')}
-              />
-            )}
-
-            {activeTab === 'jurusan' && (
-              <MasterJurusanTable
-                jurusanList={masterJurusanList}
-                siswaList={masterSiswaList}
-                onJurusanUpdated={loadData}
-                onFilterSiswaByJurusan={(namaJurusan) => {
-                  setFilterJurusanForSiswa(namaJurusan);
-                  setActiveTab('master');
-                }}
-              />
-            )}
-
-            {activeTab === 'peserta' && (
-              <PesertaList
-                pesertaList={pesertaList}
-                penilaianList={penilaianList}
-                onSelectPesertaForSidang={handleSelectPesertaForSidang}
-                onOpenBeritaAcara={handleOpenBeritaAcara}
-              />
-            )}
-
-            {activeTab === 'rekap' && (
-              <RekapitulasiView
-                pesertaList={pesertaList}
-                penilaianList={penilaianList}
-                onOpenBeritaAcara={handleOpenBeritaAcara}
-                onSelectPesertaForSidang={handleSelectPesertaForSidang}
-              />
-            )}
-
-            {activeTab === 'rubrik' && <RubrikGuide />}
-          </>
-        )}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-4 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
-          <p>© {new Date().getFullYear()} My PKL — Aplikasi Penilaian Sidang Praktik Kerja Lapangan Real-Time.</p>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsSupabaseModalOpen(true)}
-              className="hover:text-emerald-700 font-semibold"
-            >
-              Setup Supabase & Schema SQL
-            </button>
-            <span>•</span>
-            <button
-              onClick={() => setActiveTab('rubrik')}
-              className="hover:text-emerald-700 font-semibold"
-            >
-              Pedoman Rubrik
-            </button>
-          </div>
-        </div>
-      </footer>
+      </div>
 
       {/* Supabase Config & SQL Schema Modal */}
       <SupabaseModal
