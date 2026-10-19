@@ -1,0 +1,6 @@
+{
+  "name": "My PKL - Dashboard Penilaian Sidang PKL Real-Time",
+  "description": "Aplikasi penilaian sidang Praktik Kerja Lapangan (PKL) interaktif berbasis Supabase dengan fitur penilaian real-time multi-penguji, rekapitulasi nilai, dan cetak berita acara.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
