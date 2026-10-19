@@ -8,14 +8,15 @@ import {
   FileSpreadsheet, 
   BookOpen, 
   CheckCircle2,
-  ChevronDown
+  ChevronDown,
+  Layers
 } from 'lucide-react';
 import { Penguji, SupabaseConfig } from '../types/index.ts';
 import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 
 interface HeaderProps {
-  activeTab: 'live' | 'master' | 'peserta' | 'rekap' | 'rubrik';
-  setActiveTab: (tab: 'live' | 'master' | 'peserta' | 'rekap' | 'rubrik') => void;
+  activeTab: 'live' | 'master' | 'jurusan' | 'peserta' | 'rekap' | 'rubrik';
+  setActiveTab: (tab: 'live' | 'master' | 'jurusan' | 'peserta' | 'rekap' | 'rubrik') => void;
   activePenguji: Penguji;
   setActivePenguji: (penguji: Penguji) => void;
   supabaseConfig: SupabaseConfig;
@@ -81,8 +82,20 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
               }`}
             >
-              <GraduationCap className="w-4 h-4 text-slate-500" />
+              <Users className="w-4 h-4 text-slate-500" />
               <span>Master Siswa PKL</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('jurusan')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'jurusan'
+                  ? 'bg-white text-blue-700 shadow-xs font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <Layers className="w-4 h-4 text-slate-500" />
+              <span>Master Jurusan</span>
             </button>
 
             <button
@@ -215,8 +228,17 @@ export const Header: React.FC<HeaderProps> = ({
               activeTab === 'master' ? 'bg-emerald-100 text-emerald-800 font-bold' : 'text-slate-600'
             }`}
           >
-            <GraduationCap className="w-4 h-4" />
-            <span>Master</span>
+            <Users className="w-4 h-4" />
+            <span>Siswa</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('jurusan')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${
+              activeTab === 'jurusan' ? 'bg-blue-100 text-blue-800 font-bold' : 'text-slate-600'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>Jurusan</span>
           </button>
           <button
             onClick={() => setActiveTab('peserta')}

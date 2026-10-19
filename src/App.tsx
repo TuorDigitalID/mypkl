@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header.tsx';
 import { LiveEvaluationRoom } from './components/LiveEvaluationRoom.tsx';
 import { MasterSiswaTable } from './components/MasterSiswaTable.tsx';
+import { MasterJurusanTable } from './components/MasterJurusanTable.tsx';
 import { PesertaList } from './components/PesertaList.tsx';
 import { RekapitulasiView } from './components/RekapitulasiView.tsx';
 import { RubrikGuide } from './components/RubrikGuide.tsx';
@@ -12,23 +13,27 @@ import {
   Penguji, 
   PenilaianPenguji, 
   SupabaseConfig,
-  MasterSiswaPKL
+  MasterSiswaPKL,
+  MasterJurusan
 } from './types/index.ts';
 import { DAFTAR_PENGUJI } from './data/penguji.ts';
 import { 
   getPesertaSidangList, 
   getPenilaianList, 
   getMasterSiswaList,
+  getMasterJurusanList,
   getSupabaseConfig, 
   subscribeToRealtimeUpdates 
 } from './lib/supabase.ts';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'live' | 'master' | 'peserta' | 'rekap' | 'rubrik'>('master');
+  const [activeTab, setActiveTab] = useState<'live' | 'master' | 'jurusan' | 'peserta' | 'rekap' | 'rubrik'>('master');
   const [activePenguji, setActivePenguji] = useState<Penguji>(DAFTAR_PENGUJI[0]);
   const [pesertaList, setPesertaList] = useState<MahasiswaSidang[]>([]);
   const [penilaianList, setPenilaianList] = useState<PenilaianPenguji[]>([]);
   const [masterSiswaList, setMasterSiswaList] = useState<MasterSiswaPKL[]>([]);
+  const [masterJurusanList, setMasterJurusanList] = useState<MasterJurusan[]>([]);
+  const [filterJurusanForSiswa, setFilterJurusanForSiswa] = useState<string>('semua');
   const [activePesertaId, setActivePesertaId] = useState<string>('m1');
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(getSupabaseConfig());
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
@@ -38,14 +43,16 @@ export default function App() {
   // Load initial data
   const loadData = useCallback(async () => {
     try {
-      const [peserta, nilai, master] = await Promise.all([
+      const [peserta, nilai, master, jurusan] = await Promise.all([
         getPesertaSidangList(),
         getPenilaianList(),
         getMasterSiswaList(),
+        getMasterJurusanList(),
       ]);
       setPesertaList(peserta);
       setPenilaianList(nilai);
       setMasterSiswaList(master);
+      setMasterJurusanList(jurusan);
       if (peserta.length > 0 && !peserta.some((p) => p.id === activePesertaId)) {
         setActivePesertaId(peserta[0].id);
       }
@@ -99,6 +106,20 @@ export default function App() {
         });
       } else if (event.type === 'MASTER_SISWA_DELETED' && event.payload) {
         setMasterSiswaList((prev) => prev.filter((s) => s.id !== event.payload.id));
+      } else if (event.type === 'MASTER_JURUSAN_UPDATED' && event.payload) {
+        setMasterJurusanList((prev) => {
+          const index = prev.findIndex(
+            (j) => j.id === event.payload.id || j.kode.toUpperCase() === event.payload.kode.toUpperCase()
+          );
+          if (index >= 0) {
+            const next = [...prev];
+            next[index] = event.payload;
+            return next;
+          }
+          return [...prev, event.payload];
+        });
+      } else if (event.type === 'MASTER_JURUSAN_DELETED' && event.payload) {
+        setMasterJurusanList((prev) => prev.filter((j) => j.id !== event.payload.id));
       }
     });
 
@@ -152,7 +173,23 @@ export default function App() {
             {activeTab === 'master' && (
               <MasterSiswaTable
                 siswaList={masterSiswaList}
+                jurusanList={masterJurusanList}
+                filterJurusanParam={filterJurusanForSiswa}
                 onSiswaUpdated={loadData}
+                onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+                onNavigateToJurusan={() => setActiveTab('jurusan')}
+              />
+            )}
+
+            {activeTab === 'jurusan' && (
+              <MasterJurusanTable
+                jurusanList={masterJurusanList}
+                siswaList={masterSiswaList}
+                onJurusanUpdated={loadData}
+                onFilterSiswaByJurusan={(namaJurusan) => {
+                  setFilterJurusanForSiswa(namaJurusan);
+                  setActiveTab('master');
+                }}
               />
             )}
 

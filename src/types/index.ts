@@ -92,3 +92,15 @@ export interface MasterSiswaPKL {
   guruPembimbing: string;
   createdAt?: string;
 }
+
+export interface MasterJurusan {
+  id: string;
+  kode: string; // e.g. 'RPL', 'TKJ', 'SIJA', 'DKV'
+  nama: string; // e.g. 'Rekayasa Perangkat Lunak'
+  bidangKeahlian: string; // e.g. 'Teknologi Informasi & Komunikasi'
+  kepalaProgram: string;
+  deskripsi?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}

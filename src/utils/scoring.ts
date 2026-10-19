@@ -241,43 +241,108 @@ CREATE TABLE IF NOT EXISTS public.penilaian_sidang (
     CONSTRAINT unique_mahasiswa_penguji UNIQUE (mahasiswa_id, penguji_id)
 );
 
--- 4. Tabel Master Siswa PKL (Akun & Pembimbing)
+-- 4. Tabel Master Jurusan / Program Keahlian
+CREATE TABLE IF NOT EXISTS public.master_jurusan (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    kode VARCHAR(20) NOT NULL UNIQUE,
+    nama VARCHAR(150) NOT NULL,
+    bidang_keahlian VARCHAR(150) NOT NULL,
+    kepala_program VARCHAR(150),
+    deskripsi TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 5. Tabel Master Siswa PKL (Akun & Pembimbing)
 CREATE TABLE IF NOT EXISTS public.master_siswa_pkl (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nisn VARCHAR(20) NOT NULL UNIQUE,
     nama_lengkap VARCHAR(150) NOT NULL,
     kelas VARCHAR(50) NOT NULL,
     jurusan VARCHAR(100) NOT NULL,
-    email_login VARCHAR(150) NOT NULL UNIQUE,
+    email_login VARCHAR(150) NOT NULL,
     password_login VARCHAR(100) NOT NULL,
     guru_pembimbing VARCHAR(150) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- Aktifkan Realtime Publikasi untuk Supabase
-ALTER PUBLICATION supabase_realtime ADD TABLE public.peserta_sidang;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.penilaian_sidang;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.master_siswa_pkl;
+-- Hapus constraint unique email jika sebelumnya pernah terpasang
+ALTER TABLE public.master_siswa_pkl DROP CONSTRAINT IF EXISTS master_siswa_pkl_email_login_key;
+
+-- Aktifkan Realtime Publikasi untuk Supabase secara aman (Aman dijalankan berulang kali)
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.peserta_sidang;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.penilaian_sidang;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.master_siswa_pkl;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.master_jurusan;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+END $$;
 
 -- Enable Row Level Security (RLS) & Public Access Policies for Sidang
 ALTER TABLE public.peserta_sidang ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.penguji ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.penilaian_sidang ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_siswa_pkl ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.master_jurusan ENABLE ROW LEVEL SECURITY;
 
--- Policy agar semua penguji & admin dapat membaca dan mengupdate data sidang
-CREATE POLICY "Public Read Access Peserta" ON public.peserta_sidang FOR SELECT USING (true);
-CREATE POLICY "Public Write Access Peserta" ON public.peserta_sidang FOR ALL USING (true);
+-- Berikan izin akses penuh ke role anon dan authenticated Supabase
+GRANT ALL ON TABLE public.peserta_sidang TO anon, authenticated;
+GRANT ALL ON TABLE public.penguji TO anon, authenticated;
+GRANT ALL ON TABLE public.penilaian_sidang TO anon, authenticated;
+GRANT ALL ON TABLE public.master_siswa_pkl TO anon, authenticated;
+GRANT ALL ON TABLE public.master_jurusan TO anon, authenticated;
 
-CREATE POLICY "Public Read Access Penguji" ON public.penguji FOR SELECT USING (true);
-CREATE POLICY "Public Write Access Penguji" ON public.penguji FOR ALL USING (true);
+-- Policies (DROP IF EXISTS agar tidak error jika sudah ada)
+DROP POLICY IF EXISTS "Public Read Access Peserta" ON public.peserta_sidang;
+CREATE POLICY "Public Read Access Peserta" ON public.peserta_sidang FOR SELECT TO anon, authenticated USING (true);
 
-CREATE POLICY "Public Read Access Penilaian" ON public.penilaian_sidang FOR SELECT USING (true);
-CREATE POLICY "Public Write Access Penilaian" ON public.penilaian_sidang FOR ALL USING (true);
+DROP POLICY IF EXISTS "Public Write Access Peserta" ON public.peserta_sidang;
+CREATE POLICY "Public Write Access Peserta" ON public.peserta_sidang FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
-CREATE POLICY "Public Read Access Master Siswa" ON public.master_siswa_pkl FOR SELECT USING (true);
-CREATE POLICY "Public Write Access Master Siswa" ON public.master_siswa_pkl FOR ALL USING (true);
+DROP POLICY IF EXISTS "Public Read Access Penguji" ON public.penguji;
+CREATE POLICY "Public Read Access Penguji" ON public.penguji FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Penguji" ON public.penguji;
+CREATE POLICY "Public Write Access Penguji" ON public.penguji FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Read Access Penilaian" ON public.penilaian_sidang;
+CREATE POLICY "Public Read Access Penilaian" ON public.penilaian_sidang FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Penilaian" ON public.penilaian_sidang;
+CREATE POLICY "Public Write Access Penilaian" ON public.penilaian_sidang FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Read Access Master Siswa" ON public.master_siswa_pkl;
+CREATE POLICY "Public Read Access Master Siswa" ON public.master_siswa_pkl FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Master Siswa" ON public.master_siswa_pkl;
+CREATE POLICY "Public Write Access Master Siswa" ON public.master_siswa_pkl FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Read Access Master Jurusan" ON public.master_jurusan;
+CREATE POLICY "Public Read Access Master Jurusan" ON public.master_jurusan FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Master Jurusan" ON public.master_jurusan;
+CREATE POLICY "Public Write Access Master Jurusan" ON public.master_jurusan FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- Insert Data Penguji Awal (Seed Data)
 INSERT INTO public.penguji (nip, nama, peran)
@@ -286,5 +351,14 @@ VALUES
     ('198705202010122003', 'Siti Nurhaliza, S.Kom., M.Cs.', 'Penguji 2 (Sekretaris)'),
     ('199108112015041002', 'Bambang Prasetyo, S.T. (DUDI)', 'Penguji 3 (Anggota)')
 ON CONFLICT (nip) DO NOTHING;
+
+-- Insert Data Master Jurusan Awal (Seed Data)
+INSERT INTO public.master_jurusan (kode, nama, bidang_keahlian, kepala_program, deskripsi)
+VALUES
+    ('RPL', 'Rekayasa Perangkat Lunak', 'Teknologi Informasi & Komunikasi', 'Dr. Ir. Hendra Kurniawan, M.T.', 'Pengembangan web, mobile, cloud computing, dan database.'),
+    ('TKJ', 'Teknik Komputer & Jaringan', 'Teknologi Informasi & Komunikasi', 'Ahmad Zulfikar, S.T., M.Kom.', 'Infrastruktur jaringan, administrasi server, dan cyber security.'),
+    ('SIJA', 'Sistem Informasi Jaringan & Aplikasi', 'Teknologi Informasi & Komunikasi', 'Siti Nurhaliza, S.Kom., M.Cs.', 'Cloud platform, devops, internet of things (IoT), dan system integration.'),
+    ('DKV', 'Desain Komunikasi Visual', 'Seni & Ekonomi Kreatif', 'Dra. Sri Wahyuni, M.Pd.', 'Desain grafis, UI/UX, visual branding, dan videografi digital.')
+ON CONFLICT (kode) DO NOTHING;
 `;
 }

@@ -1,10 +1,12 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { MahasiswaSidang, PenilaianPenguji, SupabaseConfig, MasterSiswaPKL } from '../types/index.ts';
+import type { MahasiswaSidang, PenilaianPenguji, SupabaseConfig, MasterSiswaPKL, MasterJurusan } from '../types/index.ts';
+import { INITIAL_MASTER_JURUSAN } from '../data/jurusan.ts';
 
 const STORAGE_KEY_SUPABASE = 'my_pkl_supabase_config';
 const STORAGE_KEY_PESERTA = 'my_pkl_peserta_sidang';
 const STORAGE_KEY_PENILAIAN = 'my_pkl_penilaian_sidang';
 const STORAGE_KEY_MASTER_SISWA = 'my_pkl_master_siswa';
+const STORAGE_KEY_MASTER_JURUSAN = 'my_pkl_master_jurusan';
 
 // Initial Seed Data for immediate high-fidelity testing
 export const INITIAL_PESERTA: MahasiswaSidang[] = [
@@ -279,13 +281,16 @@ function getBroadcastChannel(): BroadcastChannel | null {
 }
 
 export function getSupabaseConfig(): SupabaseConfig {
+  const envUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL || '';
+  const envKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY || '';
+
   if (typeof window === 'undefined') {
     return {
-      url: '',
-      anonKey: '',
+      url: envUrl,
+      anonKey: envKey,
       tableNameSidang: 'peserta_sidang',
       tableNameNilai: 'penilaian_sidang',
-      isConnected: false,
+      isConnected: Boolean(envUrl && envKey),
     };
   }
 
@@ -293,12 +298,14 @@ export function getSupabaseConfig(): SupabaseConfig {
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
+      const url = parsed.url || envUrl;
+      const anonKey = parsed.anonKey || envKey;
       return {
-        url: parsed.url || '',
-        anonKey: parsed.anonKey || '',
+        url,
+        anonKey,
         tableNameSidang: parsed.tableNameSidang || 'peserta_sidang',
         tableNameNilai: parsed.tableNameNilai || 'penilaian_sidang',
-        isConnected: Boolean(parsed.url && parsed.anonKey),
+        isConnected: Boolean(url && anonKey),
       };
     } catch {
       // ignore
@@ -306,11 +313,11 @@ export function getSupabaseConfig(): SupabaseConfig {
   }
 
   return {
-    url: '',
-    anonKey: '',
+    url: envUrl,
+    anonKey: envKey,
     tableNameSidang: 'peserta_sidang',
     tableNameNilai: 'penilaian_sidang',
-    isConnected: false,
+    isConnected: Boolean(envUrl && envKey),
   };
 }
 
@@ -765,6 +772,14 @@ export async function getMasterSiswaList(): Promise<MasterSiswaPKL[]> {
 }
 
 /**
+ * Helper validasi format UUID v4
+ */
+export function isValidUUID(str: string): boolean {
+  if (!str || typeof str !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+}
+
+/**
  * Save / Update Master Siswa
  */
 export async function saveMasterSiswa(siswa: MasterSiswaPKL): Promise<MasterSiswaPKL[]> {
@@ -791,8 +806,7 @@ export async function saveMasterSiswa(siswa: MasterSiswaPKL): Promise<MasterSisw
   const client = getSupabaseClient();
   if (client) {
     try {
-      await client.from('master_siswa_pkl').upsert({
-        id: siswa.id,
+      const record: any = {
         nisn: siswa.nisn,
         nama_lengkap: siswa.namaLengkap,
         kelas: siswa.kelas,
@@ -801,13 +815,133 @@ export async function saveMasterSiswa(siswa: MasterSiswaPKL): Promise<MasterSisw
         password_login: siswa.passwordLogin,
         guru_pembimbing: siswa.guruPembimbing,
         updated_at: new Date().toISOString(),
-      });
+      };
+      // Jika id adalah UUID valid, sertakan. Jika id dummy seperti 'ms-1', biarkan Supabase generate UUID
+      if (isValidUUID(siswa.id)) {
+        record.id = siswa.id;
+      }
+
+      const { data, error } = await client
+        .from('master_siswa_pkl')
+        .upsert(record, { onConflict: 'nisn' })
+        .select();
+
+      if (error) {
+        console.error('Supabase upsert master_siswa_pkl error:', error);
+      } else if (data && data[0]) {
+        // Sinkronisasi UUID yang digenerate oleh Postgres
+        const realId = data[0].id;
+        const idx = updatedList.findIndex((s) => s.nisn === siswa.nisn);
+        if (idx >= 0) {
+          updatedList[idx].id = realId;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY_MASTER_SISWA, JSON.stringify(updatedList));
+          }
+        }
+      }
     } catch (err) {
       console.warn('Supabase upsert master_siswa_pkl error:', err);
     }
   }
 
   return updatedList;
+}
+
+export interface BatchInsertResult {
+  success: boolean;
+  count: number;
+  savedToDatabase: boolean;
+  message: string;
+}
+
+/**
+ * Batch insert / upsert master siswa langsung ke database Supabase
+ */
+export async function insertMasterSiswaBatch(siswaList: MasterSiswaPKL[]): Promise<BatchInsertResult> {
+  const client = getSupabaseClient();
+  const currentLocal = await getMasterSiswaList();
+
+  if (client) {
+    try {
+      const recordsToInsert = siswaList.map((s) => {
+        const item: any = {
+          nisn: s.nisn,
+          nama_lengkap: s.namaLengkap,
+          kelas: s.kelas,
+          jurusan: s.jurusan,
+          email_login: s.emailLogin,
+          password_login: s.passwordLogin,
+          guru_pembimbing: s.guruPembimbing,
+          updated_at: new Date().toISOString(),
+        };
+        if (isValidUUID(s.id)) {
+          item.id = s.id;
+        }
+        return item;
+      });
+
+      const { data, error } = await client
+        .from('master_siswa_pkl')
+        .upsert(recordsToInsert, { onConflict: 'nisn' })
+        .select();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // Gabungkan hasil dari database ke state lokal
+      const dbItems: MasterSiswaPKL[] = (data || []).map((d: any) => ({
+        id: d.id,
+        nisn: d.nisn,
+        namaLengkap: d.nama_lengkap,
+        kelas: d.kelas,
+        jurusan: d.jurusan,
+        emailLogin: d.email_login,
+        passwordLogin: d.password_login,
+        guruPembimbing: d.guru_pembimbing,
+        createdAt: d.created_at,
+      }));
+
+      const merged = [...currentLocal];
+      dbItems.forEach((dbItem) => {
+        const idx = merged.findIndex((m) => m.nisn === dbItem.nisn);
+        if (idx >= 0) merged[idx] = dbItem;
+        else merged.unshift(dbItem);
+      });
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_MASTER_SISWA, JSON.stringify(merged));
+      }
+
+      broadcastRealtimeChange({
+        type: 'MASTER_SISWA_BATCH_UPDATED',
+        payload: dbItems,
+      });
+
+      return {
+        success: true,
+        count: dbItems.length,
+        savedToDatabase: true,
+        message: `${dbItems.length} data siswa berhasil disimpan LANGSUNG ke Database Supabase (tabel master_siswa_pkl).`,
+      };
+    } catch (dbErr: any) {
+      console.error('Gagal menyimpan ke database Supabase:', dbErr);
+      return {
+        success: false,
+        count: 0,
+        savedToDatabase: false,
+        message: `Gagal menyimpan ke database Supabase: ${dbErr?.message || 'Pastikan tabel master_siswa_pkl sudah dibuat di Supabase.'}`,
+      };
+    }
+  }
+
+  // Jika Supabase belum dikonfigurasi sama sekali
+  return {
+    success: false,
+    count: 0,
+    savedToDatabase: false,
+    message: 'Database Supabase belum terhubung! Silakan klik tombol "Supabase" di kanan atas dan masukkan Project URL serta Anon Key agar data dapat disimpan langsung ke database server.',
+  };
 }
 
 /**
@@ -832,6 +966,146 @@ export async function deleteMasterSiswa(id: string): Promise<MasterSiswaPKL[]> {
       await client.from('master_siswa_pkl').delete().eq('id', id);
     } catch (err) {
       console.warn('Supabase delete master_siswa_pkl error:', err);
+    }
+  }
+
+  return updatedList;
+}
+
+/**
+ * Load Master Jurusan: prioritizes Supabase, falls back to LocalStorage
+ */
+export async function getMasterJurusanList(): Promise<MasterJurusan[]> {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('master_jurusan')
+        .select('*')
+        .order('kode', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          id: d.id,
+          kode: d.kode,
+          nama: d.nama,
+          bidangKeahlian: d.bidang_keahlian,
+          kepalaProgram: d.kepala_program || '',
+          deskripsi: d.deskripsi || '',
+          isActive: d.is_active !== false,
+          createdAt: d.created_at,
+          updatedAt: d.updated_at,
+        }));
+      }
+    } catch (err) {
+      console.warn('Supabase fetch master_jurusan error, using fallback:', err);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem(STORAGE_KEY_MASTER_JURUSAN);
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        // ignore
+      }
+    }
+    localStorage.setItem(STORAGE_KEY_MASTER_JURUSAN, JSON.stringify(INITIAL_MASTER_JURUSAN));
+  }
+
+  return INITIAL_MASTER_JURUSAN;
+}
+
+/**
+ * Save / Update Master Jurusan
+ */
+export async function saveMasterJurusan(jurusan: MasterJurusan): Promise<MasterJurusan[]> {
+  const currentList = await getMasterJurusanList();
+  const existingIdx = currentList.findIndex(
+    (j) => j.id === jurusan.id || j.kode.toUpperCase() === jurusan.kode.toUpperCase()
+  );
+  let updatedList: MasterJurusan[];
+
+  if (existingIdx >= 0) {
+    updatedList = [...currentList];
+    updatedList[existingIdx] = jurusan;
+  } else {
+    updatedList = [...currentList, jurusan];
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_MASTER_JURUSAN, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'MASTER_JURUSAN_UPDATED',
+    payload: jurusan,
+  });
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const record: any = {
+        kode: jurusan.kode.toUpperCase().trim(),
+        nama: jurusan.nama.trim(),
+        bidang_keahlian: jurusan.bidangKeahlian.trim(),
+        kepala_program: jurusan.kepalaProgram.trim(),
+        deskripsi: jurusan.deskripsi || '',
+        is_active: jurusan.isActive,
+        updated_at: new Date().toISOString(),
+      };
+      if (isValidUUID(jurusan.id)) {
+        record.id = jurusan.id;
+      }
+
+      const { data, error } = await client
+        .from('master_jurusan')
+        .upsert(record, { onConflict: 'kode' })
+        .select();
+
+      if (error) {
+        console.error('Supabase upsert master_jurusan error:', error);
+      } else if (data && data[0]) {
+        const realId = data[0].id;
+        const idx = updatedList.findIndex((j) => j.kode.toUpperCase() === jurusan.kode.toUpperCase());
+        if (idx >= 0) {
+          updatedList[idx].id = realId;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY_MASTER_JURUSAN, JSON.stringify(updatedList));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase upsert master_jurusan error:', err);
+    }
+  }
+
+  return updatedList;
+}
+
+/**
+ * Delete Master Jurusan
+ */
+export async function deleteMasterJurusan(id: string): Promise<MasterJurusan[]> {
+  const currentList = await getMasterJurusanList();
+  const updatedList = currentList.filter((j) => j.id !== id);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_MASTER_JURUSAN, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'MASTER_JURUSAN_DELETED',
+    payload: { id },
+  });
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from('master_jurusan').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Supabase delete master_jurusan error:', err);
     }
   }
 

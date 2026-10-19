@@ -16,25 +16,33 @@ import {
 } from 'lucide-react';
 import { MasterSiswaPKL } from '../types/index.ts';
 import { parseExcelFileBuffer, downloadExcelTemplate, ParseResult } from '../utils/excelParser.ts';
-import { saveMasterSiswa } from '../lib/supabase.ts';
+import { insertMasterSiswaBatch, getSupabaseConfig } from '../lib/supabase.ts';
 
 interface UploadExcelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (count: number) => void;
+  onSuccess: (count: number, message?: string) => void;
+  onOpenSupabaseModal?: () => void;
 }
 
 export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  onOpenSupabaseModal,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [importStatus, setImportStatus] = useState<{
+    type: 'success' | 'warning' | 'error' | null;
+    message: string;
+  }>({ type: null, message: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const config = getSupabaseConfig();
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -52,6 +60,7 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
     if (!file) return;
     setSelectedFile(file);
     setIsProcessing(true);
+    setImportStatus({ type: null, message: '' });
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -102,22 +111,31 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
   const handleResetFile = () => {
     setSelectedFile(null);
     setParseResult(null);
+    setImportStatus({ type: null, message: '' });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleImportData = async () => {
     if (!parseResult || parseResult.validSiswa.length === 0) return;
     setIsSaving(true);
+    setImportStatus({ type: null, message: '' });
 
     try {
-      // Save all parsed students sequentially / in batch
-      for (const siswa of parseResult.validSiswa) {
-        await saveMasterSiswa(siswa);
+      const result = await insertMasterSiswaBatch(parseResult.validSiswa);
+      if (result.savedToDatabase) {
+        onSuccess(result.count, result.message);
+        onClose();
+      } else {
+        setImportStatus({
+          type: 'error',
+          message: result.message,
+        });
       }
-      onSuccess(parseResult.validSiswa.length);
-      onClose();
-    } catch (err) {
-      console.error('Error batch importing siswa:', err);
+    } catch (err: any) {
+      setImportStatus({
+        type: 'error',
+        message: `Gagal menyimpan ke database Supabase: ${err?.message || 'Pastikan koneksi Supabase Anda aktif.'}`,
+      });
     } finally {
       setIsSaving(false);
     }
@@ -156,6 +174,59 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
         </div>
 
         <div className="p-6 space-y-5">
+
+          {/* Status Koneksi Database Supabase */}
+          <div className={`p-3.5 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+            config.isConnected
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+              : 'bg-amber-50 border-amber-300 text-amber-900'
+          }`}>
+            <div className="flex items-start sm:items-center gap-2.5">
+              <Database className={`w-4 h-4 flex-shrink-0 mt-0.5 sm:mt-0 ${config.isConnected ? 'text-emerald-600' : 'text-amber-600'}`} />
+              <div>
+                <span className="font-bold">
+                  {config.isConnected
+                    ? 'Database Supabase Terhubung: Data akan LANGSUNG disimpan ke Server Database'
+                    : 'Database Supabase Belum Terhubung'}
+                </span>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  {config.isConnected
+                    ? 'Data Excel yang diunggah akan langsung dikirim dan disimpan permanen di tabel "master_siswa_pkl".'
+                    : 'Aplikasi belum terhubung ke database online Supabase Anda. Hubungkan Supabase agar data tersimpan langsung ke server database.'}
+                </p>
+              </div>
+            </div>
+            {!config.isConnected && onOpenSupabaseModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenSupabaseModal();
+                }}
+                className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs whitespace-nowrap shadow-xs self-start sm:self-auto"
+              >
+                Hubungkan Supabase
+              </button>
+            )}
+          </div>
+
+          {/* Import status notification banner */}
+          {importStatus.message && (
+            <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+              importStatus.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : importStatus.type === 'warning'
+                ? 'bg-amber-50 border-amber-200 text-amber-800'
+                : 'bg-red-50 border-red-200 text-red-800'
+            }`}>
+              {importStatus.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+              )}
+              <span className="font-medium">{importStatus.message}</span>
+            </div>
+          )}
           
           {/* Step 1: Download Template Box */}
           <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
@@ -313,7 +384,7 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <button
             type="button"
             onClick={onClose}
@@ -322,24 +393,40 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
             Batal
           </button>
 
-          <button
-            type="button"
-            disabled={!parseResult || parseResult.validSiswa.length === 0 || isSaving}
-            onClick={handleImportData}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all"
-          >
-            {isSaving ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Menyimpan ke Database...</span>
-              </>
-            ) : (
-              <>
-                <span>Simpan {parseResult ? parseResult.validSiswa.length : 0} Siswa ke Database</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
+          {!config.isConnected ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenSupabaseModal?.();
+                }}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md shadow-amber-600/20 transition-all"
+              >
+                <Database className="w-4 h-4" />
+                <span>Hubungkan Database Supabase Terlebih Dahulu</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={!parseResult || parseResult.validSiswa.length === 0 || isSaving}
+              onClick={handleImportData}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all"
+            >
+              {isSaving ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Menyimpan ke Database Supabase...</span>
+                </>
+              ) : (
+                <>
+                  <span>Simpan {parseResult ? parseResult.validSiswa.length : 0} Siswa Langsung ke Supabase</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          )}
         </div>
 
       </div>

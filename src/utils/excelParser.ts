@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { MasterSiswaPKL } from '../types/index.ts';
+import { normalizeJurusanInput } from './jurusanUtils.ts';
 
 export interface ParseResult {
   validSiswa: MasterSiswaPKL[];
@@ -55,7 +56,7 @@ export function processRawExcelRows(rawRows: Record<string, any>[]): ParseResult
         norm === 'kompetensikeahlian' ||
         norm === 'prodi'
       ) {
-        jurusan = valStr || jurusan;
+        jurusan = normalizeJurusanInput(valStr || jurusan);
       } else if (
         norm === 'emaillogin' ||
         norm === 'email' ||

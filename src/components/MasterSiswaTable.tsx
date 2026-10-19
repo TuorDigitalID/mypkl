@@ -10,37 +10,45 @@ import {
   Check, 
   Edit3, 
   Trash2, 
-  Filter, 
   KeyRound, 
   Mail, 
   GraduationCap, 
-  Building, 
-  CalendarPlus, 
   Sparkles,
   X,
   AlertCircle,
   CheckCircle2,
   Lock,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ShieldAlert,
+  Layers,
+  ArrowRight
 } from 'lucide-react';
-import { MasterSiswaPKL } from '../types/index.ts';
+import { MasterSiswaPKL, MasterJurusan } from '../types/index.ts';
 import { saveMasterSiswa, deleteMasterSiswa } from '../lib/supabase.ts';
 import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 import { UploadExcelModal } from './UploadExcelModal.tsx';
+import { findJurusanByNameOrCode, getJurusanColorTheme } from '../utils/jurusanUtils.ts';
 
 interface MasterSiswaTableProps {
   siswaList: MasterSiswaPKL[];
+  jurusanList?: MasterJurusan[];
   onSiswaUpdated: () => void;
   onJadwalkanSidang?: (siswa: MasterSiswaPKL) => void;
+  onOpenSupabaseModal?: () => void;
+  onNavigateToJurusan?: () => void;
+  filterJurusanParam?: string;
 }
 
 export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
   siswaList,
+  jurusanList = [],
   onSiswaUpdated,
-  onJadwalkanSidang,
+  onOpenSupabaseModal,
+  onNavigateToJurusan,
+  filterJurusanParam,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedJurusan, setSelectedJurusan] = useState<string>('semua');
+  const [selectedJurusan, setSelectedJurusan] = useState<string>(filterJurusanParam || 'semua');
   const [selectedKelas, setSelectedKelas] = useState<string>('semua');
   const [showAllPasswords, setShowAllPasswords] = useState(false);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
@@ -50,6 +58,8 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [editingSiswa, setEditingSiswa] = useState<MasterSiswaPKL | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<MasterSiswaPKL | null>(null);
+
   const [formData, setFormData] = useState({
     nisn: '',
     namaLengkap: '',
@@ -62,21 +72,32 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
   const [formError, setFormError] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Sync if filterJurusanParam changes from parent (e.g. from Master Jurusan table)
+  React.useEffect(() => {
+    if (filterJurusanParam) {
+      setSelectedJurusan(filterJurusanParam);
+    }
+  }, [filterJurusanParam]);
+
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isModalOpen) {
-        setIsModalOpen(false);
+      if (e.key === 'Escape') {
+        if (isModalOpen) setIsModalOpen(false);
+        if (isUploadModalOpen) setIsUploadModalOpen(false);
+        if (deleteCandidate) setDeleteCandidate(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen]);
+  }, [isModalOpen, isUploadModalOpen, deleteCandidate]);
 
   // Available unique jurusan & kelas for filters
   const jurusanOptions = useMemo(() => {
-    const list = Array.from(new Set(siswaList.map((s) => s.jurusan))).filter(Boolean);
+    const fromMaster = jurusanList.map((j) => j.nama);
+    const fromSiswa = siswaList.map((s) => s.jurusan);
+    const list = Array.from(new Set([...fromMaster, ...fromSiswa])).filter(Boolean);
     return ['semua', ...list];
-  }, [siswaList]);
+  }, [siswaList, jurusanList]);
 
   const kelasOptions = useMemo(() => {
     const list = Array.from(new Set(siswaList.map((s) => s.kelas))).filter(Boolean);
@@ -99,6 +120,11 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     });
   }, [siswaList, searchTerm, selectedJurusan, selectedKelas]);
 
+  // Selected Jurusan detail for Form Modal
+  const selectedFormJurusanObj = useMemo(() => {
+    return findJurusanByNameOrCode(jurusanList, formData.jurusan);
+  }, [jurusanList, formData.jurusan]);
+
   const togglePasswordReveal = (id: string) => {
     setRevealedPasswords((prev) => ({
       ...prev,
@@ -118,13 +144,17 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
 
   const handleOpenAddModal = () => {
     setEditingSiswa(null);
+    const defaultJurusan = jurusanList.find((j) => j.isActive) || jurusanList[0];
     const initialNisn = `006${Math.floor(1000000 + Math.random() * 9000000)}`;
+    const jurusanName = defaultJurusan ? defaultJurusan.nama : 'Rekayasa Perangkat Lunak';
+    const kode = defaultJurusan ? defaultJurusan.kode : 'RPL';
+
     setFormData({
       nisn: initialNisn,
       namaLengkap: '',
-      kelas: 'XII RPL 1',
-      jurusan: 'Rekayasa Perangkat Lunak',
-      emailLogin: `siswa.${initialNisn}@smk.belajar.id`,
+      kelas: `XII ${kode} 1`,
+      jurusan: jurusanName,
+      emailLogin: `siswa.${initialNisn.slice(-4)}@smk.belajar.id`,
       passwordLogin: `Pkl#${Math.floor(1000 + Math.random() * 9000)}`,
       guruPembimbing: DAFTAR_PENGUJI[0]?.nama || 'Dr. Ir. Hendra Kurniawan, M.T.',
     });
@@ -147,13 +177,26 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (siswa: MasterSiswaPKL) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus data master siswa "${siswa.namaLengkap}" (${siswa.nisn})?`)) {
-      await deleteMasterSiswa(siswa.id);
-      onSiswaUpdated();
-      setToastMessage(`Data siswa ${siswa.namaLengkap} berhasil dihapus.`);
-      setTimeout(() => setToastMessage(null), 3000);
-    }
+  const handleConfirmDelete = async () => {
+    if (!deleteCandidate) return;
+    const nama = deleteCandidate.namaLengkap;
+    await deleteMasterSiswa(deleteCandidate.id);
+    setDeleteCandidate(null);
+    onSiswaUpdated();
+    setToastMessage(`Data siswa ${nama} berhasil dihapus.`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleJurusanChangeInForm = (newJurusanNama: string) => {
+    const matchedJurusan = findJurusanByNameOrCode(jurusanList, newJurusanNama);
+    setFormData((prev) => {
+      const next = { ...prev, jurusan: newJurusanNama };
+      // Jika mode tambah siswa baru dan kelas masih default, sesuaikan kelas dengan kode jurusan
+      if (!editingSiswa && matchedJurusan) {
+        next.kelas = `XII ${matchedJurusan.kode} 1`;
+      }
+      return next;
+    });
   };
 
   const handleGenerateCredentials = () => {
@@ -256,13 +299,24 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Pengelolaan akun login siswa, NISN, rombel kelas, program keahlian, dan penugasan guru pembimbing sekolah.
+                Pengelolaan akun login siswa, NISN, rombel kelas, program keahlian terintegrasi, dan guru pembimbing sekolah.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 self-start md:self-auto">
+        <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
+          {onNavigateToJurusan && (
+            <button
+              onClick={onNavigateToJurusan}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-semibold text-xs transition-colors shadow-xs"
+              title="Kelola Data Master Jurusan"
+            >
+              <Layers className="w-4 h-4 text-blue-600" />
+              <span>Master Jurusan ({jurusanList.length})</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsUploadModalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-semibold text-xs transition-colors shadow-xs"
@@ -355,7 +409,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
         </div>
       </div>
 
-      {/* Main Table: Exact Columns Requested */}
+      {/* Main Table: Exact Columns Requested with connected Jurusan badge */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
@@ -365,7 +419,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                 <th className="py-3 px-4 font-mono">NISN</th>
                 <th className="py-3 px-4">Nama Lengkap</th>
                 <th className="py-3 px-3 text-center">Kelas</th>
-                <th className="py-3 px-4">Jurusan</th>
+                <th className="py-3 px-4">Program Keahlian (Jurusan)</th>
                 <th className="py-3 px-4">Email Login</th>
                 <th className="py-3 px-4">Password Login</th>
                 <th className="py-3 px-4">Guru Pembimbing</th>
@@ -376,6 +430,8 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
               {filteredList.map((siswa, index) => {
                 const isPasswordRevealed = showAllPasswords || revealedPasswords[siswa.id];
                 const isCopied = copiedId === siswa.id;
+                const matchedJurusan = findJurusanByNameOrCode(jurusanList, siswa.jurusan);
+                const theme = getJurusanColorTheme(matchedJurusan?.kode || siswa.jurusan);
 
                 return (
                   <tr key={siswa.id} className="hover:bg-slate-50/80 transition-colors">
@@ -391,7 +447,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                         <button
                           onClick={() => handleCopy(siswa.nisn, `${siswa.id}-nisn`, 'NISN')}
                           title="Salin NISN"
-                          className="opacity-0 group-hover:opacity-100 hover:opacity-100 text-slate-400 hover:text-slate-600 transition-opacity"
+                          className="text-slate-400 hover:text-emerald-600 p-0.5 transition-colors"
                         >
                           <Copy className="w-3 h-3" />
                         </button>
@@ -410,11 +466,21 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                       </span>
                     </td>
 
-                    {/* 5. Jurusan */}
+                    {/* 5. Jurusan (Terkoneksi ke Master Jurusan) */}
                     <td className="py-3.5 px-4">
-                      <span className="font-semibold text-slate-700">
-                        {siswa.jurusan}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md font-black font-mono text-[11px] border ${theme.badge}`}>
+                          {matchedJurusan ? matchedJurusan.kode : (siswa.jurusan.length > 5 ? siswa.jurusan.slice(0, 4).toUpperCase() : siswa.jurusan.toUpperCase())}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedJurusan(siswa.jurusan)}
+                          className="font-semibold text-slate-800 text-xs hover:text-blue-600 hover:underline text-left cursor-pointer transition-colors"
+                          title={`Klik untuk filter siswa jurusan ${siswa.jurusan}`}
+                        >
+                          {siswa.jurusan}
+                        </button>
+                      </div>
                     </td>
 
                     {/* 6. Email Login */}
@@ -489,7 +555,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(siswa)}
+                          onClick={() => setDeleteCandidate(siswa)}
                           title="Hapus Siswa"
                           className="p-1.5 rounded-lg border border-slate-200 hover:bg-red-50 text-slate-400 hover:text-red-600 hover:border-red-200 transition-colors"
                         >
@@ -580,19 +646,46 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Jurusan *</label>
+                  <label className="font-bold text-slate-700 block mb-1">Jurusan (Terhubung ke Master) *</label>
                   <select
                     value={formData.jurusan}
-                    onChange={(e) => setFormData({ ...formData, jurusan: e.target.value })}
+                    onChange={(e) => handleJurusanChangeInForm(e.target.value)}
                     className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                   >
-                    <option value="Rekayasa Perangkat Lunak">Rekayasa Perangkat Lunak</option>
-                    <option value="Teknik Komputer & Jaringan">Teknik Komputer & Jaringan</option>
-                    <option value="Sistem Informasi Jaringan & Aplikasi">Sistem Informasi Jaringan & Aplikasi</option>
-                    <option value="Desain Komunikasi Visual">Desain Komunikasi Visual</option>
+                    {jurusanList && jurusanList.length > 0 ? (
+                      jurusanList
+                        .filter((j) => j.isActive)
+                        .map((j) => (
+                          <option key={j.id} value={j.nama}>
+                            {j.kode} - {j.nama}
+                          </option>
+                        ))
+                    ) : (
+                      <>
+                        <option value="Rekayasa Perangkat Lunak">RPL - Rekayasa Perangkat Lunak</option>
+                        <option value="Teknik Komputer & Jaringan">TKJ - Teknik Komputer & Jaringan</option>
+                        <option value="Sistem Informasi Jaringan & Aplikasi">SIJA - Sistem Informasi Jaringan & Aplikasi</option>
+                        <option value="Desain Komunikasi Visual">DKV - Desain Komunikasi Visual</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
+
+              {/* Live Preview Card: Jurusan Terkoneksi */}
+              {selectedFormJurusanObj && (
+                <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-blue-900 flex items-start gap-2.5">
+                  <span className={`px-2 py-0.5 rounded-md font-black font-mono text-[10px] border ${getJurusanColorTheme(selectedFormJurusanObj.kode).badge}`}>
+                    {selectedFormJurusanObj.kode}
+                  </span>
+                  <div className="flex-1 leading-tight">
+                    <p className="font-bold text-blue-950">{selectedFormJurusanObj.nama}</p>
+                    <p className="text-[11px] text-blue-700 mt-0.5">
+                      Kaprog: <span className="font-semibold">{selectedFormJurusanObj.kepalaProgram || '-'}</span> • Bidang: {selectedFormJurusanObj.bidangKeahlian}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Login Credentials & Generator */}
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
@@ -619,7 +712,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                       required
                       value={formData.emailLogin}
                       onChange={(e) => setFormData({ ...formData, emailLogin: e.target.value })}
-                      placeholder="siswa.nisn@smk.belajar.id"
+                      placeholder="nama@smk.belajar.id"
                       className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-[11px]"
                     />
                   </div>
@@ -675,14 +768,56 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
         </div>
       )}
 
+      {/* Modal: Konfirmasi Hapus Siswa (No window.confirm) */}
+      {deleteCandidate && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDeleteCandidate(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+        >
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mb-4">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            
+            <h3 className="font-extrabold text-slate-900 text-base">
+              Hapus Data Siswa PKL?
+            </h3>
+            
+            <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+              Anda akan menghapus data siswa <strong className="text-slate-900">{deleteCandidate.namaLengkap}</strong> (NISN: <span className="font-mono">{deleteCandidate.nisn}</span>). Tindakan ini tidak dapat dibatalkan.
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteCandidate(null)}
+                className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 font-semibold text-xs text-slate-700"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-sm"
+              >
+                Ya, Hapus Siswa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Upload Excel */}
       <UploadExcelModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
-        onSuccess={(count) => {
+        onOpenSupabaseModal={onOpenSupabaseModal}
+        onSuccess={(count, message) => {
           onSiswaUpdated();
-          setToastMessage(`Berhasil mengimpor ${count} data siswa dari Excel ke database!`);
-          setTimeout(() => setToastMessage(null), 3500);
+          setToastMessage(message || `Berhasil mengimpor ${count} data siswa dari Excel!`);
+          setTimeout(() => setToastMessage(null), 4000);
         }}
       />
 
