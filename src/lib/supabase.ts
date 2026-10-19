@@ -1,12 +1,14 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { MahasiswaSidang, PenilaianPenguji, SupabaseConfig, MasterSiswaPKL, MasterJurusan } from '../types/index.ts';
+import type { MahasiswaSidang, PenilaianPenguji, SupabaseConfig, MasterSiswaPKL, MasterJurusan, MasterInstansi } from '../types/index.ts';
 import { INITIAL_MASTER_JURUSAN } from '../data/jurusan.ts';
+import { INITIAL_MASTER_INSTANSI } from '../data/instansi.ts';
 
 const STORAGE_KEY_SUPABASE = 'my_pkl_supabase_config';
 const STORAGE_KEY_PESERTA = 'my_pkl_peserta_sidang';
 const STORAGE_KEY_PENILAIAN = 'my_pkl_penilaian_sidang';
 const STORAGE_KEY_MASTER_SISWA = 'my_pkl_master_siswa';
 const STORAGE_KEY_MASTER_JURUSAN = 'my_pkl_master_jurusan';
+const STORAGE_KEY_MASTER_INSTANSI = 'my_pkl_master_instansi';
 
 // Initial Seed Data for immediate high-fidelity testing
 export const INITIAL_PESERTA: MahasiswaSidang[] = [
@@ -187,6 +189,9 @@ export const INITIAL_MASTER_SISWA: MasterSiswaPKL[] = [
     emailLogin: 'rizky.pratama@smk.belajar.id',
     passwordLogin: 'Pkl#Rizky2026',
     guruPembimbing: 'Dr. Ir. Hendra Kurniawan, M.T.',
+    instansiId: 'inst-1',
+    instansiNama: 'PT Telekomunikasi Indonesia (Telkom Regional)',
+    pembimbingInstansi: 'Bambang Prasetyo, S.T.',
     createdAt: '2026-08-01T08:00:00Z',
   },
   {
@@ -198,6 +203,9 @@ export const INITIAL_MASTER_SISWA: MasterSiswaPKL[] = [
     emailLogin: 'anisa.putri@smk.belajar.id',
     passwordLogin: 'Siswa*Anisa88',
     guruPembimbing: 'Siti Nurhaliza, S.Kom., M.Cs.',
+    instansiId: 'inst-2',
+    instansiNama: 'PT Bank Central Asia Tbk (BCA) - Digital Lab',
+    pembimbingInstansi: 'Hendra Wijaya, M.Kom.',
     createdAt: '2026-08-01T08:15:00Z',
   },
   {
@@ -209,6 +217,9 @@ export const INITIAL_MASTER_SISWA: MasterSiswaPKL[] = [
     emailLogin: 'dimas.arya@smk.belajar.id',
     passwordLogin: 'Dimas#Pkl992',
     guruPembimbing: 'Dr. Ir. Hendra Kurniawan, M.T.',
+    instansiId: 'inst-3',
+    instansiNama: 'Dinas Komunikasi & Informatika (Diskominfo)',
+    pembimbingInstansi: 'Agus Setiawan, S.Kom.',
     createdAt: '2026-08-01T08:30:00Z',
   },
   {
@@ -220,6 +231,9 @@ export const INITIAL_MASTER_SISWA: MasterSiswaPKL[] = [
     emailLogin: 'siti.aisyah@smk.belajar.id',
     passwordLogin: 'Dkv*Aisyah2026',
     guruPembimbing: 'Siti Nurhaliza, S.Kom., M.Cs.',
+    instansiId: 'inst-4',
+    instansiNama: 'PT Pixel Visual Media Kreatif',
+    pembimbingInstansi: 'Maya Indah, S.Ds.',
     createdAt: '2026-08-01T08:45:00Z',
   },
   {
@@ -231,6 +245,9 @@ export const INITIAL_MASTER_SISWA: MasterSiswaPKL[] = [
     emailLogin: 'farhan.maulana@smk.belajar.id',
     passwordLogin: 'Pkl#Farhan401',
     guruPembimbing: 'Dr. Ir. Hendra Kurniawan, M.T.',
+    instansiId: 'inst-5',
+    instansiNama: 'PT Tokopedia / GoTo Group',
+    pembimbingInstansi: 'Kevin Sanjaya, S.T.',
     createdAt: '2026-08-01T09:00:00Z',
   },
   {
@@ -242,6 +259,9 @@ export const INITIAL_MASTER_SISWA: MasterSiswaPKL[] = [
     emailLogin: 'nadia.zahrani@smk.belajar.id',
     passwordLogin: 'Pass*Nadia77',
     guruPembimbing: 'Siti Nurhaliza, S.Kom., M.Cs.',
+    instansiId: 'inst-6',
+    instansiNama: 'Badan Siber dan Sandi Negara (BSSN)',
+    pembimbingInstansi: 'Letkol R. Santoso, M.T.',
     createdAt: '2026-08-01T09:15:00Z',
   },
   {
@@ -253,6 +273,9 @@ export const INITIAL_MASTER_SISWA: MasterSiswaPKL[] = [
     emailLogin: 'bagus.wicaksono@smk.belajar.id',
     passwordLogin: 'Bagus#Tkj2026',
     guruPembimbing: 'Dr. Ir. Hendra Kurniawan, M.T.',
+    instansiId: 'inst-3',
+    instansiNama: 'Dinas Komunikasi & Informatika (Diskominfo)',
+    pembimbingInstansi: 'Agus Setiawan, S.Kom.',
     createdAt: '2026-08-01T09:30:00Z',
   },
   {
@@ -264,6 +287,9 @@ export const INITIAL_MASTER_SISWA: MasterSiswaPKL[] = [
     emailLogin: 'dewi.lestari@smk.belajar.id',
     passwordLogin: 'Dewi*Dkv892',
     guruPembimbing: 'Siti Nurhaliza, S.Kom., M.Cs.',
+    instansiId: 'inst-1',
+    instansiNama: 'PT Telekomunikasi Indonesia (Telkom Regional)',
+    pembimbingInstansi: 'Bambang Prasetyo, S.T.',
     createdAt: '2026-08-01T09:45:00Z',
   },
 ];
@@ -747,6 +773,9 @@ export async function getMasterSiswaList(): Promise<MasterSiswaPKL[]> {
           emailLogin: d.email_login,
           passwordLogin: d.password_login,
           guruPembimbing: d.guru_pembimbing,
+          instansiId: d.instansi_id || undefined,
+          instansiNama: d.instansi_nama || undefined,
+          pembimbingInstansi: d.pembimbing_instansi || undefined,
           createdAt: d.created_at,
         }));
       }
@@ -759,7 +788,26 @@ export async function getMasterSiswaList(): Promise<MasterSiswaPKL[]> {
     const raw = localStorage.getItem(STORAGE_KEY_MASTER_SISWA);
     if (raw) {
       try {
-        return JSON.parse(raw);
+        const parsed: MasterSiswaPKL[] = JSON.parse(raw);
+        let needsUpdate = false;
+        const merged = parsed.map((s) => {
+          const initMatch = INITIAL_MASTER_SISWA.find((init) => init.nisn === s.nisn);
+          if (initMatch && (!s.instansiNama || !s.pembimbingInstansi)) {
+            needsUpdate = true;
+            return {
+              ...s,
+              instansiId: s.instansiId || initMatch.instansiId,
+              instansiNama: s.instansiNama || initMatch.instansiNama,
+              pembimbingInstansi: s.pembimbingInstansi || initMatch.pembimbingInstansi,
+            };
+          }
+          return s;
+        });
+
+        if (needsUpdate) {
+          localStorage.setItem(STORAGE_KEY_MASTER_SISWA, JSON.stringify(merged));
+        }
+        return merged;
       } catch {
         // ignore
       }
@@ -814,6 +862,9 @@ export async function saveMasterSiswa(siswa: MasterSiswaPKL): Promise<MasterSisw
         email_login: siswa.emailLogin,
         password_login: siswa.passwordLogin,
         guru_pembimbing: siswa.guruPembimbing,
+        instansi_id: siswa.instansiId || null,
+        instansi_nama: siswa.instansiNama || null,
+        pembimbing_instansi: siswa.pembimbingInstansi || null,
         updated_at: new Date().toISOString(),
       };
       // Jika id adalah UUID valid, sertakan. Jika id dummy seperti 'ms-1', biarkan Supabase generate UUID
@@ -872,6 +923,9 @@ export async function insertMasterSiswaBatch(siswaList: MasterSiswaPKL[]): Promi
           email_login: s.emailLogin,
           password_login: s.passwordLogin,
           guru_pembimbing: s.guruPembimbing,
+          instansi_id: s.instansiId || null,
+          instansi_nama: s.instansiNama || null,
+          pembimbing_instansi: s.pembimbingInstansi || null,
           updated_at: new Date().toISOString(),
         };
         if (isValidUUID(s.id)) {
@@ -899,6 +953,9 @@ export async function insertMasterSiswaBatch(siswaList: MasterSiswaPKL[]): Promi
         emailLogin: d.email_login,
         passwordLogin: d.password_login,
         guruPembimbing: d.guru_pembimbing,
+        instansiId: d.instansi_id || undefined,
+        instansiNama: d.instansi_nama || undefined,
+        pembimbingInstansi: d.pembimbing_instansi || undefined,
         createdAt: d.created_at,
       }));
 
@@ -1110,4 +1167,253 @@ export async function deleteMasterJurusan(id: string): Promise<MasterJurusan[]> 
   }
 
   return updatedList;
+}
+
+/**
+ * Load Master Instansi / Perusahaan: prioritizes Supabase, falls back to LocalStorage
+ */
+export async function getMasterInstansiList(): Promise<MasterInstansi[]> {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('master_instansi')
+        .select('*')
+        .order('nama', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          id: d.id,
+          nama: d.nama,
+          alamat: d.alamat,
+          kuota: Number(d.kuota) || 0,
+          pembimbingInstansi: d.pembimbing_instansi || '',
+          kontakPerson: d.kontak_person || '',
+          email: d.email || '',
+          bidangUsaha: d.bidang_usaha || '',
+          isActive: d.is_active !== false,
+          createdAt: d.created_at,
+          updatedAt: d.updated_at,
+        }));
+      }
+    } catch (err) {
+      console.warn('Supabase fetch master_instansi error, using fallback:', err);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem(STORAGE_KEY_MASTER_INSTANSI);
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        // ignore
+      }
+    }
+    localStorage.setItem(STORAGE_KEY_MASTER_INSTANSI, JSON.stringify(INITIAL_MASTER_INSTANSI));
+  }
+
+  return INITIAL_MASTER_INSTANSI;
+}
+
+/**
+ * Save / Update Master Instansi / Perusahaan
+ */
+export async function saveMasterInstansi(instansi: MasterInstansi): Promise<MasterInstansi[]> {
+  const currentList = await getMasterInstansiList();
+  const existingIdx = currentList.findIndex(
+    (i) => i.id === instansi.id || i.nama.toLowerCase().trim() === instansi.nama.toLowerCase().trim()
+  );
+  let updatedList: MasterInstansi[];
+
+  if (existingIdx >= 0) {
+    updatedList = [...currentList];
+    updatedList[existingIdx] = instansi;
+  } else {
+    updatedList = [...currentList, instansi];
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_MASTER_INSTANSI, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'MASTER_INSTANSI_UPDATED',
+    payload: instansi,
+  });
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const record: any = {
+        nama: instansi.nama.trim(),
+        alamat: instansi.alamat.trim(),
+        kuota: Number(instansi.kuota) || 0,
+        pembimbing_instansi: instansi.pembimbingInstansi.trim(),
+        kontak_person: instansi.kontakPerson?.trim() || '',
+        email: instansi.email?.trim() || '',
+        bidang_usaha: instansi.bidangUsaha?.trim() || '',
+        is_active: instansi.isActive,
+        updated_at: new Date().toISOString(),
+      };
+      if (isValidUUID(instansi.id)) {
+        record.id = instansi.id;
+      }
+
+      const { data, error } = await client
+        .from('master_instansi')
+        .upsert(record, { onConflict: 'nama' })
+        .select();
+
+      if (error) {
+        console.error('Supabase upsert master_instansi error:', error);
+      } else if (data && data[0]) {
+        const realId = data[0].id;
+        const idx = updatedList.findIndex((i) => i.nama.toLowerCase().trim() === instansi.nama.toLowerCase().trim());
+        if (idx >= 0) {
+          updatedList[idx].id = realId;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY_MASTER_INSTANSI, JSON.stringify(updatedList));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase upsert master_instansi error:', err);
+    }
+  }
+
+  return updatedList;
+}
+
+/**
+ * Delete Master Instansi
+ */
+export async function deleteMasterInstansi(id: string): Promise<MasterInstansi[]> {
+  const currentList = await getMasterInstansiList();
+  const updatedList = currentList.filter((i) => i.id !== id);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_MASTER_INSTANSI, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'MASTER_INSTANSI_DELETED',
+    payload: { id },
+  });
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from('master_instansi').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Supabase delete master_instansi error:', err);
+    }
+  }
+
+  return updatedList;
+}
+
+/**
+ * Batch insert / upsert master instansi ke Supabase Cloud atau LocalStorage
+ */
+export async function insertMasterInstansiBatch(incomingList: MasterInstansi[]): Promise<BatchInsertResult> {
+  const client = getSupabaseClient();
+  const currentList = await getMasterInstansiList();
+
+  // Gabungkan ke penyimpanan lokal (upsert berdasarkan nama instansi yang dinormalisasi)
+  const updatedList = [...currentList];
+  incomingList.forEach((incoming) => {
+    const existingIdx = updatedList.findIndex(
+      (item) => item.nama.toLowerCase().trim() === incoming.nama.toLowerCase().trim()
+    );
+    if (existingIdx >= 0) {
+      updatedList[existingIdx] = {
+        ...updatedList[existingIdx],
+        alamat: incoming.alamat || updatedList[existingIdx].alamat,
+        kuota: incoming.kuota || updatedList[existingIdx].kuota,
+        pembimbingInstansi: incoming.pembimbingInstansi || updatedList[existingIdx].pembimbingInstansi,
+        bidangUsaha: incoming.bidangUsaha || updatedList[existingIdx].bidangUsaha,
+        kontakPerson: incoming.kontakPerson || updatedList[existingIdx].kontakPerson,
+        email: incoming.email || updatedList[existingIdx].email,
+        isActive: true,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      updatedList.push(incoming);
+    }
+  });
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_MASTER_INSTANSI, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'MASTER_INSTANSI_UPDATED',
+    payload: updatedList,
+  });
+
+  if (client) {
+    try {
+      const recordsToInsert = incomingList.map((inst) => {
+        const item: any = {
+          nama: inst.nama.trim(),
+          alamat: inst.alamat.trim(),
+          kuota: Number(inst.kuota) || 4,
+          pembimbing_instansi: inst.pembimbingInstansi?.trim() || 'Pembimbing DUDI',
+          kontak_person: inst.kontakPerson?.trim() || '',
+          email: inst.email?.trim() || '',
+          bidang_usaha: inst.bidangUsaha?.trim() || '',
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        };
+        if (isValidUUID(inst.id)) {
+          item.id = inst.id;
+        }
+        return item;
+      });
+
+      const { data, error } = await client
+        .from('master_instansi')
+        .upsert(recordsToInsert, { onConflict: 'nama' })
+        .select();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data && data.length > 0) {
+        data.forEach((dbRow: any) => {
+          const idx = updatedList.findIndex((i) => i.nama.toLowerCase().trim() === dbRow.nama.toLowerCase().trim());
+          if (idx >= 0) {
+            updatedList[idx].id = dbRow.id;
+          }
+        });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY_MASTER_INSTANSI, JSON.stringify(updatedList));
+        }
+      }
+
+      return {
+        success: true,
+        count: incomingList.length,
+        savedToDatabase: true,
+        message: `Berhasil menyimpan ${incomingList.length} data instansi ke database Supabase Cloud!`,
+      };
+    } catch (err: any) {
+      console.warn('Supabase batch insert master_instansi warning, saved locally:', err);
+      return {
+        success: true,
+        count: incomingList.length,
+        savedToDatabase: false,
+        message: `Tersimpan di penyimpanan lokal (${incomingList.length} instansi). Catatan: ${err?.message || 'Database offline.'}`,
+      };
+    }
+  }
+
+  return {
+    success: true,
+    count: incomingList.length,
+    savedToDatabase: false,
+    message: `Berhasil mengimpor ${incomingList.length} data instansi ke penyimpanan lokal.`,
+  };
 }

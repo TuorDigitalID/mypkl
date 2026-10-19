@@ -21,34 +21,45 @@ import {
   FileSpreadsheet,
   ShieldAlert,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Building2,
+  Briefcase,
+  MapPin
 } from 'lucide-react';
-import { MasterSiswaPKL, MasterJurusan } from '../types/index.ts';
+import { MasterSiswaPKL, MasterJurusan, MasterInstansi } from '../types/index.ts';
 import { saveMasterSiswa, deleteMasterSiswa } from '../lib/supabase.ts';
 import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 import { UploadExcelModal } from './UploadExcelModal.tsx';
 import { findJurusanByNameOrCode, getJurusanColorTheme } from '../utils/jurusanUtils.ts';
+import { calculateInstansiStats, findInstansiByName } from '../utils/instansiUtils.ts';
 
 interface MasterSiswaTableProps {
   siswaList: MasterSiswaPKL[];
   jurusanList?: MasterJurusan[];
+  instansiList?: MasterInstansi[];
   onSiswaUpdated: () => void;
   onJadwalkanSidang?: (siswa: MasterSiswaPKL) => void;
   onOpenSupabaseModal?: () => void;
   onNavigateToJurusan?: () => void;
+  onNavigateToInstansi?: () => void;
   filterJurusanParam?: string;
+  filterInstansiParam?: string;
 }
 
 export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
   siswaList,
   jurusanList = [],
+  instansiList = [],
   onSiswaUpdated,
   onOpenSupabaseModal,
   onNavigateToJurusan,
+  onNavigateToInstansi,
   filterJurusanParam,
+  filterInstansiParam,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedJurusan, setSelectedJurusan] = useState<string>(filterJurusanParam || 'semua');
+  const [selectedInstansi, setSelectedInstansi] = useState<string>(filterInstansiParam || 'semua');
   const [selectedKelas, setSelectedKelas] = useState<string>('semua');
   const [showAllPasswords, setShowAllPasswords] = useState(false);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
@@ -65,6 +76,9 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     namaLengkap: '',
     kelas: 'XII RPL 1',
     jurusan: 'Rekayasa Perangkat Lunak',
+    instansiId: '',
+    instansiNama: '',
+    pembimbingInstansi: '',
     emailLogin: '',
     passwordLogin: '',
     guruPembimbing: DAFTAR_PENGUJI[0]?.nama || 'Dr. Ir. Hendra Kurniawan, M.T.',
@@ -79,6 +93,13 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     }
   }, [filterJurusanParam]);
 
+  // Sync if filterInstansiParam changes from parent (e.g. from Master Instansi table)
+  React.useEffect(() => {
+    if (filterInstansiParam) {
+      setSelectedInstansi(filterInstansiParam);
+    }
+  }, [filterInstansiParam]);
+
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -91,13 +112,20 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isModalOpen, isUploadModalOpen, deleteCandidate]);
 
-  // Available unique jurusan & kelas for filters
+  // Available unique jurusan, instansi, & kelas for filters
   const jurusanOptions = useMemo(() => {
     const fromMaster = jurusanList.map((j) => j.nama);
     const fromSiswa = siswaList.map((s) => s.jurusan);
     const list = Array.from(new Set([...fromMaster, ...fromSiswa])).filter(Boolean);
     return ['semua', ...list];
   }, [siswaList, jurusanList]);
+
+  const instansiOptions = useMemo(() => {
+    const fromMaster = instansiList.map((i) => i.nama);
+    const fromSiswa = siswaList.map((s) => s.instansiNama).filter(Boolean) as string[];
+    const list = Array.from(new Set([...fromMaster, ...fromSiswa])).filter(Boolean);
+    return ['semua', ...list];
+  }, [siswaList, instansiList]);
 
   const kelasOptions = useMemo(() => {
     const list = Array.from(new Set(siswaList.map((s) => s.kelas))).filter(Boolean);
@@ -111,19 +139,28 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
         item.namaLengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.nisn.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.emailLogin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.guruPembimbing.toLowerCase().includes(searchTerm.toLowerCase());
+        item.guruPembimbing.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.instansiNama && item.instansiNama.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.pembimbingInstansi && item.pembimbingInstansi.toLowerCase().includes(searchTerm.toLowerCase()));
 
       const matchJurusan = selectedJurusan === 'semua' || item.jurusan === selectedJurusan;
       const matchKelas = selectedKelas === 'semua' || item.kelas === selectedKelas;
+      const matchInstansi = selectedInstansi === 'semua' || item.instansiNama === selectedInstansi;
 
-      return matchSearch && matchJurusan && matchKelas;
+      return matchSearch && matchJurusan && matchKelas && matchInstansi;
     });
-  }, [siswaList, searchTerm, selectedJurusan, selectedKelas]);
+  }, [siswaList, searchTerm, selectedJurusan, selectedKelas, selectedInstansi]);
 
   // Selected Jurusan detail for Form Modal
   const selectedFormJurusanObj = useMemo(() => {
     return findJurusanByNameOrCode(jurusanList, formData.jurusan);
   }, [jurusanList, formData.jurusan]);
+
+  // Selected Instansi detail for Form Modal
+  const selectedFormInstansiObj = useMemo(() => {
+    if (!formData.instansiNama) return undefined;
+    return findInstansiByName(instansiList, formData.instansiNama);
+  }, [instansiList, formData.instansiNama]);
 
   const togglePasswordReveal = (id: string) => {
     setRevealedPasswords((prev) => ({
@@ -148,12 +185,16 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     const initialNisn = `006${Math.floor(1000000 + Math.random() * 9000000)}`;
     const jurusanName = defaultJurusan ? defaultJurusan.nama : 'Rekayasa Perangkat Lunak';
     const kode = defaultJurusan ? defaultJurusan.kode : 'RPL';
+    const defaultInstansi = instansiList[0];
 
     setFormData({
       nisn: initialNisn,
       namaLengkap: '',
       kelas: `XII ${kode} 1`,
       jurusan: jurusanName,
+      instansiId: defaultInstansi?.id || '',
+      instansiNama: defaultInstansi?.nama || '',
+      pembimbingInstansi: defaultInstansi?.pembimbingInstansi || '',
       emailLogin: `siswa.${initialNisn.slice(-4)}@smk.belajar.id`,
       passwordLogin: `Pkl#${Math.floor(1000 + Math.random() * 9000)}`,
       guruPembimbing: DAFTAR_PENGUJI[0]?.nama || 'Dr. Ir. Hendra Kurniawan, M.T.',
@@ -169,6 +210,9 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
       namaLengkap: siswa.namaLengkap,
       kelas: siswa.kelas,
       jurusan: siswa.jurusan,
+      instansiId: siswa.instansiId || '',
+      instansiNama: siswa.instansiNama || '',
+      pembimbingInstansi: siswa.pembimbingInstansi || '',
       emailLogin: siswa.emailLogin,
       passwordLogin: siswa.passwordLogin,
       guruPembimbing: siswa.guruPembimbing,
@@ -199,6 +243,16 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     });
   };
 
+  const handleInstansiChangeInForm = (selectedNama: string) => {
+    const matchedInstansi = instansiList.find((i) => i.nama === selectedNama);
+    setFormData((prev) => ({
+      ...prev,
+      instansiNama: selectedNama,
+      instansiId: matchedInstansi ? matchedInstansi.id : '',
+      pembimbingInstansi: matchedInstansi ? matchedInstansi.pembimbingInstansi : prev.pembimbingInstansi,
+    }));
+  };
+
   const handleGenerateCredentials = () => {
     const cleanNisn = formData.nisn.trim() || `${Math.floor(1000000000 + Math.random() * 9000000000)}`;
     const slug = formData.namaLengkap
@@ -226,6 +280,9 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
       namaLengkap: formData.namaLengkap.trim(),
       kelas: formData.kelas.trim(),
       jurusan: formData.jurusan.trim(),
+      instansiId: formData.instansiId || undefined,
+      instansiNama: formData.instansiNama?.trim() || undefined,
+      pembimbingInstansi: formData.pembimbingInstansi?.trim() || undefined,
       emailLogin: formData.emailLogin.trim(),
       passwordLogin: formData.passwordLogin.trim(),
       guruPembimbing: formData.guruPembimbing.trim(),
@@ -239,31 +296,42 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Export CSV
   const handleExportCSV = () => {
     const headers = [
       'No',
       'NISN',
       'Nama Lengkap',
       'Kelas',
-      'Jurusan',
+      'Program Keahlian',
+      'Instansi / Perusahaan PKL',
+      'Pembimbing Instansi (DUDI)',
       'Email Login',
       'Password Login',
-      'Guru Pembimbing',
+      'Guru Pembimbing Sekolah'
     ];
 
-    const rows = filteredList.map((item, idx) => [
-      idx + 1,
-      `"${item.nisn}"`,
-      `"${item.namaLengkap}"`,
-      `"${item.kelas}"`,
-      `"${item.jurusan}"`,
-      `"${item.emailLogin}"`,
-      `"${item.passwordLogin}"`,
-      `"${item.guruPembimbing}"`,
+    const escapeCSV = (val: string | number) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = filteredList.map((s, index) => [
+      index + 1,
+      s.nisn,
+      escapeCSV(s.namaLengkap),
+      s.kelas,
+      escapeCSV(s.jurusan),
+      escapeCSV(s.instansiNama || 'Belum Ditempatkan'),
+      escapeCSV(s.pembimbingInstansi || '-'),
+      s.emailLogin,
+      s.passwordLogin,
+      escapeCSV(s.guruPembimbing)
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -278,7 +346,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
       
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 text-xs font-semibold animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 text-xs font-semibold animate-fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
@@ -299,20 +367,31 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Pengelolaan akun login siswa, NISN, rombel kelas, program keahlian terintegrasi, dan guru pembimbing sekolah.
+                Pengelolaan akun login siswa, NISN, rombel kelas, program keahlian, penempatan instansi DUDI, dan pembimbing.
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
+          {onNavigateToInstansi && (
+            <button
+              onClick={onNavigateToInstansi}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-semibold text-xs transition-colors shadow-xs"
+              title="Kelola Data Master Instansi Perusahaan"
+            >
+              <Building2 className="w-4 h-4 text-blue-600" />
+              <span>Master Instansi ({instansiList.length})</span>
+            </button>
+          )}
+
           {onNavigateToJurusan && (
             <button
               onClick={onNavigateToJurusan}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-semibold text-xs transition-colors shadow-xs"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold text-xs transition-colors shadow-xs"
               title="Kelola Data Master Jurusan"
             >
-              <Layers className="w-4 h-4 text-blue-600" />
+              <Layers className="w-4 h-4 text-indigo-600" />
               <span>Master Jurusan ({jurusanList.length})</span>
             </button>
           )}
@@ -328,7 +407,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
 
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors shadow-xs"
             title="Download CSV"
           >
             <Download className="w-4 h-4 text-slate-600" />
@@ -354,7 +433,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Cari NISN, Nama Lengkap, Email, atau Guru..."
+            placeholder="Cari NISN, Nama, Instansi, atau Pembimbing..."
             aria-label="Cari data master siswa"
             className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-slate-800"
           />
@@ -362,6 +441,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
 
         {/* Filter Dropdowns and Toggle */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Filter Jurusan */}
           <div className="flex items-center gap-1.5">
             <span className="text-slate-400 font-medium">Jurusan:</span>
             <select
@@ -378,6 +458,24 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
             </select>
           </div>
 
+          {/* Filter Instansi */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-400 font-medium">Instansi:</span>
+            <select
+              value={selectedInstansi}
+              onChange={(e) => setSelectedInstansi(e.target.value)}
+              aria-label="Filter Instansi"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-500 max-w-[200px] truncate"
+            >
+              {instansiOptions.map((i) => (
+                <option key={i} value={i}>
+                  {i === 'semua' ? 'Semua Instansi' : i}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter Kelas */}
           <div className="flex items-center gap-1.5">
             <span className="text-slate-400 font-medium">Kelas:</span>
             <select
@@ -394,36 +492,38 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
             </select>
           </div>
 
-          {/* Toggle Reveal All Passwords */}
+          {/* Toggle Password Visibility */}
           <button
+            type="button"
             onClick={() => setShowAllPasswords(!showAllPasswords)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium transition-colors ${
               showAllPasswords
-                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                ? 'bg-amber-50 text-amber-800 border-amber-200 font-bold'
                 : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
             }`}
           >
-            {showAllPasswords ? <EyeOff className="w-3.5 h-3.5 text-amber-600" /> : <Eye className="w-3.5 h-3.5 text-slate-500" />}
-            <span>{showAllPasswords ? 'Sembunyikan Semua Password' : 'Lihat Semua Password'}</span>
+            {showAllPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            <span>{showAllPasswords ? 'Tutup Password' : 'Lihat Semua Password'}</span>
           </button>
         </div>
       </div>
 
-      {/* Main Table: Exact Columns Requested with connected Jurusan badge */}
+      {/* Main Table: Master Siswa PKL */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+              <tr className="bg-slate-50/90 text-slate-600 border-b border-slate-200 font-bold uppercase tracking-wider text-[11px]">
                 <th className="py-3 px-3.5 text-center w-12">No</th>
-                <th className="py-3 px-4 font-mono">NISN</th>
+                <th className="py-3 px-4">NISN</th>
                 <th className="py-3 px-4">Nama Lengkap</th>
                 <th className="py-3 px-3 text-center">Kelas</th>
-                <th className="py-3 px-4">Program Keahlian (Jurusan)</th>
+                <th className="py-3 px-4">Program Keahlian</th>
+                <th className="py-3 px-4 min-w-[200px]">Instansi / Tempat PKL</th>
                 <th className="py-3 px-4">Email Login</th>
                 <th className="py-3 px-4">Password Login</th>
                 <th className="py-3 px-4">Guru Pembimbing</th>
-                <th className="py-3 px-4 text-center w-28">Aksi</th>
+                <th className="py-3 px-4 text-center w-24">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -483,7 +583,36 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                       </div>
                     </td>
 
-                    {/* 6. Email Login */}
+                    {/* 6. Instansi / Tempat PKL (Terkoneksi ke Master Instansi) */}
+                    <td className="py-3.5 px-4">
+                      {siswa.instansiNama ? (
+                        <div className="space-y-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedInstansi(siswa.instansiNama || 'semua')}
+                            className="flex items-start gap-1.5 text-left group cursor-pointer"
+                            title={`Filter siswa di ${siswa.instansiNama}`}
+                          >
+                            <Building2 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0 mt-0.5" />
+                            <span className="font-bold text-slate-900 group-hover:text-blue-600 group-hover:underline text-xs leading-tight">
+                              {siswa.instansiNama}
+                            </span>
+                          </button>
+                          {siswa.pembimbingInstansi && (
+                            <p className="text-[11px] text-slate-500 pl-5 flex items-center gap-1">
+                              <span className="text-slate-400">DUDI:</span>
+                              <span className="font-medium text-slate-700">{siswa.pembimbingInstansi}</span>
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                          Belum Ditempatkan
+                        </span>
+                      )}
+                    </td>
+
+                    {/* 7. Email Login */}
                     <td className="py-3.5 px-4 font-mono text-slate-600">
                       <div className="flex items-center gap-1.5">
                         <Mail className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
@@ -498,7 +627,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                       </div>
                     </td>
 
-                    {/* 7. Password Login (with Peek & Copy) */}
+                    {/* 8. Password Login (with Peek & Copy) */}
                     <td className="py-3.5 px-4 font-mono">
                       <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/90 px-2 py-1 rounded-lg w-fit">
                         <Lock className="w-3 h-3 text-slate-400" />
@@ -536,7 +665,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                       </div>
                     </td>
 
-                    {/* 8. Guru Pembimbing */}
+                    {/* 9. Guru Pembimbing (Sekolah) */}
                     <td className="py-3.5 px-4 font-medium text-slate-800">
                       <div className="flex items-center gap-1.5">
                         <GraduationCap className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
@@ -544,7 +673,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                       </div>
                     </td>
 
-                    {/* Aksi: Edit & Hapus */}
+                    {/* 10. Aksi: Edit & Hapus */}
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
@@ -570,47 +699,58 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
           </table>
         </div>
 
-        {filteredList.length === 0 && (
-          <div className="p-12 text-center text-slate-500">
-            <AlertCircle className="w-10 h-10 mx-auto text-slate-400 mb-2" />
-            <p className="font-semibold text-slate-800">Tidak ada data siswa yang cocok.</p>
-            <p className="text-xs text-slate-400 mt-1">Coba sesuaikan kata kunci pencarian atau filter Anda.</p>
+        {/* Table Footer */}
+        <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+          <div>
+            Menampilkan <span className="font-bold text-slate-800">{filteredList.length}</span> dari{' '}
+            <span className="font-bold text-slate-800">{siswaList.length}</span> siswa terdaftar.
           </div>
-        )}
+          {(selectedJurusan !== 'semua' || selectedInstansi !== 'semua' || selectedKelas !== 'semua') && (
+            <button
+              onClick={() => {
+                setSelectedJurusan('semua');
+                setSelectedInstansi('semua');
+                setSelectedKelas('semua');
+                setSearchTerm('');
+              }}
+              className="text-emerald-700 hover:underline font-bold"
+            >
+              Reset Semua Filter
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Modal: Tambah / Edit Siswa Master */}
+      {/* MODAL TAMBAH / EDIT SISWA PKL */}
       {isModalOpen && (
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setIsModalOpen(false);
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
-        >
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                <Users className="w-5 h-5 text-emerald-600" />
-                <span>{editingSiswa ? 'Edit Data Siswa PKL' : 'Tambah Data Master Siswa PKL'}</span>
-              </h3>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 bg-emerald-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Users className="w-5 h-5 text-emerald-200" />
+                <h3 className="font-extrabold text-base">
+                  {editingSiswa ? 'Edit Data Siswa PKL' : 'Tambah Siswa PKL Baru'}
+                </h3>
+              </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                className="text-emerald-200 hover:text-white p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {formError && (
-              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-xs">
-                {formError}
-              </div>
-            )}
+            <form onSubmit={handleSaveSiswa} className="p-6 space-y-4 text-xs">
+              {formError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
 
-            <form onSubmit={handleSaveSiswa} className="mt-4 space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">NISN (10 Digit) *</label>
+                  <label className="font-bold text-slate-700 block mb-1">NISN Siswa *</label>
                   <input
                     type="text"
                     required
@@ -687,6 +827,71 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                 </div>
               )}
 
+              {/* Instansi / Perusahaan PKL (Terhubung ke Master Instansi) */}
+              <div className="p-3 bg-blue-50/60 border border-blue-200/90 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-blue-900 flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4 text-blue-600" />
+                    <span>Instansi / Perusahaan Tempat PKL</span>
+                  </span>
+                  {onNavigateToInstansi && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToInstansi}
+                      className="text-[11px] font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1"
+                    >
+                      <span>Lihat Master Instansi</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Pilih Perusahaan Mitra DUDI</label>
+                    <select
+                      value={formData.instansiNama}
+                      onChange={(e) => handleInstansiChangeInForm(e.target.value)}
+                      className="w-full p-2 border border-blue-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white text-xs font-semibold"
+                    >
+                      <option value="">-- Pilih Instansi / Perusahaan --</option>
+                      {instansiList.map((inst) => {
+                        const stats = calculateInstansiStats(inst, siswaList);
+                        return (
+                          <option key={inst.id} value={inst.nama}>
+                            {inst.nama} ({stats.sisaKuota > 0 ? `${stats.sisaKuota} sisa slot` : 'Penuh'})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Nama Pembimbing Instansi (DUDI)</label>
+                    <input
+                      type="text"
+                      value={formData.pembimbingInstansi}
+                      onChange={(e) => setFormData({ ...formData, pembimbingInstansi: e.target.value })}
+                      placeholder="Contoh: Bambang Prasetyo, S.T."
+                      className="w-full p-2 border border-blue-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Preview Selected Instansi Details */}
+                {selectedFormInstansiObj && (
+                  <div className="pt-2 border-t border-blue-200/60 flex items-start gap-2 text-[11px] text-blue-900 leading-tight">
+                    <MapPin className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold">Alamat:</span> {selectedFormInstansiObj.alamat}
+                      <span className="block mt-0.5 text-blue-700 font-medium">
+                        Kuota Total: <b>{selectedFormInstansiObj.kuota} Siswa</b> • Bidang Usaha: {selectedFormInstansiObj.bidangUsaha || '-'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Login Credentials & Generator */}
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
@@ -730,7 +935,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                 </div>
               </div>
 
-              {/* Guru Pembimbing */}
+              {/* Guru Pembimbing Sekolah */}
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Guru Pembimbing Sekolah *</label>
                 <select
@@ -743,22 +948,20 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                       {p.nama} ({p.peran})
                     </option>
                   ))}
-                  <option value="Dra. Sri Wahyuni, M.Pd.">Dra. Sri Wahyuni, M.Pd.</option>
-                  <option value="Ahmad Zulfikar, S.T., M.Kom.">Ahmad Zulfikar, S.T., M.Kom.</option>
                 </select>
               </div>
 
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 font-semibold text-slate-700"
+                  className="px-4 py-2 border border-slate-300 text-slate-600 rounded-xl hover:bg-slate-100 font-semibold"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs transition-colors"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md shadow-emerald-600/20"
                 >
                   {editingSiswa ? 'Simpan Perubahan' : 'Tambahkan Siswa'}
                 </button>
@@ -768,39 +971,47 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
         </div>
       )}
 
-      {/* Modal: Konfirmasi Hapus Siswa (No window.confirm) */}
+      {/* MODAL KONFIRMASI HAPUS SISWA */}
       {deleteCandidate && (
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDeleteCandidate(null);
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
-        >
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-150">
-            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mb-4">
-              <ShieldAlert className="w-6 h-6" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="p-3 bg-red-50 rounded-xl border border-red-100">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-slate-900 leading-tight">
+                  Hapus Data Siswa PKL?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Tindakan ini akan menghapus akun dan rekam data siswa dari sistem.
+                </p>
+              </div>
             </div>
-            
-            <h3 className="font-extrabold text-slate-900 text-base">
-              Hapus Data Siswa PKL?
-            </h3>
-            
-            <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-              Anda akan menghapus data siswa <strong className="text-slate-900">{deleteCandidate.namaLengkap}</strong> (NISN: <span className="font-mono">{deleteCandidate.nisn}</span>). Tindakan ini tidak dapat dibatalkan.
-            </p>
 
-            <div className="mt-6 flex items-center justify-end gap-2.5">
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+              <p className="font-bold text-slate-900 text-sm">{deleteCandidate.namaLengkap}</p>
+              <p className="font-mono text-slate-600">NISN: {deleteCandidate.nisn} • Kelas: {deleteCandidate.kelas}</p>
+              <p className="text-slate-600">{deleteCandidate.jurusan}</p>
+              {deleteCandidate.instansiNama && (
+                <p className="text-blue-700 font-semibold pt-1">
+                  Tempat PKL: {deleteCandidate.instansiNama}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setDeleteCandidate(null)}
-                className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 font-semibold text-xs text-slate-700"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-100 transition-colors"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-sm"
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md shadow-red-500/20 transition-all cursor-pointer"
               >
                 Ya, Hapus Siswa
               </button>
@@ -813,12 +1024,11 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
       <UploadExcelModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
-        onOpenSupabaseModal={onOpenSupabaseModal}
-        onSuccess={(count, message) => {
+        onSuccess={(_count, _msg) => {
+          setIsUploadModalOpen(false);
           onSiswaUpdated();
-          setToastMessage(message || `Berhasil mengimpor ${count} data siswa dari Excel!`);
-          setTimeout(() => setToastMessage(null), 4000);
         }}
+        onOpenSupabaseModal={onOpenSupabaseModal}
       />
 
     </div>

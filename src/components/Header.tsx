@@ -6,8 +6,9 @@ import {
   ChevronDown, 
   Users, 
   Layers, 
+  Building2,
   ClipboardCheck, 
-  CalendarCheck,
+  CalendarCheck, 
   FileSpreadsheet, 
   BookOpen
 } from 'lucide-react';
@@ -15,7 +16,7 @@ import { Penguji, SupabaseConfig } from '../types/index.ts';
 import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 
 interface HeaderProps {
-  activeTab: 'live' | 'master' | 'jurusan' | 'peserta' | 'rekap' | 'rubrik';
+  activeTab: 'live' | 'master' | 'jurusan' | 'instansi' | 'peserta' | 'rekap' | 'rubrik';
   onToggleSidebar: () => void;
   activePenguji: Penguji;
   setActivePenguji: (penguji: Penguji) => void;
@@ -54,6 +55,13 @@ export const Header: React.FC<HeaderProps> = ({
           title: 'Master Siswa PKL',
           icon: Users,
           tag: 'Akun & Rombel',
+        };
+      case 'instansi':
+        return {
+          group: 'Manajemen Master',
+          title: 'Master Data Instansi / Perusahaan',
+          icon: Building2,
+          tag: 'Mitra DUDI & Kuota',
         };
       case 'jurusan':
         return {

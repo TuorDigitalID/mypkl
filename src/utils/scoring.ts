@@ -254,7 +254,22 @@ CREATE TABLE IF NOT EXISTS public.master_jurusan (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- 5. Tabel Master Siswa PKL (Akun & Pembimbing)
+-- 5. Tabel Master Instansi / Perusahaan Tempat PKL
+CREATE TABLE IF NOT EXISTS public.master_instansi (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nama VARCHAR(150) NOT NULL UNIQUE,
+    alamat TEXT NOT NULL,
+    kuota INTEGER NOT NULL DEFAULT 5,
+    pembimbing_instansi VARCHAR(150) NOT NULL,
+    kontak_person VARCHAR(100),
+    email VARCHAR(100),
+    bidang_usaha VARCHAR(100),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 6. Tabel Master Siswa PKL (Akun, Instansi & Pembimbing)
 CREATE TABLE IF NOT EXISTS public.master_siswa_pkl (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nisn VARCHAR(20) NOT NULL UNIQUE,
@@ -264,6 +279,9 @@ CREATE TABLE IF NOT EXISTS public.master_siswa_pkl (
     email_login VARCHAR(150) NOT NULL,
     password_login VARCHAR(100) NOT NULL,
     guru_pembimbing VARCHAR(150) NOT NULL,
+    instansi_id VARCHAR(100),
+    instansi_nama VARCHAR(150),
+    pembimbing_instansi VARCHAR(150),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
@@ -297,6 +315,12 @@ BEGIN
     EXCEPTION WHEN duplicate_object THEN
         NULL;
     END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.master_instansi;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
 END $$;
 
 -- Enable Row Level Security (RLS) & Public Access Policies for Sidang
@@ -305,6 +329,7 @@ ALTER TABLE public.penguji ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.penilaian_sidang ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_siswa_pkl ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_jurusan ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.master_instansi ENABLE ROW LEVEL SECURITY;
 
 -- Berikan izin akses penuh ke role anon dan authenticated Supabase
 GRANT ALL ON TABLE public.peserta_sidang TO anon, authenticated;
@@ -312,6 +337,7 @@ GRANT ALL ON TABLE public.penguji TO anon, authenticated;
 GRANT ALL ON TABLE public.penilaian_sidang TO anon, authenticated;
 GRANT ALL ON TABLE public.master_siswa_pkl TO anon, authenticated;
 GRANT ALL ON TABLE public.master_jurusan TO anon, authenticated;
+GRANT ALL ON TABLE public.master_instansi TO anon, authenticated;
 
 -- Policies (DROP IF EXISTS agar tidak error jika sudah ada)
 DROP POLICY IF EXISTS "Public Read Access Peserta" ON public.peserta_sidang;
@@ -344,6 +370,12 @@ CREATE POLICY "Public Read Access Master Jurusan" ON public.master_jurusan FOR S
 DROP POLICY IF EXISTS "Public Write Access Master Jurusan" ON public.master_jurusan;
 CREATE POLICY "Public Write Access Master Jurusan" ON public.master_jurusan FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public Read Access Master Instansi" ON public.master_instansi;
+CREATE POLICY "Public Read Access Master Instansi" ON public.master_instansi FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Master Instansi" ON public.master_instansi;
+CREATE POLICY "Public Write Access Master Instansi" ON public.master_instansi FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
 -- Insert Data Penguji Awal (Seed Data)
 INSERT INTO public.penguji (nip, nama, peran)
 VALUES 
@@ -360,5 +392,19 @@ VALUES
     ('SIJA', 'Sistem Informasi Jaringan & Aplikasi', 'Teknologi Informasi & Komunikasi', 'Siti Nurhaliza, S.Kom., M.Cs.', 'Cloud platform, devops, internet of things (IoT), dan system integration.'),
     ('DKV', 'Desain Komunikasi Visual', 'Seni & Ekonomi Kreatif', 'Dra. Sri Wahyuni, M.Pd.', 'Desain grafis, UI/UX, visual branding, dan videografi digital.')
 ON CONFLICT (kode) DO NOTHING;
+
+-- Insert Data Master Instansi / Perusahaan Awal (Seed Data)
+INSERT INTO public.master_instansi (nama, alamat, kuota, pembimbing_instansi, bidang_usaha)
+VALUES
+    ('PT Telekomunikasi Indonesia (Telkom Regional)', 'Jl. Japati No. 1, Coblong, Kota Bandung', 4, 'Bambang Prasetyo, S.T.', 'Telekomunikasi & Jaringan'),
+    ('PT Bank Central Asia Tbk (BCA) - Digital Lab', 'Menara BCA Lt. 32, Grand Indonesia, Jakarta Pusat', 3, 'Hendra Wijaya, M.Kom.', 'Perbankan & Financial Tech'),
+    ('Dinas Komunikasi & Informatika (Diskominfo)', 'Balai Kota Blok G Lt. 3, Jl. Medan Merdeka Selatan, Jakarta Pusat', 5, 'Agus Setiawan, S.Kom.', 'Instansi Pemerintah & TI'),
+    ('PT Pixel Visual Media Kreatif', 'Gedung Creative Hub Lt. 4, Gandaria, Jakarta Selatan', 3, 'Maya Indah, S.Ds.', 'Desain Kreatif & Multimedia'),
+    ('PT Tokopedia / GoTo Group', 'Tokopedia Tower Lt. 18, Ciputra World 2, Jakarta Selatan', 4, 'Kevin Sanjaya, S.T.', 'E-Commerce & Rekayasa Software'),
+    ('Badan Siber dan Sandi Negara (BSSN)', 'Jl. Raya Sawangan No. 118, Pancoran Mas, Depok', 2, 'Letkol R. Santoso, M.T.', 'Keamanan Siber & Sandi'),
+    ('PT Astra Honda Motor (Plant Center)', 'Kawasan Industri MM2100, Cikarang Barat', 6, 'Ir. Joko Susilo, M.T.', 'Manufaktur & Otomotif'),
+    ('Kantor Pelayanan Pajak Pratama (KPP)', 'Jl. M.T. Haryono Kav. 55, Cawang, Jakarta Timur', 4, 'Dra. Sri Wahyuni, M.M.', 'Administrasi Publik & Keuangan')
+ON CONFLICT (nama) DO NOTHING;
+
 `;
 }

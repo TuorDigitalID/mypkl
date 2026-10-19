@@ -4,6 +4,7 @@ import { Header } from './components/Header.tsx';
 import { LiveEvaluationRoom } from './components/LiveEvaluationRoom.tsx';
 import { MasterSiswaTable } from './components/MasterSiswaTable.tsx';
 import { MasterJurusanTable } from './components/MasterJurusanTable.tsx';
+import { MasterInstansiTable } from './components/MasterInstansiTable.tsx';
 import { PesertaList } from './components/PesertaList.tsx';
 import { RekapitulasiView } from './components/RekapitulasiView.tsx';
 import { RubrikGuide } from './components/RubrikGuide.tsx';
@@ -15,7 +16,8 @@ import {
   PenilaianPenguji, 
   SupabaseConfig,
   MasterSiswaPKL,
-  MasterJurusan
+  MasterJurusan,
+  MasterInstansi
 } from './types/index.ts';
 import { DAFTAR_PENGUJI } from './data/penguji.ts';
 import { 
@@ -23,18 +25,22 @@ import {
   getPenilaianList, 
   getMasterSiswaList,
   getMasterJurusanList,
+  getMasterInstansiList,
   getSupabaseConfig, 
   subscribeToRealtimeUpdates 
 } from './lib/supabase.ts';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'live' | 'master' | 'jurusan' | 'peserta' | 'rekap' | 'rubrik'>('master');
+  const [activeTab, setActiveTab] = useState<'live' | 'master' | 'jurusan' | 'instansi' | 'peserta' | 'rekap' | 'rubrik'>('master');
   const [activePenguji, setActivePenguji] = useState<Penguji>(DAFTAR_PENGUJI[0]);
   const [pesertaList, setPesertaList] = useState<MahasiswaSidang[]>([]);
   const [penilaianList, setPenilaianList] = useState<PenilaianPenguji[]>([]);
   const [masterSiswaList, setMasterSiswaList] = useState<MasterSiswaPKL[]>([]);
   const [masterJurusanList, setMasterJurusanList] = useState<MasterJurusan[]>([]);
+  const [masterInstansiList, setMasterInstansiList] = useState<MasterInstansi[]>([]);
   const [filterJurusanForSiswa, setFilterJurusanForSiswa] = useState<string>('semua');
+  const [filterInstansiForSiswa, setFilterInstansiForSiswa] = useState<string>('semua');
+  const [autoOpenUploadInstansi, setAutoOpenUploadInstansi] = useState(false);
   const [activePesertaId, setActivePesertaId] = useState<string>('m1');
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(getSupabaseConfig());
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
@@ -45,16 +51,18 @@ export default function App() {
   // Load initial data
   const loadData = useCallback(async () => {
     try {
-      const [peserta, nilai, master, jurusan] = await Promise.all([
+      const [peserta, nilai, master, jurusan, instansi] = await Promise.all([
         getPesertaSidangList(),
         getPenilaianList(),
         getMasterSiswaList(),
         getMasterJurusanList(),
+        getMasterInstansiList(),
       ]);
       setPesertaList(peserta);
       setPenilaianList(nilai);
       setMasterSiswaList(master);
       setMasterJurusanList(jurusan);
+      setMasterInstansiList(instansi);
       if (peserta.length > 0 && !peserta.some((p) => p.id === activePesertaId)) {
         setActivePesertaId(peserta[0].id);
       }
@@ -122,6 +130,20 @@ export default function App() {
         });
       } else if (event.type === 'MASTER_JURUSAN_DELETED' && event.payload) {
         setMasterJurusanList((prev) => prev.filter((j) => j.id !== event.payload.id));
+      } else if (event.type === 'MASTER_INSTANSI_UPDATED' && event.payload) {
+        setMasterInstansiList((prev) => {
+          const index = prev.findIndex(
+            (i) => i.id === event.payload.id || i.nama.toLowerCase().trim() === event.payload.nama.toLowerCase().trim()
+          );
+          if (index >= 0) {
+            const next = [...prev];
+            next[index] = event.payload;
+            return next;
+          }
+          return [...prev, event.payload];
+        });
+      } else if (event.type === 'MASTER_INSTANSI_DELETED' && event.payload) {
+        setMasterInstansiList((prev) => prev.filter((i) => i.id !== event.payload.id));
       }
     });
 
@@ -154,7 +176,12 @@ export default function App() {
         onOpenSupabaseModal={() => setIsMobileSidebarOpen(false)}
         siswaCount={masterSiswaList.length}
         jurusanCount={masterJurusanList.length}
+        instansiCount={masterInstansiList.length}
         pesertaCount={pesertaList.length}
+        onOpenUploadInstansi={() => {
+          setActiveTab('instansi');
+          setAutoOpenUploadInstansi(true);
+        }}
       />
 
       {/* Main Content Area */}
@@ -194,10 +221,28 @@ export default function App() {
                 <MasterSiswaTable
                   siswaList={masterSiswaList}
                   jurusanList={masterJurusanList}
+                  instansiList={masterInstansiList}
                   filterJurusanParam={filterJurusanForSiswa}
+                  filterInstansiParam={filterInstansiForSiswa}
                   onSiswaUpdated={loadData}
                   onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
                   onNavigateToJurusan={() => setActiveTab('jurusan')}
+                  onNavigateToInstansi={() => setActiveTab('instansi')}
+                />
+              )}
+
+              {activeTab === 'instansi' && (
+                <MasterInstansiTable
+                  instansiList={masterInstansiList}
+                  siswaList={masterSiswaList}
+                  onInstansiUpdated={loadData}
+                  onFilterSiswaByInstansi={(namaInstansi) => {
+                    setFilterInstansiForSiswa(namaInstansi);
+                    setActiveTab('master');
+                  }}
+                  onNavigateToSiswa={() => setActiveTab('master')}
+                  onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+                  initialOpenUpload={autoOpenUploadInstansi}
                 />
               )}
 

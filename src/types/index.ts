@@ -90,6 +90,9 @@ export interface MasterSiswaPKL {
   emailLogin: string;
   passwordLogin: string;
   guruPembimbing: string;
+  instansiId?: string;
+  instansiNama?: string;
+  pembimbingInstansi?: string;
   createdAt?: string;
 }
 
@@ -100,6 +103,20 @@ export interface MasterJurusan {
   bidangKeahlian: string; // e.g. 'Teknologi Informasi & Komunikasi'
   kepalaProgram: string;
   deskripsi?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MasterInstansi {
+  id: string;
+  nama: string; // Nama Instansi / Perusahaan
+  alamat: string; // Alamat Lengkap
+  kuota: number; // Kuota Siswa
+  pembimbingInstansi: string; // Nama Pembimbing Instansi
+  kontakPerson?: string; // No HP / Telepon / PIC
+  email?: string;
+  bidangUsaha?: string; // Bidang Usaha / Industri
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;

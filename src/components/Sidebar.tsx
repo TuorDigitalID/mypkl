@@ -21,8 +21,8 @@ import {
 import { Penguji, SupabaseConfig, MasterJurusan, MasterSiswaPKL, MahasiswaSidang } from '../types/index.ts';
 
 interface SidebarProps {
-  activeTab: 'live' | 'master' | 'jurusan' | 'peserta' | 'rekap' | 'rubrik';
-  setActiveTab: (tab: 'live' | 'master' | 'jurusan' | 'peserta' | 'rekap' | 'rubrik') => void;
+  activeTab: 'live' | 'master' | 'jurusan' | 'instansi' | 'peserta' | 'rekap' | 'rubrik';
+  setActiveTab: (tab: 'live' | 'master' | 'jurusan' | 'instansi' | 'peserta' | 'rekap' | 'rubrik') => void;
   isOpen: boolean;
   onClose: () => void;
   activePenguji: Penguji;
@@ -31,7 +31,9 @@ interface SidebarProps {
   onOpenSupabaseModal: () => void;
   siswaCount: number;
   jurusanCount: number;
+  instansiCount: number;
   pesertaCount: number;
+  onOpenUploadInstansi?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -44,19 +46,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenSupabaseModal,
   siswaCount,
   jurusanCount,
+  instansiCount,
   pesertaCount,
+  onOpenUploadInstansi,
 }) => {
   // Collapsible state for Master Data group (defaults to expanded)
   const [isMasterGroupOpen, setIsMasterGroupOpen] = useState(true);
   const [isSidangGroupOpen, setIsSidangGroupOpen] = useState(true);
   const [isLaporanGroupOpen, setIsLaporanGroupOpen] = useState(true);
 
-  const handleSelectTab = (tab: 'live' | 'master' | 'jurusan' | 'peserta' | 'rekap' | 'rubrik') => {
+  const handleSelectTab = (tab: 'live' | 'master' | 'jurusan' | 'instansi' | 'peserta' | 'rekap' | 'rubrik') => {
     setActiveTab(tab);
     onClose();
   };
 
-  const isMasterActive = activeTab === 'master' || activeTab === 'jurusan';
+  const handleOpenUploadInstansi = () => {
+    setActiveTab('instansi');
+    if (onOpenUploadInstansi) {
+      onOpenUploadInstansi();
+    }
+    onClose();
+  };
+
+  const isMasterActive = activeTab === 'master' || activeTab === 'jurusan' || activeTab === 'instansi';
   const isSidangActive = activeTab === 'live' || activeTab === 'peserta';
   const isLaporanActive = activeTab === 'rekap' || activeTab === 'rubrik';
 
@@ -214,21 +226,58 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                 </button>
 
+                {/* Submenu: Master Instansi / Perusahaan */}
+                <div className="space-y-0.5">
+                  <button
+                    onClick={() => handleSelectTab('instansi')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
+                      activeTab === 'instansi'
+                        ? 'bg-blue-50 text-blue-800 shadow-xs border border-blue-200/80 font-bold'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Building2 className={`w-4 h-4 ${activeTab === 'instansi' ? 'text-blue-600' : 'text-slate-400'}`} />
+                      <span>Master Instansi (DUDI)</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      activeTab === 'instansi' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {instansiCount}
+                    </span>
+                  </button>
+
+                  {/* Menu Upload untuk Master Instansi */}
+                  <button
+                    onClick={handleOpenUploadInstansi}
+                    className="w-full flex items-center justify-between pl-8 pr-3 py-1.5 rounded-lg text-[11px] font-semibold text-blue-700 hover:text-blue-900 hover:bg-blue-50/80 transition-colors group cursor-pointer"
+                    title="Buka Menu Upload Excel/CSV Master Instansi"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-blue-500 group-hover:text-blue-700" />
+                      <span>Upload Data Instansi</span>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-blue-100/80 text-blue-800 group-hover:bg-blue-200">
+                      Excel / CSV
+                    </span>
+                  </button>
+                </div>
+
                 {/* Submenu: Master Jurusan */}
                 <button
                   onClick={() => handleSelectTab('jurusan')}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
                     activeTab === 'jurusan'
-                      ? 'bg-blue-50 text-blue-800 shadow-xs border border-blue-200/80 font-bold'
+                      ? 'bg-indigo-50 text-indigo-800 shadow-xs border border-indigo-200/80 font-bold'
                       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Layers className={`w-4 h-4 ${activeTab === 'jurusan' ? 'text-blue-600' : 'text-slate-400'}`} />
+                    <Layers className={`w-4 h-4 ${activeTab === 'jurusan' ? 'text-indigo-600' : 'text-slate-400'}`} />
                     <span>Master Jurusan</span>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    activeTab === 'jurusan' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+                    activeTab === 'jurusan' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'
                   }`}>
                     {jurusanCount}
                   </span>
