@@ -7,16 +7,18 @@ import {
   Users, 
   Layers, 
   Building2,
+  GraduationCap,
   ClipboardCheck, 
   CalendarCheck, 
   FileSpreadsheet, 
-  BookOpen
+  BookOpen,
+  Compass
 } from 'lucide-react';
 import { Penguji, SupabaseConfig } from '../types/index.ts';
 import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 
 interface HeaderProps {
-  activeTab: 'live' | 'master' | 'jurusan' | 'instansi' | 'peserta' | 'rekap' | 'rubrik';
+  activeTab: 'live' | 'master' | 'jurusan' | 'instansi' | 'guru' | 'plotting' | 'peserta' | 'rekap' | 'rubrik';
   onToggleSidebar: () => void;
   activePenguji: Penguji;
   setActivePenguji: (penguji: Penguji) => void;
@@ -49,6 +51,13 @@ export const Header: React.FC<HeaderProps> = ({
           icon: CalendarCheck,
           tag: 'Peserta',
         };
+      case 'plotting':
+        return {
+          group: 'Manajemen Master',
+          title: 'Plotting & Penempatan Siswa PKL',
+          icon: Compass,
+          tag: 'Penempatan & Pembimbing',
+        };
       case 'master':
         return {
           group: 'Manajemen Master',
@@ -62,6 +71,13 @@ export const Header: React.FC<HeaderProps> = ({
           title: 'Master Data Instansi / Perusahaan',
           icon: Building2,
           tag: 'Mitra DUDI & Kuota',
+        };
+      case 'guru':
+        return {
+          group: 'Manajemen Master',
+          title: 'Master Guru Pembimbing PKL',
+          icon: GraduationCap,
+          tag: 'Pembimbing Sekolah',
         };
       case 'jurusan':
         return {

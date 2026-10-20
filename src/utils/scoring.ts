@@ -289,6 +289,21 @@ CREATE TABLE IF NOT EXISTS public.master_siswa_pkl (
 -- Hapus constraint unique email jika sebelumnya pernah terpasang
 ALTER TABLE public.master_siswa_pkl DROP CONSTRAINT IF EXISTS master_siswa_pkl_email_login_key;
 
+-- 7. Tabel Master Guru Pembimbing PKL
+CREATE TABLE IF NOT EXISTS public.master_guru_pembimbing (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nip VARCHAR(50) NOT NULL UNIQUE,
+    nama VARCHAR(150) NOT NULL,
+    telepon VARCHAR(50),
+    email_login VARCHAR(150) NOT NULL,
+    password_login VARCHAR(100) NOT NULL,
+    bidang_studi VARCHAR(150),
+    avatar TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
 -- Aktifkan Realtime Publikasi untuk Supabase secara aman (Aman dijalankan berulang kali)
 DO $$
 BEGIN
@@ -321,6 +336,12 @@ BEGIN
     EXCEPTION WHEN duplicate_object THEN
         NULL;
     END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.master_guru_pembimbing;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
 END $$;
 
 -- Enable Row Level Security (RLS) & Public Access Policies for Sidang
@@ -330,6 +351,7 @@ ALTER TABLE public.penilaian_sidang ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_siswa_pkl ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_jurusan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_instansi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.master_guru_pembimbing ENABLE ROW LEVEL SECURITY;
 
 -- Berikan izin akses penuh ke role anon dan authenticated Supabase
 GRANT ALL ON TABLE public.peserta_sidang TO anon, authenticated;
@@ -338,6 +360,7 @@ GRANT ALL ON TABLE public.penilaian_sidang TO anon, authenticated;
 GRANT ALL ON TABLE public.master_siswa_pkl TO anon, authenticated;
 GRANT ALL ON TABLE public.master_jurusan TO anon, authenticated;
 GRANT ALL ON TABLE public.master_instansi TO anon, authenticated;
+GRANT ALL ON TABLE public.master_guru_pembimbing TO anon, authenticated;
 
 -- Policies (DROP IF EXISTS agar tidak error jika sudah ada)
 DROP POLICY IF EXISTS "Public Read Access Peserta" ON public.peserta_sidang;
@@ -376,6 +399,12 @@ CREATE POLICY "Public Read Access Master Instansi" ON public.master_instansi FOR
 DROP POLICY IF EXISTS "Public Write Access Master Instansi" ON public.master_instansi;
 CREATE POLICY "Public Write Access Master Instansi" ON public.master_instansi FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public Read Access Master Guru" ON public.master_guru_pembimbing;
+CREATE POLICY "Public Read Access Master Guru" ON public.master_guru_pembimbing FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Master Guru" ON public.master_guru_pembimbing;
+CREATE POLICY "Public Write Access Master Guru" ON public.master_guru_pembimbing FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
 -- Insert Data Penguji Awal (Seed Data)
 INSERT INTO public.penguji (nip, nama, peran)
 VALUES 
@@ -405,6 +434,16 @@ VALUES
     ('PT Astra Honda Motor (Plant Center)', 'Kawasan Industri MM2100, Cikarang Barat', 6, 'Ir. Joko Susilo, M.T.', 'Manufaktur & Otomotif'),
     ('Kantor Pelayanan Pajak Pratama (KPP)', 'Jl. M.T. Haryono Kav. 55, Cawang, Jakarta Timur', 4, 'Dra. Sri Wahyuni, M.M.', 'Administrasi Publik & Keuangan')
 ON CONFLICT (nama) DO NOTHING;
+
+-- Insert Data Master Guru Pembimbing Awal (Seed Data)
+INSERT INTO public.master_guru_pembimbing (nip, nama, telepon, email_login, password_login, bidang_studi)
+VALUES
+    ('19820315 200812 1 001', 'Dr. Ir. Hendra Kurniawan, M.T.', '0812-2345-6789', 'hendra.kurniawan@smk.belajar.id', 'Guru#Hendra2026', 'Rekayasa Perangkat Lunak & Basis Data'),
+    ('19870520 201012 2 003', 'Siti Nurhaliza, S.Kom., M.Cs.', '0813-8899-7711', 'siti.nurhaliza@smk.belajar.id', 'Guru#Siti2026', 'Sistem Informasi Jaringan & Keamanan Siber'),
+    ('19791104 200501 1 004', 'Ahmad Dahlan, S.Pd., M.T.', '0812-9988-1122', 'ahmad.dahlan@smk.belajar.id', 'Guru#Ahmad2026', 'Teknik Jaringan Komputer & Infrastruktur Cloud'),
+    ('19900214 201402 2 002', 'Dewi Lestari, S.T., M.Kom.', '0856-7788-9900', 'dewi.lestari@smk.belajar.id', 'Guru#Dewi2026', 'Desain Komunikasi Visual & Animasi 3D'),
+    ('32730115 04920005', 'Rizal Fahmi, S.Kom.', '0819-0123-4567', 'rizal.fahmi@smk.belajar.id', 'Guru#Rizal2026', 'Mobile App Development & IoT')
+ON CONFLICT (nip) DO NOTHING;
 
 `;
 }

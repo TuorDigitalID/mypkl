@@ -1,7 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { MahasiswaSidang, PenilaianPenguji, SupabaseConfig, MasterSiswaPKL, MasterJurusan, MasterInstansi } from '../types/index.ts';
+import type { MahasiswaSidang, PenilaianPenguji, SupabaseConfig, MasterSiswaPKL, MasterJurusan, MasterInstansi, MasterGuruPembimbing, PlottingSiswaPKL } from '../types/index.ts';
 import { INITIAL_MASTER_JURUSAN } from '../data/jurusan.ts';
 import { INITIAL_MASTER_INSTANSI } from '../data/instansi.ts';
+import { INITIAL_MASTER_GURU } from '../data/guruPembimbing.ts';
+import { INITIAL_PLOTTING_SISWA } from '../data/plotting.ts';
 
 const STORAGE_KEY_SUPABASE = 'my_pkl_supabase_config';
 const STORAGE_KEY_PESERTA = 'my_pkl_peserta_sidang';
@@ -9,6 +11,8 @@ const STORAGE_KEY_PENILAIAN = 'my_pkl_penilaian_sidang';
 const STORAGE_KEY_MASTER_SISWA = 'my_pkl_master_siswa';
 const STORAGE_KEY_MASTER_JURUSAN = 'my_pkl_master_jurusan';
 const STORAGE_KEY_MASTER_INSTANSI = 'my_pkl_master_instansi';
+const STORAGE_KEY_MASTER_GURU = 'my_pkl_master_guru';
+const STORAGE_KEY_PLOTTING = 'my_pkl_plotting_siswa';
 
 // Initial Seed Data for immediate high-fidelity testing
 export const INITIAL_PESERTA: MahasiswaSidang[] = [
@@ -1415,5 +1419,665 @@ export async function insertMasterInstansiBatch(incomingList: MasterInstansi[]):
     count: incomingList.length,
     savedToDatabase: false,
     message: `Berhasil mengimpor ${incomingList.length} data instansi ke penyimpanan lokal.`,
+  };
+}
+
+/**
+ * Load Master Guru Pembimbing: prioritas Supabase, fallback ke LocalStorage & initial seed
+ */
+export async function getMasterGuruList(): Promise<MasterGuruPembimbing[]> {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('master_guru_pembimbing')
+        .select('*')
+        .order('nama', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          id: d.id,
+          nip: d.nip,
+          nama: d.nama,
+          telepon: d.telepon || '',
+          emailLogin: d.email_login || '',
+          passwordLogin: d.password_login || '',
+          bidangStudi: d.bidang_studi || '',
+          avatar: d.avatar || '',
+          isActive: d.is_active ?? true,
+          createdAt: d.created_at,
+          updatedAt: d.updated_at,
+        }));
+      }
+    } catch (err) {
+      console.warn('Supabase getMasterGuruList error, fallback to LocalStorage:', err);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(STORAGE_KEY_MASTER_GURU);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        // ignore parse error
+      }
+    }
+    // Seed initial data
+    localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(INITIAL_MASTER_GURU));
+  }
+
+  return INITIAL_MASTER_GURU;
+}
+
+/**
+ * Save / Update Master Guru Pembimbing
+ */
+export async function saveMasterGuru(guru: MasterGuruPembimbing): Promise<MasterGuruPembimbing[]> {
+  const currentList = await getMasterGuruList();
+  const existingIdx = currentList.findIndex(
+    (g) => g.id === guru.id || g.nip.replace(/\s+/g, '') === guru.nip.replace(/\s+/g, '')
+  );
+  let updatedList: MasterGuruPembimbing[];
+
+  if (existingIdx >= 0) {
+    updatedList = [...currentList];
+    updatedList[existingIdx] = guru;
+  } else {
+    updatedList = [...currentList, guru];
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'MASTER_GURU_UPDATED',
+    payload: guru,
+  });
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const record: any = {
+        nip: guru.nip.trim(),
+        nama: guru.nama.trim(),
+        telepon: guru.telepon.trim(),
+        email_login: guru.emailLogin.trim(),
+        password_login: guru.passwordLogin.trim(),
+        bidang_studi: guru.bidangStudi?.trim() || '',
+        avatar: guru.avatar || '',
+        is_active: guru.isActive ?? true,
+        updated_at: new Date().toISOString(),
+      };
+      if (isValidUUID(guru.id)) {
+        record.id = guru.id;
+      }
+
+      const { data, error } = await client
+        .from('master_guru_pembimbing')
+        .upsert(record, { onConflict: 'nip' })
+        .select();
+
+      if (error) {
+        console.error('Supabase upsert master_guru_pembimbing error:', error);
+      } else if (data && data[0]) {
+        const realId = data[0].id;
+        const idx = updatedList.findIndex((g) => g.nip.replace(/\s+/g, '') === guru.nip.replace(/\s+/g, ''));
+        if (idx >= 0) {
+          updatedList[idx].id = realId;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(updatedList));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase upsert master_guru_pembimbing error:', err);
+    }
+  }
+
+  return updatedList;
+}
+
+/**
+ * Delete Master Guru Pembimbing
+ */
+export async function deleteMasterGuru(id: string): Promise<MasterGuruPembimbing[]> {
+  const currentList = await getMasterGuruList();
+  const updatedList = currentList.filter((g) => g.id !== id);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'MASTER_GURU_DELETED',
+    payload: { id },
+  });
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from('master_guru_pembimbing').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Supabase delete master_guru_pembimbing error:', err);
+    }
+  }
+
+  return updatedList;
+}
+
+/**
+ * Batch insert Master Guru Pembimbing
+ */
+export async function insertMasterGuruBatch(incomingList: MasterGuruPembimbing[]): Promise<BatchInsertResult> {
+  const client = getSupabaseClient();
+  const currentList = await getMasterGuruList();
+
+  const updatedList = [...currentList];
+  incomingList.forEach((incoming) => {
+    const existingIdx = updatedList.findIndex(
+      (item) => item.nip.replace(/\s+/g, '') === incoming.nip.replace(/\s+/g, '')
+    );
+    if (existingIdx >= 0) {
+      updatedList[existingIdx] = {
+        ...updatedList[existingIdx],
+        nama: incoming.nama || updatedList[existingIdx].nama,
+        telepon: incoming.telepon || updatedList[existingIdx].telepon,
+        emailLogin: incoming.emailLogin || updatedList[existingIdx].emailLogin,
+        passwordLogin: incoming.passwordLogin || updatedList[existingIdx].passwordLogin,
+        bidangStudi: incoming.bidangStudi || updatedList[existingIdx].bidangStudi,
+        isActive: true,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      updatedList.push(incoming);
+    }
+  });
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'MASTER_GURU_UPDATED',
+    payload: updatedList,
+  });
+
+  if (client) {
+    try {
+      const recordsToInsert = incomingList.map((g) => {
+        const item: any = {
+          nip: g.nip.trim(),
+          nama: g.nama.trim(),
+          telepon: g.telepon.trim(),
+          email_login: g.emailLogin.trim(),
+          password_login: g.passwordLogin.trim(),
+          bidang_studi: g.bidangStudi?.trim() || '',
+          avatar: g.avatar || '',
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        };
+        if (isValidUUID(g.id)) {
+          item.id = g.id;
+        }
+        return item;
+      });
+
+      const { data, error } = await client
+        .from('master_guru_pembimbing')
+        .upsert(recordsToInsert, { onConflict: 'nip' })
+        .select();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data && data.length > 0) {
+        data.forEach((dbRow: any) => {
+          const idx = updatedList.findIndex((i) => i.nip.replace(/\s+/g, '') === dbRow.nip.replace(/\s+/g, ''));
+          if (idx >= 0) {
+            updatedList[idx].id = dbRow.id;
+          }
+        });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(updatedList));
+        }
+      }
+
+      return {
+        success: true,
+        count: incomingList.length,
+        savedToDatabase: true,
+        message: `Berhasil menyimpan ${incomingList.length} guru pembimbing ke database Supabase Cloud!`,
+      };
+    } catch (err: any) {
+      console.warn('Supabase batch insert master_guru_pembimbing warning, saved locally:', err);
+      return {
+        success: true,
+        count: incomingList.length,
+        savedToDatabase: false,
+        message: `Tersimpan di penyimpanan lokal (${incomingList.length} guru). Catatan: ${err?.message || 'Database offline.'}`,
+      };
+    }
+  }
+
+  return {
+    success: true,
+    count: incomingList.length,
+    savedToDatabase: false,
+    message: `Berhasil mengimpor ${incomingList.length} guru pembimbing ke penyimpanan lokal.`,
+  };
+}
+
+/**
+ * Load Plotting Siswa PKL: prioritas Supabase, fallback ke LocalStorage & initial seed
+ */
+export async function getPlottingList(): Promise<PlottingSiswaPKL[]> {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('plotting_siswa_pkl')
+        .select('*')
+        .order('nama_siswa', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          id: d.id,
+          siswaId: d.siswa_id || `ms-${d.nisn}`,
+          nisn: d.nisn,
+          namaSiswa: d.nama_siswa,
+          kelas: d.kelas,
+          jurusan: d.jurusan,
+          instansiId: d.instansi_id || '',
+          instansiNama: d.instansi_nama || '',
+          alamatInstansi: d.alamat_instansi || '',
+          pembimbingInstansi: d.pembimbing_instansi || '',
+          guruId: d.guru_id || '',
+          guruNama: d.guru_nama || '',
+          guruNip: d.guru_nip || '',
+          guruTelepon: d.guru_telepon || '',
+          periodeMulai: d.periode_mulai || '15 Juli 2026',
+          periodeSelesai: d.periode_selesai || '15 Desember 2026',
+          statusPlotting: d.status_plotting || 'Terplotting',
+          catatan: d.catatan || '',
+          createdAt: d.created_at,
+          updatedAt: d.updated_at,
+        }));
+      }
+    } catch (err) {
+      console.warn('Supabase getPlottingList error, fallback to LocalStorage:', err);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(STORAGE_KEY_PLOTTING);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        // ignore parse error
+      }
+    }
+    // Seed initial data
+    localStorage.setItem(STORAGE_KEY_PLOTTING, JSON.stringify(INITIAL_PLOTTING_SISWA));
+  }
+
+  return INITIAL_PLOTTING_SISWA;
+}
+
+/**
+ * Save / Update Single Plotting Item & sync to Master Siswa
+ */
+export async function savePlottingItem(item: PlottingSiswaPKL): Promise<PlottingSiswaPKL[]> {
+  const currentList = await getPlottingList();
+  const cleanNisn = item.nisn.replace(/\s+/g, '');
+  const existingIdx = currentList.findIndex(
+    (p) => p.id === item.id || p.nisn.replace(/\s+/g, '') === cleanNisn
+  );
+  let updatedList: PlottingSiswaPKL[];
+
+  const updatedItem: PlottingSiswaPKL = {
+    ...item,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (existingIdx >= 0) {
+    updatedList = [...currentList];
+    updatedList[existingIdx] = updatedItem;
+  } else {
+    updatedList = [updatedItem, ...currentList];
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PLOTTING, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'PLOTTING_SISWA_UPDATED',
+    payload: updatedItem,
+  });
+
+  // Cross-sync ke Master Siswa
+  try {
+    const currentSiswa = await getMasterSiswaList();
+    const siswaIdx = currentSiswa.findIndex((s) => s.nisn.replace(/\s+/g, '') === cleanNisn);
+    if (siswaIdx >= 0) {
+      const updatedSiswa = [...currentSiswa];
+      updatedSiswa[siswaIdx] = {
+        ...updatedSiswa[siswaIdx],
+        instansiNama: item.instansiNama,
+        alamatInstansi: item.alamatInstansi,
+        guruPembimbing: item.guruNama,
+        guruNip: item.guruNip,
+        periodeMulai: item.periodeMulai,
+        periodeSelesai: item.periodeSelesai,
+        statusPlotting: item.statusPlotting,
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_MASTER_SISWA, JSON.stringify(updatedSiswa));
+      }
+    }
+  } catch (syncErr) {
+    console.warn('Cross-sync plotting to master siswa warning:', syncErr);
+  }
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const record: any = {
+        nisn: item.nisn.trim(),
+        nama_siswa: item.namaSiswa.trim(),
+        kelas: item.kelas.trim(),
+        jurusan: item.jurusan.trim(),
+        instansi_nama: item.instansiNama?.trim() || '',
+        alamat_instansi: item.alamatInstansi?.trim() || '',
+        guru_nama: item.guruNama?.trim() || '',
+        guru_nip: item.guruNip?.trim() || '',
+        periode_mulai: item.periodeMulai?.trim() || '',
+        periode_selesai: item.periodeSelesai?.trim() || '',
+        status_plotting: item.statusPlotting || 'Terplotting',
+        catatan: item.catatan?.trim() || '',
+        updated_at: new Date().toISOString(),
+      };
+      if (isValidUUID(item.id)) {
+        record.id = item.id;
+      }
+
+      await client
+        .from('plotting_siswa_pkl')
+        .upsert(record, { onConflict: 'nisn' });
+    } catch (err) {
+      console.warn('Supabase upsert plotting_siswa_pkl error:', err);
+    }
+  }
+
+  return updatedList;
+}
+
+/**
+ * Delete Plotting Item
+ */
+export async function deletePlottingItem(id: string): Promise<PlottingSiswaPKL[]> {
+  const currentList = await getPlottingList();
+  const updatedList = currentList.filter((p) => p.id !== id);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PLOTTING, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'PLOTTING_SISWA_DELETED',
+    payload: { id },
+  });
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from('plotting_siswa_pkl').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Supabase delete plotting_siswa_pkl error:', err);
+    }
+  }
+
+  return updatedList;
+}
+
+/**
+ * Batch insert / upsert Plotting Siswa PKL ke Supabase Cloud atau LocalStorage
+ * Sekaligus melakukan sinkronisasi otomatis ke data Master Siswa, Master DUDI, dan Master Guru
+ */
+export async function insertPlottingBatch(incomingList: PlottingSiswaPKL[]): Promise<BatchInsertResult> {
+  const client = getSupabaseClient();
+  const currentList = await getPlottingList();
+
+  const updatedList = [...currentList];
+  incomingList.forEach((incoming) => {
+    const cleanNisn = incoming.nisn.replace(/\s+/g, '');
+    const existingIdx = updatedList.findIndex(
+      (item) => item.nisn.replace(/\s+/g, '') === cleanNisn
+    );
+    if (existingIdx >= 0) {
+      updatedList[existingIdx] = {
+        ...updatedList[existingIdx],
+        namaSiswa: incoming.namaSiswa || updatedList[existingIdx].namaSiswa,
+        kelas: incoming.kelas || updatedList[existingIdx].kelas,
+        jurusan: incoming.jurusan || updatedList[existingIdx].jurusan,
+        instansiNama: incoming.instansiNama || updatedList[existingIdx].instansiNama,
+        alamatInstansi: incoming.alamatInstansi || updatedList[existingIdx].alamatInstansi,
+        guruNama: incoming.guruNama || updatedList[existingIdx].guruNama,
+        guruNip: incoming.guruNip || updatedList[existingIdx].guruNip,
+        periodeMulai: incoming.periodeMulai || updatedList[existingIdx].periodeMulai,
+        periodeSelesai: incoming.periodeSelesai || updatedList[existingIdx].periodeSelesai,
+        statusPlotting: incoming.statusPlotting || updatedList[existingIdx].statusPlotting,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      updatedList.push(incoming);
+    }
+  });
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PLOTTING, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'PLOTTING_SISWA_UPDATED',
+    payload: updatedList,
+  });
+
+  // Sinkronisasi otomatis ke Master Siswa
+  try {
+    const currentSiswa = await getMasterSiswaList();
+    const updatedSiswa = [...currentSiswa];
+
+    incomingList.forEach((item) => {
+      const cleanNisn = item.nisn.replace(/\s+/g, '');
+      const sIdx = updatedSiswa.findIndex((s) => s.nisn.replace(/\s+/g, '') === cleanNisn);
+      if (sIdx >= 0) {
+        updatedSiswa[sIdx] = {
+          ...updatedSiswa[sIdx],
+          instansiNama: item.instansiNama || updatedSiswa[sIdx].instansiNama,
+          alamatInstansi: item.alamatInstansi || updatedSiswa[sIdx].alamatInstansi,
+          guruPembimbing: item.guruNama || updatedSiswa[sIdx].guruPembimbing,
+          guruNip: item.guruNip || updatedSiswa[sIdx].guruNip,
+          periodeMulai: item.periodeMulai || updatedSiswa[sIdx].periodeMulai,
+          periodeSelesai: item.periodeSelesai || updatedSiswa[sIdx].periodeSelesai,
+          statusPlotting: item.statusPlotting || updatedSiswa[sIdx].statusPlotting,
+        };
+      } else {
+        // Jika siswa belum ada di master_siswa, tambahkan otomatis
+        updatedSiswa.push({
+          id: `ms-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          nisn: item.nisn,
+          namaLengkap: item.namaSiswa,
+          kelas: item.kelas,
+          jurusan: item.jurusan,
+          emailLogin: `${item.namaSiswa.toLowerCase().replace(/[^a-z0-9]/g, '.')}@smk.belajar.id`,
+          passwordLogin: `Pkl#${item.nisn.slice(-4)}`,
+          guruPembimbing: item.guruNama,
+          guruNip: item.guruNip,
+          instansiNama: item.instansiNama,
+          alamatInstansi: item.alamatInstansi,
+          periodeMulai: item.periodeMulai,
+          periodeSelesai: item.periodeSelesai,
+          statusPlotting: item.statusPlotting,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    });
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_MASTER_SISWA, JSON.stringify(updatedSiswa));
+    }
+  } catch (syncErr) {
+    console.warn('Auto-sync to master siswa failed:', syncErr);
+  }
+
+  // Sinkronisasi otomatis ke Master Instansi jika ada DUDI baru
+  try {
+    const currentInstansi = await getMasterInstansiList();
+    const newInstansiMap = new Map<string, string>();
+    incomingList.forEach((item) => {
+      if (item.instansiNama?.trim()) {
+        const norm = item.instansiNama.toLowerCase().trim();
+        if (!currentInstansi.some((i) => i.nama.toLowerCase().trim() === norm)) {
+          newInstansiMap.set(norm, item.alamatInstansi || 'Kota Bandung / Jakarta');
+        }
+      }
+    });
+
+    if (newInstansiMap.size > 0) {
+      const addedInstansi: MasterInstansi[] = Array.from(newInstansiMap.entries()).map(([normName, alamat], idx) => {
+        // Ambil nama asli dari item
+        const origItem = incomingList.find((i) => i.instansiNama.toLowerCase().trim() === normName);
+        return {
+          id: `inst-auto-${Date.now()}-${idx}`,
+          nama: origItem ? origItem.instansiNama : normName,
+          alamat: alamat,
+          kuota: 4,
+          pembimbingInstansi: 'Pembimbing Industri',
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      const mergedInstansi = [...currentInstansi, ...addedInstansi];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_MASTER_INSTANSI, JSON.stringify(mergedInstansi));
+      }
+    }
+  } catch (instSyncErr) {
+    console.warn('Auto-sync to master instansi warning:', instSyncErr);
+  }
+
+  // Sinkronisasi otomatis ke Master Guru jika ada Guru baru
+  try {
+    const currentGuru = await getMasterGuruList();
+    const newGuruMap = new Map<string, { nip: string; nama: string }>();
+    incomingList.forEach((item) => {
+      if (item.guruNama?.trim()) {
+        const cleanNip = item.guruNip?.replace(/\s+/g, '') || '';
+        const normNama = item.guruNama.toLowerCase().trim();
+        const exists = currentGuru.some(
+          (g) => (cleanNip && g.nip.replace(/\s+/g, '') === cleanNip) || g.nama.toLowerCase().trim() === normNama
+        );
+        if (!exists) {
+          newGuruMap.set(cleanNip || normNama, { nip: item.guruNip || '19800000 000000 0 000', nama: item.guruNama });
+        }
+      }
+    });
+
+    if (newGuruMap.size > 0) {
+      const addedGuru: MasterGuruPembimbing[] = Array.from(newGuruMap.values()).map((g, idx) => ({
+        id: `guru-auto-${Date.now()}-${idx}`,
+        nip: g.nip,
+        nama: g.nama,
+        telepon: '0812-0000-0000',
+        emailLogin: `${g.nama.toLowerCase().replace(/[^a-z0-9]/g, '.')}@smk.belajar.id`,
+        passwordLogin: `Guru#${Date.now().toString().slice(-4)}`,
+        bidangStudi: 'Produktif & Kejuruan',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+      const mergedGuru = [...currentGuru, ...addedGuru];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(mergedGuru));
+      }
+    }
+  } catch (guruSyncErr) {
+    console.warn('Auto-sync to master guru warning:', guruSyncErr);
+  }
+
+  // Kirim ke Supabase jika terhubung
+  if (client) {
+    try {
+      const recordsToInsert = incomingList.map((p) => {
+        const item: any = {
+          nisn: p.nisn.trim(),
+          nama_siswa: p.namaSiswa.trim(),
+          kelas: p.kelas.trim(),
+          jurusan: p.jurusan.trim(),
+          instansi_nama: p.instansiNama?.trim() || '',
+          alamat_instansi: p.alamatInstansi?.trim() || '',
+          guru_nama: p.guruNama?.trim() || '',
+          guru_nip: p.guruNip?.trim() || '',
+          periode_mulai: p.periodeMulai?.trim() || '',
+          periode_selesai: p.periodeSelesai?.trim() || '',
+          status_plotting: p.statusPlotting || 'Terplotting',
+          catatan: p.catatan?.trim() || '',
+          updated_at: new Date().toISOString(),
+        };
+        if (isValidUUID(p.id)) {
+          item.id = p.id;
+        }
+        return item;
+      });
+
+      const { data, error } = await client
+        .from('plotting_siswa_pkl')
+        .upsert(recordsToInsert, { onConflict: 'nisn' })
+        .select();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data && data.length > 0) {
+        data.forEach((dbRow: any) => {
+          const idx = updatedList.findIndex((i) => i.nisn.replace(/\s+/g, '') === dbRow.nisn.replace(/\s+/g, ''));
+          if (idx >= 0) {
+            updatedList[idx].id = dbRow.id;
+          }
+        });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY_PLOTTING, JSON.stringify(updatedList));
+        }
+      }
+
+      return {
+        success: true,
+        count: incomingList.length,
+        savedToDatabase: true,
+        message: `Berhasil menyimpan ${incomingList.length} data plotting siswa ke database Supabase Cloud!`,
+      };
+    } catch (err: any) {
+      console.warn('Supabase batch insert plotting_siswa_pkl warning, saved locally:', err);
+      return {
+        success: true,
+        count: incomingList.length,
+        savedToDatabase: false,
+        message: `Tersimpan di penyimpanan lokal (${incomingList.length} plotting). Catatan: ${err?.message || 'Database offline.'}`,
+      };
+    }
+  }
+
+  return {
+    success: true,
+    count: incomingList.length,
+    savedToDatabase: false,
+    message: `Berhasil mengimpor ${incomingList.length} data plotting siswa ke penyimpanan lokal.`,
   };
 }

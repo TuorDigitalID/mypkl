@@ -16,13 +16,14 @@ import {
   Sparkles,
   ShieldCheck,
   Building2,
-  FolderTree
+  FolderTree,
+  Compass
 } from 'lucide-react';
 import { Penguji, SupabaseConfig, MasterJurusan, MasterSiswaPKL, MahasiswaSidang } from '../types/index.ts';
 
 interface SidebarProps {
-  activeTab: 'live' | 'master' | 'jurusan' | 'instansi' | 'peserta' | 'rekap' | 'rubrik';
-  setActiveTab: (tab: 'live' | 'master' | 'jurusan' | 'instansi' | 'peserta' | 'rekap' | 'rubrik') => void;
+  activeTab: 'live' | 'master' | 'jurusan' | 'instansi' | 'guru' | 'plotting' | 'peserta' | 'rekap' | 'rubrik';
+  setActiveTab: (tab: 'live' | 'master' | 'jurusan' | 'instansi' | 'guru' | 'plotting' | 'peserta' | 'rekap' | 'rubrik') => void;
   isOpen: boolean;
   onClose: () => void;
   activePenguji: Penguji;
@@ -32,8 +33,12 @@ interface SidebarProps {
   siswaCount: number;
   jurusanCount: number;
   instansiCount: number;
+  guruCount: number;
+  plottingCount: number;
   pesertaCount: number;
   onOpenUploadInstansi?: () => void;
+  onOpenUploadGuru?: () => void;
+  onOpenUploadPlotting?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -47,15 +52,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   siswaCount,
   jurusanCount,
   instansiCount,
+  guruCount,
+  plottingCount,
   pesertaCount,
   onOpenUploadInstansi,
+  onOpenUploadGuru,
+  onOpenUploadPlotting,
 }) => {
   // Collapsible state for Master Data group (defaults to expanded)
   const [isMasterGroupOpen, setIsMasterGroupOpen] = useState(true);
   const [isSidangGroupOpen, setIsSidangGroupOpen] = useState(true);
   const [isLaporanGroupOpen, setIsLaporanGroupOpen] = useState(true);
 
-  const handleSelectTab = (tab: 'live' | 'master' | 'jurusan' | 'instansi' | 'peserta' | 'rekap' | 'rubrik') => {
+  const handleSelectTab = (tab: 'live' | 'master' | 'jurusan' | 'instansi' | 'guru' | 'plotting' | 'peserta' | 'rekap' | 'rubrik') => {
     setActiveTab(tab);
     onClose();
   };
@@ -68,7 +77,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onClose();
   };
 
-  const isMasterActive = activeTab === 'master' || activeTab === 'jurusan' || activeTab === 'instansi';
+  const handleOpenUploadGuru = () => {
+    setActiveTab('guru');
+    if (onOpenUploadGuru) {
+      onOpenUploadGuru();
+    }
+    onClose();
+  };
+
+  const handleOpenUploadPlotting = () => {
+    setActiveTab('plotting');
+    if (onOpenUploadPlotting) {
+      onOpenUploadPlotting();
+    }
+    onClose();
+  };
+
+  const isMasterActive = activeTab === 'master' || activeTab === 'jurusan' || activeTab === 'instansi' || activeTab === 'guru' || activeTab === 'plotting';
   const isSidangActive = activeTab === 'live' || activeTab === 'peserta';
   const isLaporanActive = activeTab === 'rekap' || activeTab === 'rubrik';
 
@@ -226,6 +251,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                 </button>
 
+                {/* Submenu: Plotting Siswa PKL */}
+                <div className="space-y-0.5">
+                  <button
+                    onClick={() => handleSelectTab('plotting')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
+                      activeTab === 'plotting'
+                        ? 'bg-teal-50 text-teal-800 shadow-xs border border-teal-200/80 font-bold'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Compass className={`w-4 h-4 ${activeTab === 'plotting' ? 'text-teal-600' : 'text-slate-400'}`} />
+                      <span>Plotting Siswa PKL</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      activeTab === 'plotting' ? 'bg-teal-100 text-teal-800' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {plottingCount}
+                    </span>
+                  </button>
+
+                  {/* Menu Upload untuk Plotting Siswa */}
+                  <button
+                    onClick={handleOpenUploadPlotting}
+                    className="w-full flex items-center justify-between pl-8 pr-3 py-1.5 rounded-lg text-[11px] font-semibold text-teal-700 hover:text-teal-900 hover:bg-teal-50/80 transition-colors group cursor-pointer"
+                    title="Buka Menu Upload Excel/CSV Plotting Siswa PKL"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-teal-500 group-hover:text-teal-700" />
+                      <span>Upload Data Plotting</span>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-teal-100/80 text-teal-800 group-hover:bg-teal-200">
+                      Excel / CSV
+                    </span>
+                  </button>
+                </div>
+
                 {/* Submenu: Master Instansi / Perusahaan */}
                 <div className="space-y-0.5">
                   <button
@@ -258,6 +320,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <span>Upload Data Instansi</span>
                     </div>
                     <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-blue-100/80 text-blue-800 group-hover:bg-blue-200">
+                      Excel / CSV
+                    </span>
+                  </button>
+                </div>
+
+                {/* Submenu: Master Guru Pembimbing */}
+                <div className="space-y-0.5">
+                  <button
+                    onClick={() => handleSelectTab('guru')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
+                      activeTab === 'guru'
+                        ? 'bg-purple-50 text-purple-800 shadow-xs border border-purple-200/80 font-bold'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <GraduationCap className={`w-4 h-4 ${activeTab === 'guru' ? 'text-purple-600' : 'text-slate-400'}`} />
+                      <span>Master Guru Pembimbing</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      activeTab === 'guru' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {guruCount}
+                    </span>
+                  </button>
+
+                  {/* Menu Upload untuk Master Guru */}
+                  <button
+                    onClick={handleOpenUploadGuru}
+                    className="w-full flex items-center justify-between pl-8 pr-3 py-1.5 rounded-lg text-[11px] font-semibold text-purple-700 hover:text-purple-900 hover:bg-purple-50/80 transition-colors group cursor-pointer"
+                    title="Buka Menu Upload Excel/CSV Master Guru Pembimbing"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-purple-500 group-hover:text-purple-700" />
+                      <span>Upload Data Guru</span>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-purple-100/80 text-purple-800 group-hover:bg-purple-200">
                       Excel / CSV
                     </span>
                   </button>

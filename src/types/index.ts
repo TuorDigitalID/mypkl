@@ -90,9 +90,14 @@ export interface MasterSiswaPKL {
   emailLogin: string;
   passwordLogin: string;
   guruPembimbing: string;
+  guruNip?: string;
   instansiId?: string;
   instansiNama?: string;
+  alamatInstansi?: string;
   pembimbingInstansi?: string;
+  periodeMulai?: string;
+  periodeSelesai?: string;
+  statusPlotting?: StatusPlotting;
   createdAt?: string;
 }
 
@@ -118,6 +123,45 @@ export interface MasterInstansi {
   email?: string;
   bidangUsaha?: string; // Bidang Usaha / Industri
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MasterGuruPembimbing {
+  id: string;
+  nip: string; // NIP / NIK
+  nama: string; // Nama Guru Pembimbing
+  telepon: string; // Telepon / WhatsApp
+  emailLogin: string; // Email Login
+  passwordLogin: string; // Password Login
+  bidangStudi?: string; // Bidang Keahlian / Mata Pelajaran
+  avatar?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type StatusPlotting = 'Terplotting' | 'Belum Terplotting' | 'Sedang PKL' | 'Selesai PKL';
+
+export interface PlottingSiswaPKL {
+  id: string;
+  siswaId: string;
+  nisn: string;
+  namaSiswa: string;
+  kelas: string;
+  jurusan: string;
+  instansiId?: string;
+  instansiNama: string; // Instansi PKL (Penempatan)
+  alamatInstansi: string; // Alamat Instansi
+  pembimbingInstansi?: string;
+  guruId?: string;
+  guruNama: string; // Guru Pembimbing Sekolah
+  guruNip: string; // NIP Guru Pembimbing
+  guruTelepon?: string;
+  periodeMulai: string; // Periode Mulai PKL
+  periodeSelesai: string; // Periode Selesai PKL
+  statusPlotting: StatusPlotting;
+  catatan?: string;
   createdAt?: string;
   updatedAt?: string;
 }

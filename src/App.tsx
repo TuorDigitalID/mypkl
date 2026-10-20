@@ -5,6 +5,8 @@ import { LiveEvaluationRoom } from './components/LiveEvaluationRoom.tsx';
 import { MasterSiswaTable } from './components/MasterSiswaTable.tsx';
 import { MasterJurusanTable } from './components/MasterJurusanTable.tsx';
 import { MasterInstansiTable } from './components/MasterInstansiTable.tsx';
+import { MasterGuruTable } from './components/MasterGuruTable.tsx';
+import { PlottingSiswaTable } from './components/PlottingSiswaTable.tsx';
 import { PesertaList } from './components/PesertaList.tsx';
 import { RekapitulasiView } from './components/RekapitulasiView.tsx';
 import { RubrikGuide } from './components/RubrikGuide.tsx';
@@ -17,7 +19,9 @@ import {
   SupabaseConfig,
   MasterSiswaPKL,
   MasterJurusan,
-  MasterInstansi
+  MasterInstansi,
+  MasterGuruPembimbing,
+  PlottingSiswaPKL
 } from './types/index.ts';
 import { DAFTAR_PENGUJI } from './data/penguji.ts';
 import { 
@@ -26,21 +30,28 @@ import {
   getMasterSiswaList,
   getMasterJurusanList,
   getMasterInstansiList,
+  getMasterGuruList,
+  getPlottingList,
   getSupabaseConfig, 
   subscribeToRealtimeUpdates 
 } from './lib/supabase.ts';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'live' | 'master' | 'jurusan' | 'instansi' | 'peserta' | 'rekap' | 'rubrik'>('master');
+  const [activeTab, setActiveTab] = useState<'live' | 'master' | 'jurusan' | 'instansi' | 'guru' | 'plotting' | 'peserta' | 'rekap' | 'rubrik'>('plotting');
   const [activePenguji, setActivePenguji] = useState<Penguji>(DAFTAR_PENGUJI[0]);
   const [pesertaList, setPesertaList] = useState<MahasiswaSidang[]>([]);
   const [penilaianList, setPenilaianList] = useState<PenilaianPenguji[]>([]);
   const [masterSiswaList, setMasterSiswaList] = useState<MasterSiswaPKL[]>([]);
   const [masterJurusanList, setMasterJurusanList] = useState<MasterJurusan[]>([]);
   const [masterInstansiList, setMasterInstansiList] = useState<MasterInstansi[]>([]);
+  const [masterGuruList, setMasterGuruList] = useState<MasterGuruPembimbing[]>([]);
+  const [plottingList, setPlottingList] = useState<PlottingSiswaPKL[]>([]);
   const [filterJurusanForSiswa, setFilterJurusanForSiswa] = useState<string>('semua');
   const [filterInstansiForSiswa, setFilterInstansiForSiswa] = useState<string>('semua');
+  const [filterGuruForSiswa, setFilterGuruForSiswa] = useState<string>('semua');
   const [autoOpenUploadInstansi, setAutoOpenUploadInstansi] = useState(false);
+  const [autoOpenUploadGuru, setAutoOpenUploadGuru] = useState(false);
+  const [autoOpenUploadPlotting, setAutoOpenUploadPlotting] = useState(false);
   const [activePesertaId, setActivePesertaId] = useState<string>('m1');
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(getSupabaseConfig());
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
@@ -51,18 +62,22 @@ export default function App() {
   // Load initial data
   const loadData = useCallback(async () => {
     try {
-      const [peserta, nilai, master, jurusan, instansi] = await Promise.all([
+      const [peserta, nilai, master, jurusan, instansi, guru, plotting] = await Promise.all([
         getPesertaSidangList(),
         getPenilaianList(),
         getMasterSiswaList(),
         getMasterJurusanList(),
         getMasterInstansiList(),
+        getMasterGuruList(),
+        getPlottingList(),
       ]);
       setPesertaList(peserta);
       setPenilaianList(nilai);
       setMasterSiswaList(master);
       setMasterJurusanList(jurusan);
       setMasterInstansiList(instansi);
+      setMasterGuruList(guru);
+      setPlottingList(plotting);
       if (peserta.length > 0 && !peserta.some((p) => p.id === activePesertaId)) {
         setActivePesertaId(peserta[0].id);
       }
@@ -144,6 +159,20 @@ export default function App() {
         });
       } else if (event.type === 'MASTER_INSTANSI_DELETED' && event.payload) {
         setMasterInstansiList((prev) => prev.filter((i) => i.id !== event.payload.id));
+      } else if (event.type === 'MASTER_GURU_UPDATED' && event.payload) {
+        setMasterGuruList((prev) => {
+          const index = prev.findIndex(
+            (g) => g.id === event.payload.id || g.nip.replace(/\s+/g, '') === event.payload.nip.replace(/\s+/g, '')
+          );
+          if (index >= 0) {
+            const next = [...prev];
+            next[index] = event.payload;
+            return next;
+          }
+          return [...prev, event.payload];
+        });
+      } else if (event.type === 'MASTER_GURU_DELETED' && event.payload) {
+        setMasterGuruList((prev) => prev.filter((g) => g.id !== event.payload.id));
       }
     });
 
@@ -177,10 +206,20 @@ export default function App() {
         siswaCount={masterSiswaList.length}
         jurusanCount={masterJurusanList.length}
         instansiCount={masterInstansiList.length}
+        guruCount={masterGuruList.length}
+        plottingCount={plottingList.length}
         pesertaCount={pesertaList.length}
         onOpenUploadInstansi={() => {
           setActiveTab('instansi');
           setAutoOpenUploadInstansi(true);
+        }}
+        onOpenUploadGuru={() => {
+          setActiveTab('guru');
+          setAutoOpenUploadGuru(true);
+        }}
+        onOpenUploadPlotting={() => {
+          setActiveTab('plotting');
+          setAutoOpenUploadPlotting(true);
         }}
       />
 
@@ -217,17 +256,36 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'plotting' && (
+                <PlottingSiswaTable
+                  plottingList={plottingList}
+                  siswaList={masterSiswaList}
+                  instansiList={masterInstansiList}
+                  guruList={masterGuruList}
+                  onPlottingUpdated={loadData}
+                  onNavigateToSiswa={() => setActiveTab('master')}
+                  onNavigateToInstansi={() => setActiveTab('instansi')}
+                  onNavigateToGuru={() => setActiveTab('guru')}
+                  onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+                  initialOpenUpload={autoOpenUploadPlotting}
+                />
+              )}
+
               {activeTab === 'master' && (
                 <MasterSiswaTable
                   siswaList={masterSiswaList}
                   jurusanList={masterJurusanList}
                   instansiList={masterInstansiList}
+                  guruList={masterGuruList}
                   filterJurusanParam={filterJurusanForSiswa}
                   filterInstansiParam={filterInstansiForSiswa}
+                  filterGuruParam={filterGuruForSiswa}
                   onSiswaUpdated={loadData}
                   onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
                   onNavigateToJurusan={() => setActiveTab('jurusan')}
                   onNavigateToInstansi={() => setActiveTab('instansi')}
+                  onNavigateToGuru={() => setActiveTab('guru')}
+                  onNavigateToPlotting={() => setActiveTab('plotting')}
                 />
               )}
 
@@ -243,6 +301,21 @@ export default function App() {
                   onNavigateToSiswa={() => setActiveTab('master')}
                   onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
                   initialOpenUpload={autoOpenUploadInstansi}
+                />
+              )}
+
+              {activeTab === 'guru' && (
+                <MasterGuruTable
+                  guruList={masterGuruList}
+                  siswaList={masterSiswaList}
+                  onGuruUpdated={loadData}
+                  onFilterSiswaByGuru={(namaGuru) => {
+                    setFilterGuruForSiswa(namaGuru);
+                    setActiveTab('master');
+                  }}
+                  onNavigateToSiswa={() => setActiveTab('master')}
+                  onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+                  initialOpenUpload={autoOpenUploadGuru}
                 />
               )}
 

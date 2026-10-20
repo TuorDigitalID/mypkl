@@ -24,9 +24,10 @@ import {
   ArrowRight,
   Building2,
   Briefcase,
-  MapPin
+  MapPin,
+  Compass
 } from 'lucide-react';
-import { MasterSiswaPKL, MasterJurusan, MasterInstansi } from '../types/index.ts';
+import { MasterSiswaPKL, MasterJurusan, MasterInstansi, MasterGuruPembimbing } from '../types/index.ts';
 import { saveMasterSiswa, deleteMasterSiswa } from '../lib/supabase.ts';
 import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 import { UploadExcelModal } from './UploadExcelModal.tsx';
@@ -37,29 +38,38 @@ interface MasterSiswaTableProps {
   siswaList: MasterSiswaPKL[];
   jurusanList?: MasterJurusan[];
   instansiList?: MasterInstansi[];
+  guruList?: MasterGuruPembimbing[];
   onSiswaUpdated: () => void;
   onJadwalkanSidang?: (siswa: MasterSiswaPKL) => void;
   onOpenSupabaseModal?: () => void;
   onNavigateToJurusan?: () => void;
   onNavigateToInstansi?: () => void;
+  onNavigateToGuru?: () => void;
+  onNavigateToPlotting?: () => void;
   filterJurusanParam?: string;
   filterInstansiParam?: string;
+  filterGuruParam?: string;
 }
 
 export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
   siswaList,
   jurusanList = [],
   instansiList = [],
+  guruList = [],
   onSiswaUpdated,
   onOpenSupabaseModal,
   onNavigateToJurusan,
   onNavigateToInstansi,
+  onNavigateToGuru,
+  onNavigateToPlotting,
   filterJurusanParam,
   filterInstansiParam,
+  filterGuruParam,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedJurusan, setSelectedJurusan] = useState<string>(filterJurusanParam || 'semua');
   const [selectedInstansi, setSelectedInstansi] = useState<string>(filterInstansiParam || 'semua');
+  const [selectedGuru, setSelectedGuru] = useState<string>(filterGuruParam || 'semua');
   const [selectedKelas, setSelectedKelas] = useState<string>('semua');
   const [showAllPasswords, setShowAllPasswords] = useState(false);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
@@ -81,7 +91,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     pembimbingInstansi: '',
     emailLogin: '',
     passwordLogin: '',
-    guruPembimbing: DAFTAR_PENGUJI[0]?.nama || 'Dr. Ir. Hendra Kurniawan, M.T.',
+    guruPembimbing: guruList[0]?.nama || DAFTAR_PENGUJI[0]?.nama || 'Dr. Ir. Hendra Kurniawan, M.T.',
   });
   const [formError, setFormError] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -99,6 +109,13 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
       setSelectedInstansi(filterInstansiParam);
     }
   }, [filterInstansiParam]);
+
+  // Sync if filterGuruParam changes from parent (e.g. from Master Guru table)
+  React.useEffect(() => {
+    if (filterGuruParam) {
+      setSelectedGuru(filterGuruParam);
+    }
+  }, [filterGuruParam]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -132,6 +149,13 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     return ['semua', ...list];
   }, [siswaList]);
 
+  const guruOptions = useMemo(() => {
+    const fromMaster = (guruList || []).map((g) => g.nama);
+    const fromSiswa = siswaList.map((s) => s.guruPembimbing).filter(Boolean);
+    const list = Array.from(new Set([...fromMaster, ...fromSiswa])).filter(Boolean);
+    return ['semua', ...list];
+  }, [siswaList, guruList]);
+
   // Filtered List
   const filteredList = useMemo(() => {
     return siswaList.filter((item) => {
@@ -146,10 +170,11 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
       const matchJurusan = selectedJurusan === 'semua' || item.jurusan === selectedJurusan;
       const matchKelas = selectedKelas === 'semua' || item.kelas === selectedKelas;
       const matchInstansi = selectedInstansi === 'semua' || item.instansiNama === selectedInstansi;
+      const matchGuru = selectedGuru === 'semua' || item.guruPembimbing === selectedGuru;
 
-      return matchSearch && matchJurusan && matchKelas && matchInstansi;
+      return matchSearch && matchJurusan && matchKelas && matchInstansi && matchGuru;
     });
-  }, [siswaList, searchTerm, selectedJurusan, selectedKelas, selectedInstansi]);
+  }, [siswaList, searchTerm, selectedJurusan, selectedKelas, selectedInstansi, selectedGuru]);
 
   // Selected Jurusan detail for Form Modal
   const selectedFormJurusanObj = useMemo(() => {
@@ -385,6 +410,17 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
             </button>
           )}
 
+          {onNavigateToGuru && (
+            <button
+              onClick={onNavigateToGuru}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 font-semibold text-xs transition-colors shadow-xs"
+              title="Kelola Data Master Guru Pembimbing"
+            >
+              <GraduationCap className="w-4 h-4 text-purple-600" />
+              <span>Master Guru ({guruList.length})</span>
+            </button>
+          )}
+
           {onNavigateToJurusan && (
             <button
               onClick={onNavigateToJurusan}
@@ -393,6 +429,17 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
             >
               <Layers className="w-4 h-4 text-indigo-600" />
               <span>Master Jurusan ({jurusanList.length})</span>
+            </button>
+          )}
+
+          {onNavigateToPlotting && (
+            <button
+              onClick={onNavigateToPlotting}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-semibold text-xs transition-colors shadow-xs"
+              title="Buka Menu Plotting & Penempatan Siswa PKL"
+            >
+              <Compass className="w-4 h-4 text-teal-600" />
+              <span>Plotting PKL</span>
             </button>
           )}
 
@@ -465,11 +512,28 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
               value={selectedInstansi}
               onChange={(e) => setSelectedInstansi(e.target.value)}
               aria-label="Filter Instansi"
-              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-500 max-w-[200px] truncate"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-500 max-w-[180px] truncate"
             >
               {instansiOptions.map((i) => (
                 <option key={i} value={i}>
                   {i === 'semua' ? 'Semua Instansi' : i}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter Guru Pembimbing */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-400 font-medium">Guru:</span>
+            <select
+              value={selectedGuru}
+              onChange={(e) => setSelectedGuru(e.target.value)}
+              aria-label="Filter Guru Pembimbing"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium outline-none focus:ring-2 focus:ring-purple-500 max-w-[180px] truncate"
+            >
+              {guruOptions.map((g) => (
+                <option key={g} value={g}>
+                  {g === 'semua' ? 'Semua Guru' : g}
                 </option>
               ))}
             </select>
@@ -943,11 +1007,19 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                   onChange={(e) => setFormData({ ...formData, guruPembimbing: e.target.value })}
                   className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                 >
-                  {DAFTAR_PENGUJI.map((p) => (
-                    <option key={p.id} value={p.nama}>
-                      {p.nama} ({p.peran})
-                    </option>
-                  ))}
+                  {guruList && guruList.length > 0 ? (
+                    guruList.map((g) => (
+                      <option key={g.id} value={g.nama}>
+                        {g.nama} {g.bidangStudi ? `— ${g.bidangStudi}` : ''}
+                      </option>
+                    ))
+                  ) : (
+                    DAFTAR_PENGUJI.map((p) => (
+                      <option key={p.id} value={p.nama}>
+                        {p.nama} ({p.peran})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
