@@ -12,6 +12,7 @@ import { RekapitulasiView } from './components/RekapitulasiView.tsx';
 import { RubrikGuide } from './components/RubrikGuide.tsx';
 import { SupabaseModal } from './components/SupabaseModal.tsx';
 import { BeritaAcaraModal } from './components/BeritaAcaraModal.tsx';
+import { PusatUploadModal } from './components/PusatUploadModal.tsx';
 import { 
   MahasiswaSidang, 
   Penguji, 
@@ -49,9 +50,16 @@ export default function App() {
   const [filterJurusanForSiswa, setFilterJurusanForSiswa] = useState<string>('semua');
   const [filterInstansiForSiswa, setFilterInstansiForSiswa] = useState<string>('semua');
   const [filterGuruForSiswa, setFilterGuruForSiswa] = useState<string>('semua');
+  const [filterPlottingInstansi, setFilterPlottingInstansi] = useState<string>('semua');
+  const [filterInstansiSearch, setFilterInstansiSearch] = useState<string>('');
+  
+  // Direct upload triggers without nested submenus
+  const [autoOpenUploadSiswa, setAutoOpenUploadSiswa] = useState(false);
   const [autoOpenUploadInstansi, setAutoOpenUploadInstansi] = useState(false);
   const [autoOpenUploadGuru, setAutoOpenUploadGuru] = useState(false);
   const [autoOpenUploadPlotting, setAutoOpenUploadPlotting] = useState(false);
+  const [isPusatUploadOpen, setIsPusatUploadOpen] = useState(false);
+
   const [activePesertaId, setActivePesertaId] = useState<string>('m1');
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(getSupabaseConfig());
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
@@ -173,6 +181,26 @@ export default function App() {
         });
       } else if (event.type === 'MASTER_GURU_DELETED' && event.payload) {
         setMasterGuruList((prev) => prev.filter((g) => g.id !== event.payload.id));
+      } else if (event.type === 'PLOTTING_SISWA_UPDATED') {
+        if (Array.isArray(event.payload)) {
+          setPlottingList(event.payload);
+        } else if (event.payload) {
+          setPlottingList((prev) => {
+            const index = prev.findIndex(
+              (p) =>
+                p.id === event.payload.id ||
+                (p.nisn && p.nisn.replace(/\s+/g, '') === (event.payload.nisn || '').replace(/\s+/g, ''))
+            );
+            if (index >= 0) {
+              const next = [...prev];
+              next[index] = event.payload;
+              return next;
+            }
+            return [event.payload, ...prev];
+          });
+        }
+      } else if (event.type === 'PLOTTING_SISWA_DELETED' && event.payload) {
+        setPlottingList((prev) => prev.filter((p) => p.id !== event.payload.id));
       }
     });
 
@@ -191,9 +219,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-800">
+    <div className="min-h-screen flex bg-slate-50 text-slate-800 selection:bg-orange-500 selection:text-white">
       
-      {/* Left Sidebar with Groups & Submenus */}
+      {/* Left Sidebar with Direct Upload Buttons (No Submenu Confusion) */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -209,6 +237,10 @@ export default function App() {
         guruCount={masterGuruList.length}
         plottingCount={plottingList.length}
         pesertaCount={pesertaList.length}
+        onOpenUploadSiswa={() => {
+          setActiveTab('master');
+          setAutoOpenUploadSiswa(true);
+        }}
         onOpenUploadInstansi={() => {
           setActiveTab('instansi');
           setAutoOpenUploadInstansi(true);
@@ -221,12 +253,13 @@ export default function App() {
           setActiveTab('plotting');
           setAutoOpenUploadPlotting(true);
         }}
+        onOpenPusatUpload={() => setIsPusatUploadOpen(true)}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         
-        {/* Sleek Topbar Header */}
+        {/* Sleek Topbar Header with Luxury Orange Gradient */}
         <Header
           activeTab={activeTab}
           onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
@@ -234,14 +267,15 @@ export default function App() {
           setActivePenguji={setActivePenguji}
           supabaseConfig={supabaseConfig}
           onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+          onOpenPusatUpload={() => setIsPusatUploadOpen(true)}
         />
 
         {/* Viewport Content */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-500">
-              <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-              <p className="text-sm font-semibold">Memuat Data Sidang PKL Real-Time...</p>
+              <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+              <p className="text-sm font-semibold text-orange-950">Memuat Data Sidang PKL Real-Time...</p>
             </div>
           ) : (
             <>
@@ -262,12 +296,19 @@ export default function App() {
                   siswaList={masterSiswaList}
                   instansiList={masterInstansiList}
                   guruList={masterGuruList}
+                  filterInstansiParam={filterPlottingInstansi}
                   onPlottingUpdated={loadData}
                   onNavigateToSiswa={() => setActiveTab('master')}
-                  onNavigateToInstansi={() => setActiveTab('instansi')}
+                  onNavigateToInstansi={(namaInstansi) => {
+                    if (namaInstansi) {
+                      setFilterInstansiSearch(namaInstansi);
+                    }
+                    setActiveTab('instansi');
+                  }}
                   onNavigateToGuru={() => setActiveTab('guru')}
                   onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
                   initialOpenUpload={autoOpenUploadPlotting}
+                  onCloseUpload={() => setAutoOpenUploadPlotting(false)}
                 />
               )}
 
@@ -286,6 +327,8 @@ export default function App() {
                   onNavigateToInstansi={() => setActiveTab('instansi')}
                   onNavigateToGuru={() => setActiveTab('guru')}
                   onNavigateToPlotting={() => setActiveTab('plotting')}
+                  initialOpenUpload={autoOpenUploadSiswa}
+                  onCloseUpload={() => setAutoOpenUploadSiswa(false)}
                 />
               )}
 
@@ -293,14 +336,23 @@ export default function App() {
                 <MasterInstansiTable
                   instansiList={masterInstansiList}
                   siswaList={masterSiswaList}
+                  plottingList={plottingList}
+                  initialSearch={filterInstansiSearch}
                   onInstansiUpdated={loadData}
                   onFilterSiswaByInstansi={(namaInstansi) => {
                     setFilterInstansiForSiswa(namaInstansi);
                     setActiveTab('master');
                   }}
                   onNavigateToSiswa={() => setActiveTab('master')}
+                  onNavigateToPlotting={(namaInstansi) => {
+                    if (namaInstansi) {
+                      setFilterPlottingInstansi(namaInstansi);
+                    }
+                    setActiveTab('plotting');
+                  }}
                   onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
                   initialOpenUpload={autoOpenUploadInstansi}
+                  onCloseUpload={() => setAutoOpenUploadInstansi(false)}
                 />
               )}
 
@@ -308,14 +360,19 @@ export default function App() {
                 <MasterGuruTable
                   guruList={masterGuruList}
                   siswaList={masterSiswaList}
+                  plottingList={plottingList}
                   onGuruUpdated={loadData}
                   onFilterSiswaByGuru={(namaGuru) => {
                     setFilterGuruForSiswa(namaGuru);
                     setActiveTab('master');
                   }}
                   onNavigateToSiswa={() => setActiveTab('master')}
+                  onNavigateToPlotting={() => {
+                    setActiveTab('plotting');
+                  }}
                   onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
                   initialOpenUpload={autoOpenUploadGuru}
+                  onCloseUpload={() => setAutoOpenUploadGuru(false)}
                 />
               )}
 
@@ -355,20 +412,27 @@ export default function App() {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-slate-200 bg-white py-4 mt-auto">
+        <footer className="border-t border-orange-100 bg-white py-4 mt-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
             <p>© {new Date().getFullYear()} My PKL — Aplikasi Penilaian Sidang Praktik Kerja Lapangan Real-Time.</p>
             <div className="flex items-center gap-4">
               <button
+                onClick={() => setIsPusatUploadOpen(true)}
+                className="hover:text-orange-600 font-bold text-orange-950 transition-colors"
+              >
+                Pusat Upload & Template
+              </button>
+              <span>•</span>
+              <button
                 onClick={() => setIsSupabaseModalOpen(true)}
-                className="hover:text-emerald-700 font-semibold"
+                className="hover:text-orange-600 font-semibold transition-colors"
               >
                 Setup Supabase & Schema SQL
               </button>
               <span>•</span>
               <button
                 onClick={() => setActiveTab('rubrik')}
-                className="hover:text-emerald-700 font-semibold"
+                className="hover:text-orange-600 font-semibold transition-colors"
               >
                 Pedoman Rubrik
               </button>
@@ -377,6 +441,32 @@ export default function App() {
         </footer>
 
       </div>
+
+      {/* Pusat Upload & Impor Data Modal (Hub) */}
+      <PusatUploadModal
+        isOpen={isPusatUploadOpen}
+        onClose={() => setIsPusatUploadOpen(false)}
+        onOpenUploadSiswa={() => {
+          setActiveTab('master');
+          setAutoOpenUploadSiswa(true);
+        }}
+        onOpenUploadPlotting={() => {
+          setActiveTab('plotting');
+          setAutoOpenUploadPlotting(true);
+        }}
+        onOpenUploadGuru={() => {
+          setActiveTab('guru');
+          setAutoOpenUploadGuru(true);
+        }}
+        onOpenUploadInstansi={() => {
+          setActiveTab('instansi');
+          setAutoOpenUploadInstansi(true);
+        }}
+        siswaCount={masterSiswaList.length}
+        plottingCount={plottingList.length}
+        guruCount={masterGuruList.length}
+        instansiCount={masterInstansiList.length}
+      />
 
       {/* Supabase Config & SQL Schema Modal */}
       <SupabaseModal

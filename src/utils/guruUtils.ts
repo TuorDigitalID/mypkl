@@ -1,4 +1,4 @@
-import type { MasterGuruPembimbing, MasterSiswaPKL } from '../types/index.ts';
+import type { MasterGuruPembimbing, MasterSiswaPKL, PlottingSiswaPKL } from '../types/index.ts';
 
 export interface GuruStats {
   jumlahSiswaBimbingan: number;
@@ -17,24 +17,75 @@ export function normalizeGuruName(name: string): string {
 
 /**
  * Menghitung jumlah dan daftar siswa yang dibimbing oleh Guru Pembimbing
+ * Menghubungkan data dari Master Siswa PKL dan Plotting Siswa PKL secara otomatis
  */
 export function calculateGuruStats(
   guru: MasterGuruPembimbing,
-  siswaList: MasterSiswaPKL[]
+  siswaList: MasterSiswaPKL[] = [],
+  plottingList: PlottingSiswaPKL[] = []
 ): GuruStats {
   const normGuruNama = normalizeGuruName(guru.nama);
+  const cleanGuruNip = (guru.nip || '').replace(/\s+/g, '');
+  const matchedMap = new Map<string, MasterSiswaPKL>();
 
-  const siswaBimbinganList = (siswaList || []).filter((s) => {
-    if (!s) return false;
-    // Cek kecocokan nama atau NIP jika ada
+  // 1. Ambil data siswa dari Tabel Plotting Siswa PKL
+  if (Array.isArray(plottingList) && plottingList.length > 0) {
+    plottingList.forEach((plot) => {
+      if (!plot.guruNama && !plot.guruNip) return;
+      const cleanPlotNip = (plot.guruNip || '').replace(/\s+/g, '');
+      const normPlotGuru = normalizeGuruName(plot.guruNama);
+      const isMatch =
+        (cleanGuruNip && cleanPlotNip && cleanGuruNip === cleanPlotNip) ||
+        normPlotGuru === normGuruNama ||
+        (normGuruNama.length > 5 && normPlotGuru.includes(normGuruNama)) ||
+        (normPlotGuru.length > 5 && normGuruNama.includes(normPlotGuru));
+
+      if (isMatch) {
+        const cleanNisn = (plot.nisn || '').replace(/\s+/g, '');
+        if (!cleanNisn) return;
+        const existingSiswa = (siswaList || []).find(
+          (s) => (s.nisn || '').replace(/\s+/g, '') === cleanNisn
+        );
+        matchedMap.set(cleanNisn, {
+          id: existingSiswa?.id || plot.siswaId || plot.id,
+          nisn: plot.nisn,
+          namaLengkap: plot.namaSiswa || existingSiswa?.namaLengkap || 'Siswa PKL',
+          kelas: plot.kelas || existingSiswa?.kelas || '',
+          jurusan: plot.jurusan || existingSiswa?.jurusan || '',
+          emailLogin: existingSiswa?.emailLogin || '',
+          passwordLogin: existingSiswa?.passwordLogin || '',
+          guruPembimbing: guru.nama,
+          guruNip: guru.nip,
+          instansiNama: plot.instansiNama || existingSiswa?.instansiNama,
+          alamatInstansi: plot.alamatInstansi || existingSiswa?.alamatInstansi,
+          periodeMulai: plot.periodeMulai,
+          periodeSelesai: plot.periodeSelesai,
+          statusPlotting: plot.statusPlotting || 'Terplotting',
+        });
+      }
+    });
+  }
+
+  // 2. Ambil data dari Master Siswa PKL (untuk siswa yang belum terhitung)
+  (siswaList || []).forEach((s) => {
+    if (!s) return;
+    const cleanNisn = (s.nisn || '').replace(/\s+/g, '');
+    if (!cleanNisn || matchedMap.has(cleanNisn)) return;
+
     const normSiswaGuru = normalizeGuruName(s.guruPembimbing);
-    return (
+    const cleanSiswaGuruNip = (s.guruNip || '').replace(/\s+/g, '');
+    const isMatch =
+      (cleanGuruNip && cleanSiswaGuruNip && cleanGuruNip === cleanSiswaGuruNip) ||
       normSiswaGuru === normGuruNama ||
       (normGuruNama.length > 5 && normSiswaGuru.includes(normGuruNama)) ||
-      (normSiswaGuru.length > 5 && normGuruNama.includes(normSiswaGuru))
-    );
+      (normSiswaGuru.length > 5 && normGuruNama.includes(normSiswaGuru));
+
+    if (isMatch) {
+      matchedMap.set(cleanNisn, s);
+    }
   });
 
+  const siswaBimbinganList = Array.from(matchedMap.values());
   return {
     jumlahSiswaBimbingan: siswaBimbinganList.length,
     siswaBimbinganList,

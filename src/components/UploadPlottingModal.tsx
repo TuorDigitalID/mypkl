@@ -16,7 +16,10 @@ import {
   MapPin,
   Check,
   AlertTriangle,
-  Users
+  Users,
+  Copy,
+  Terminal,
+  ExternalLink
 } from 'lucide-react';
 import { PlottingSiswaPKL } from '../types/index.ts';
 import {
@@ -26,6 +29,7 @@ import {
 } from '../utils/plottingExcelParser.ts';
 import { insertPlottingBatch, getSupabaseConfig } from '../lib/supabase.ts';
 import { getStatusPlottingBadgeConfig } from '../utils/plottingUtils.ts';
+import { generatePlottingSQLScript } from '../utils/scoring.ts';
 
 interface UploadPlottingModalProps {
   isOpen: boolean;
@@ -51,9 +55,20 @@ export const UploadPlottingModal: React.FC<UploadPlottingModalProps> = ({
     type: 'success' | 'warning' | 'error' | null;
     message: string;
   }>({ type: null, message: '' });
+  const [copiedPlottingSQL, setCopiedPlottingSQL] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const config = getSupabaseConfig();
+
+  const handleCopySQL = async () => {
+    try {
+      await navigator.clipboard.writeText(generatePlottingSQLScript());
+      setCopiedPlottingSQL(true);
+      setTimeout(() => setCopiedPlottingSQL(false), 2500);
+    } catch {
+      // fallback
+    }
+  };
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -134,8 +149,17 @@ export const UploadPlottingModal: React.FC<UploadPlottingModalProps> = ({
     try {
       const result = await insertPlottingBatch(parseResult.validPlotting);
       if (result.success) {
-        onSuccess(result.count, result.message);
-        onClose();
+        if (result.savedToDatabase || !config.isConnected) {
+          onSuccess(result.count, result.message);
+          onClose();
+        } else {
+          // Terhubung ke Supabase namun database server belum memiliki tabel plotting_siswa_pkl
+          onSuccess(result.count, `Tersimpan di browser lokal (${result.count} data). Perlu buat tabel di Supabase.`);
+          setImportStatus({
+            type: 'warning',
+            message: result.message || 'Tersimpan di penyimpanan lokal, namun gagal masuk ke database Supabase Cloud karena tabel plotting_siswa_pkl belum dibuat di database Anda.',
+          });
+        }
       } else {
         setImportStatus({
           type: 'error',
@@ -167,15 +191,20 @@ export const UploadPlottingModal: React.FC<UploadPlottingModalProps> = ({
         className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Modal */}
-        <div className="px-6 py-5 bg-gradient-to-r from-teal-700 via-emerald-700 to-slate-900 text-white flex items-center justify-between flex-shrink-0">
+        {/* Header Modal with Luxury Orange Gradient */}
+        <div className="px-6 py-5 bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 text-white flex items-center justify-between flex-shrink-0 shadow-md">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-              <Compass className="w-6 h-6 text-teal-200" />
+            <div className="p-2.5 bg-white/15 rounded-xl backdrop-blur-md border border-white/20">
+              <Compass className="w-6 h-6 text-amber-200" />
             </div>
             <div>
-              <h3 className="font-extrabold text-lg tracking-tight">Upload & Import Data Plotting Siswa PKL</h3>
-              <p className="text-xs text-teal-100/90 mt-0.5">
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-lg tracking-tight">Upload & Import Data Plotting Siswa PKL</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30">
+                  Excel / CSV
+                </span>
+              </div>
+              <p className="text-xs text-orange-100/90 mt-0.5">
                 Impor data relasi penempatan siswa, instansi DUDI, guru pembimbing, periode, dan status plotting
               </p>
             </div>
@@ -183,7 +212,7 @@ export const UploadPlottingModal: React.FC<UploadPlottingModalProps> = ({
           <button
             onClick={onClose}
             aria-label="Tutup modal upload"
-            className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -197,18 +226,75 @@ export const UploadPlottingModal: React.FC<UploadPlottingModalProps> = ({
             <div className={`p-4 rounded-xl border flex items-start gap-3 text-xs leading-relaxed ${
               importStatus.type === 'error' 
                 ? 'bg-red-50 border-red-200 text-red-800' 
+                : importStatus.type === 'warning'
+                ? 'bg-amber-50/90 border-amber-300 text-amber-900'
                 : 'bg-emerald-50 border-emerald-200 text-emerald-800'
             }`}>
               {importStatus.type === 'error' ? (
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              ) : importStatus.type === 'warning' ? (
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               ) : (
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
               )}
-              <div className="flex-1">
-                <span className="font-bold block mb-0.5">
-                  {importStatus.type === 'error' ? 'Kendala Import:' : 'Sukses:'}
-                </span>
-                <span>{importStatus.message}</span>
+              <div className="flex-1 space-y-2">
+                <div>
+                  <span className="font-bold block mb-0.5 text-sm">
+                    {importStatus.type === 'error' ? 'Kendala Import:' : importStatus.type === 'warning' ? 'Perhatian: Tabel Database Supabase Perlu Dibuat' : 'Sukses:'}
+                  </span>
+                  <span>{importStatus.message}</span>
+                </div>
+
+                {importStatus.type === 'warning' && (
+                  <div className="pt-2 border-t border-amber-200 space-y-2">
+                    <p className="text-[11px] font-semibold text-amber-900">
+                      Jalankan skrip SQL berikut di <b>Supabase Dashboard &gt; SQL Editor &gt; New Query</b> agar tabel <code>plotting_siswa_pkl</code> dibuat otomatis:
+                    </p>
+                    <div className="relative">
+                      <pre className="p-3 bg-slate-900 text-slate-100 rounded-lg text-[10px] font-mono max-h-32 overflow-y-auto leading-relaxed">
+                        {generatePlottingSQLScript()}
+                      </pre>
+                      <button
+                        type="button"
+                        onClick={handleCopySQL}
+                        className="absolute top-2 right-2 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold flex items-center gap-1 shadow-xs cursor-pointer"
+                      >
+                        {copiedPlottingSQL ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedPlottingSQL ? 'Tersalin!' : 'Salin SQL'}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+                      <a
+                        href="https://supabase.com/dashboard"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-amber-900 hover:text-amber-950 font-bold underline text-[11px] flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Buka Supabase SQL Editor</span>
+                      </a>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={onClose}
+                          className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200/90 text-amber-900 rounded-lg font-bold text-[11px] transition-colors cursor-pointer"
+                        >
+                          Tutup (Tetap Simpan di Lokal)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleImportData}
+                          disabled={isSaving}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
+                          <span>Coba Simpan Ulang ke Database</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -507,7 +593,7 @@ export const UploadPlottingModal: React.FC<UploadPlottingModalProps> = ({
                 type="button"
                 onClick={handleImportData}
                 disabled={isSaving}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-bold text-xs shadow-md shadow-teal-600/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.01]"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:via-orange-600 hover:to-amber-700 text-white font-bold text-xs shadow-md shadow-orange-500/25 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.01]"
               >
                 {isSaving ? (
                   <>
@@ -517,7 +603,7 @@ export const UploadPlottingModal: React.FC<UploadPlottingModalProps> = ({
                 ) : (
                   <>
                     <Check className="w-4 h-4" />
-                    <span>Import {parseResult.validPlotting.length} Data Plotting Sekarang</span>
+                    <span>Simpan & Import {parseResult.validPlotting.length} Data Plotting</span>
                   </>
                 )}
               </button>

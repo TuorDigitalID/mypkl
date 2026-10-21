@@ -49,6 +49,8 @@ interface MasterSiswaTableProps {
   filterJurusanParam?: string;
   filterInstansiParam?: string;
   filterGuruParam?: string;
+  initialOpenUpload?: boolean;
+  onCloseUpload?: () => void;
 }
 
 export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
@@ -65,6 +67,8 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
   filterJurusanParam,
   filterInstansiParam,
   filterGuruParam,
+  initialOpenUpload,
+  onCloseUpload,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedJurusan, setSelectedJurusan] = useState<string>(filterJurusanParam || 'semua');
@@ -78,6 +82,13 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
   // Modal State for Add / Edit / Upload Excel
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+
+  // Auto-open upload modal if triggered externally
+  React.useEffect(() => {
+    if (initialOpenUpload) {
+      setIsUploadModalOpen(true);
+    }
+  }, [initialOpenUpload]);
   const [editingSiswa, setEditingSiswa] = useState<MasterSiswaPKL | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<MasterSiswaPKL | null>(null);
 
@@ -1095,9 +1106,13 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
       {/* Modal Upload Excel */}
       <UploadExcelModal
         isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
+        onClose={() => {
+          setIsUploadModalOpen(false);
+          onCloseUpload?.();
+        }}
         onSuccess={(_count, _msg) => {
           setIsUploadModalOpen(false);
+          onCloseUpload?.();
           onSiswaUpdated();
         }}
         onOpenSupabaseModal={onOpenSupabaseModal}

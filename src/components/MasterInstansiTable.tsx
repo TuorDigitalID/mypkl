@@ -23,33 +23,55 @@ import {
   Building,
   Sparkles,
   FileSpreadsheet,
-  UploadCloud
+  UploadCloud,
+  Cloud,
+  Database,
+  Copy,
+  Code,
+  AlertTriangle,
+  RefreshCw,
+  Compass
 } from 'lucide-react';
-import { MasterInstansi, MasterSiswaPKL } from '../types/index.ts';
-import { saveMasterInstansi, deleteMasterInstansi } from '../lib/supabase.ts';
+import { MasterInstansi, MasterSiswaPKL, PlottingSiswaPKL } from '../types/index.ts';
+import { 
+  saveMasterInstansi, 
+  deleteMasterInstansi,
+  syncMasterInstansiToSupabase,
+  checkMasterInstansiTableStatus,
+  getSupabaseConfig
+} from '../lib/supabase.ts';
 import { calculateInstansiStats, getSiswaByInstansi, generateInstansiCSV } from '../utils/instansiUtils.ts';
+import { generateInstansiSQLScript } from '../utils/scoring.ts';
 import { UploadInstansiModal } from './UploadInstansiModal.tsx';
 
 interface MasterInstansiTableProps {
   instansiList: MasterInstansi[];
   siswaList: MasterSiswaPKL[];
+  plottingList?: PlottingSiswaPKL[];
+  initialSearch?: string;
   onInstansiUpdated: () => void;
   onFilterSiswaByInstansi?: (namaInstansi: string) => void;
   onNavigateToSiswa?: () => void;
+  onNavigateToPlotting?: (namaInstansi?: string) => void;
   onOpenSupabaseModal?: () => void;
   initialOpenUpload?: boolean;
+  onCloseUpload?: () => void;
 }
 
 export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
   instansiList,
   siswaList,
+  plottingList = [],
+  initialSearch,
   onInstansiUpdated,
   onFilterSiswaByInstansi,
   onNavigateToSiswa,
+  onNavigateToPlotting,
   onOpenSupabaseModal,
   initialOpenUpload,
+  onCloseUpload,
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearch || '');
   const [filterKetersediaan, setFilterKetersediaan] = useState<'semua' | 'tersedia' | 'penuh' | 'kosong'>('semua');
   
   // Modals state
@@ -66,6 +88,13 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
     }
   }, [initialOpenUpload]);
 
+  // Sync initialSearch if passed from other tabs (e.g. from Plotting Siswa)
+  React.useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSearchTerm(initialSearch);
+    }
+  }, [initialSearch]);
+
   // Form State
   const [formData, setFormData] = useState({
     nama: '',
@@ -79,6 +108,76 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
   const [formError, setFormError] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Supabase cloud table status
+  const [dbStatus, setDbStatus] = useState<{
+    connected: boolean;
+    tableExists: boolean;
+    rowCount: number;
+    message: string;
+    checked: boolean;
+  }>({
+    connected: false,
+    tableExists: false,
+    rowCount: 0,
+    message: '',
+    checked: false,
+  });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isCheckingDb, setIsCheckingDb] = useState(false);
+  const [showSQLModal, setShowSQLModal] = useState(false);
+  const [copiedSQL, setCopiedSQL] = useState(false);
+
+  const checkDb = async () => {
+    setIsCheckingDb(true);
+    try {
+      const res = await checkMasterInstansiTableStatus();
+      setDbStatus({
+        ...res,
+        checked: true,
+      });
+    } catch {
+      // ignore
+    } finally {
+      setIsCheckingDb(false);
+    }
+  };
+
+  React.useEffect(() => {
+    checkDb();
+  }, [instansiList.length]);
+
+  const handleSyncToSupabase = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await syncMasterInstansiToSupabase();
+      if (res.savedToDatabase) {
+        setToastMessage(`Sukses! ${res.count} data instansi tersinkron ke Supabase Cloud.`);
+        await checkDb();
+        onInstansiUpdated();
+      } else {
+        setToastMessage(res.message);
+        if (res.message.toLowerCase().includes('belum dibuat') || res.message.toLowerCase().includes('unique')) {
+          setShowSQLModal(true);
+        }
+      }
+    } catch (e: any) {
+      setToastMessage(`Gagal sinkron: ${e?.message}`);
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setToastMessage(null), 4500);
+    }
+  };
+
+  const handleCopySQL = async () => {
+    try {
+      await navigator.clipboard.writeText(generateInstansiSQLScript());
+      setCopiedSQL(true);
+      setTimeout(() => setCopiedSQL(false), 2500);
+    } catch {
+      // ignore
+    }
+  };
+
   // Keyboard accessibility
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -87,11 +186,12 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
         if (isUploadModalOpen) setIsUploadModalOpen(false);
         if (deleteCandidate) setDeleteCandidate(null);
         if (viewSiswaInstansi) setViewSiswaInstansi(null);
+        if (showSQLModal) setShowSQLModal(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen, isUploadModalOpen, deleteCandidate, viewSiswaInstansi]);
+  }, [isModalOpen, isUploadModalOpen, deleteCandidate, viewSiswaInstansi, showSQLModal]);
 
   // Aggregated Summary Statistics
   const summaryStats = useMemo(() => {
@@ -102,7 +202,7 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
     let instansiPenuhCount = 0;
 
     instansiList.forEach((instansi) => {
-      const stats = calculateInstansiStats(instansi, siswaList);
+      const stats = calculateInstansiStats(instansi, siswaList, plottingList);
       totalKuota += instansi.kuota || 0;
       totalSiswaTerisi += stats.jumlahSiswaTerisi;
       totalSisaKuota += stats.sisaKuota;
@@ -116,12 +216,12 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
       totalSisaKuota,
       instansiPenuhCount,
     };
-  }, [instansiList, siswaList]);
+  }, [instansiList, siswaList, plottingList]);
 
   // Filtered Instansi List
   const filteredList = useMemo(() => {
     return instansiList.filter((item) => {
-      const stats = calculateInstansiStats(item, siswaList);
+      const stats = calculateInstansiStats(item, siswaList, plottingList);
 
       const matchSearch =
         item.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -141,7 +241,7 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
 
       return matchSearch && matchKetersediaan;
     });
-  }, [instansiList, siswaList, searchTerm, filterKetersediaan]);
+  }, [instansiList, siswaList, plottingList, searchTerm, filterKetersediaan]);
 
   // Modal handlers
   const handleOpenAddModal = () => {
@@ -253,7 +353,7 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
   };
 
   const handleExportCSV = () => {
-    const csvContent = generateInstansiCSV(instansiList, siswaList);
+    const csvContent = generateInstansiCSV(instansiList, siswaList, plottingList);
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -263,11 +363,11 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Connected students for currently selected modal instansi
+  // Connected students for currently selected modal instansi (disinkronkan dari Plotting Siswa & Master Siswa)
   const connectedSiswaForModal = useMemo(() => {
     if (!viewSiswaInstansi) return [];
-    return getSiswaByInstansi(siswaList, viewSiswaInstansi);
-  }, [siswaList, viewSiswaInstansi]);
+    return getSiswaByInstansi(siswaList, viewSiswaInstansi, plottingList);
+  }, [siswaList, viewSiswaInstansi, plottingList]);
 
   return (
     <div className="space-y-6">
@@ -277,6 +377,48 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 animate-fade-in text-sm font-semibold">
           <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Database Warning / Status Alert Banner */}
+      {dbStatus.checked && dbStatus.connected && !dbStatus.tableExists && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50 border border-amber-300 rounded-2xl p-4 sm:p-5 text-amber-900 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-amber-100 rounded-xl text-amber-700 flex-shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-extrabold text-sm text-amber-950">
+                  Tabel Database Supabase Belum Dibuat / Belum Sesuai
+                </span>
+                <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded-md text-[10px] font-bold">
+                  Perlu Jalankan SQL
+                </span>
+              </div>
+              <p className="text-xs text-amber-800/90 mt-1 max-w-3xl leading-relaxed">
+                Tabel <code>master_instansi</code> di database Supabase Anda belum dibuat atau belum memiliki constraint <code>UNIQUE (nama)</code>. Karena itu, data setelah di-upload saat ini baru tersimpan di browser lokal. Jalankan query SQL pembaruan sekali saja agar data langsung tersimpan permanen di cloud.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+            <button
+              onClick={() => setShowSQLModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition-colors"
+            >
+              <Code className="w-4 h-4" />
+              <span>Lihat Skrip SQL</span>
+            </button>
+            <button
+              onClick={checkDb}
+              disabled={isCheckingDb}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-amber-100/60 border border-amber-300 text-amber-900 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              title="Cek ulang status tabel master_instansi di Supabase"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-700 ${isCheckingDb ? 'animate-spin' : ''}`} />
+              <span>Cek Status</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -295,6 +437,16 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
                   Mitra DUDI & Kuota PKL
                 </span>
+                {dbStatus.connected && (
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                    dbStatus.tableExists 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    <Database className="w-3 h-3" />
+                    <span>{dbStatus.tableExists ? 'Supabase Aktif' : 'Tabel Belum Sesuai'}</span>
+                  </span>
+                )}
               </div>
               <p className="text-slate-500 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
                 Kelola data tempat PKL/DUDI, alamat kantor, kuota penempatan, jumlah siswa terisi, sisa kuota, serta nama pembimbing instansi yang terhubung langsung dengan Master Siswa PKL.
@@ -305,7 +457,7 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={() => setIsUploadModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-xs transition-colors shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-xs transition-colors shadow-xs cursor-pointer"
               title="Upload file Excel (.xlsx) atau CSV Data Instansi / Perusahaan PKL"
             >
               <FileSpreadsheet className="w-4 h-4 text-blue-600" />
@@ -313,8 +465,31 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
             </button>
 
             <button
+              onClick={handleSyncToSupabase}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 border border-emerald-200/80 font-bold text-xs transition-colors shadow-xs cursor-pointer"
+              title="Kirim dan sinkronkan seluruh data instansi lokal ke database Supabase Cloud"
+            >
+              {isSyncing ? (
+                <RefreshCw className="w-4 h-4 text-emerald-600 animate-spin" />
+              ) : (
+                <Cloud className="w-4 h-4 text-emerald-600" />
+              )}
+              <span>{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan ke Cloud'}</span>
+            </button>
+
+            <button
+              onClick={() => setShowSQLModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-xs cursor-pointer"
+              title="Lihat skrip query SQL perbaikan tabel master_instansi di Supabase"
+            >
+              <Code className="w-4 h-4 text-slate-500" />
+              <span>Skrip SQL</span>
+            </button>
+
+            <button
               onClick={handleExportCSV}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-xs cursor-pointer"
               title="Unduh data dalam format CSV / Excel"
             >
               <Download className="w-4 h-4 text-slate-500" />
@@ -324,7 +499,7 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
             {onNavigateToSiswa && (
               <button
                 onClick={onNavigateToSiswa}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 hover:text-blue-700 transition-colors shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 hover:text-blue-700 transition-colors shadow-xs cursor-pointer"
                 title="Buka Halaman Master Siswa PKL"
               >
                 <Users className="w-4 h-4 text-emerald-600" />
@@ -458,8 +633,8 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
                 </tr>
               ) : (
                 filteredList.map((instansi, index) => {
-                  const stats = calculateInstansiStats(instansi, siswaList);
-                  const connectedSiswa = getSiswaByInstansi(siswaList, instansi);
+                  const stats = calculateInstansiStats(instansi, siswaList, plottingList);
+                  const connectedSiswa = getSiswaByInstansi(siswaList, instansi, plottingList);
 
                   return (
                     <tr key={instansi.id} className="hover:bg-slate-50/80 transition-colors">
@@ -691,29 +866,47 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">
               <button
                 type="button"
                 onClick={() => setViewSiswaInstansi(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-100"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-100 cursor-pointer"
               >
                 Tutup
               </button>
 
-              {onFilterSiswaByInstansi && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const companyName = viewSiswaInstansi.nama;
-                    setViewSiswaInstansi(null);
-                    onFilterSiswaByInstansi(companyName);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs"
-                >
-                  <span>Buka di Master Siswa (Filter Instansi Ini)</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {onNavigateToPlotting && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const companyName = viewSiswaInstansi.nama;
+                      setViewSiswaInstansi(null);
+                      onNavigateToPlotting(companyName);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs cursor-pointer transition-colors"
+                    title="Buka data penempatan siswa untuk instansi ini di Tabel Plotting Siswa"
+                  >
+                    <Compass className="w-3.5 h-3.5" />
+                    <span>Buka di Tabel Plotting Siswa</span>
+                  </button>
+                )}
+
+                {onFilterSiswaByInstansi && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const companyName = viewSiswaInstansi.nama;
+                      setViewSiswaInstansi(null);
+                      onFilterSiswaByInstansi(companyName);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs cursor-pointer transition-colors"
+                  >
+                    <span>Filter di Master Siswa</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
 
           </div>
@@ -912,11 +1105,11 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
               </p>
             </div>
 
-            {getSiswaByInstansi(siswaList, deleteCandidate).length > 0 && (
+            {getSiswaByInstansi(siswaList, deleteCandidate, plottingList).length > 0 && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  Perhatian: Saat ini terdapat <b>{getSiswaByInstansi(siswaList, deleteCandidate).length} siswa</b> yang terhubung dengan instansi ini di Master Siswa PKL.
+                  Perhatian: Saat ini terdapat <b>{getSiswaByInstansi(siswaList, deleteCandidate, plottingList).length} siswa</b> yang terhubung dengan instansi ini di Plotting / Master Siswa PKL.
                 </span>
               </div>
             )}
@@ -944,16 +1137,135 @@ export const MasterInstansiTable: React.FC<MasterInstansiTableProps> = ({
       {/* Modal Upload Excel Master Instansi */}
       <UploadInstansiModal
         isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
+        onClose={() => {
+          setIsUploadModalOpen(false);
+          onCloseUpload?.();
+        }}
         existingInstansiList={instansiList}
         onSuccess={(count, message) => {
           setIsUploadModalOpen(false);
+          onCloseUpload?.();
           onInstansiUpdated();
           setToastMessage(message || `Berhasil mengimpor ${count} data instansi!`);
           setTimeout(() => setToastMessage(null), 3500);
         }}
         onOpenSupabaseModal={onOpenSupabaseModal}
       />
+
+      {/* Modal Skrip SQL Supabase untuk Master Instansi */}
+      {showSQLModal && (
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowSQLModal(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
+        >
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="px-6 py-4.5 bg-gradient-to-r from-blue-700 via-indigo-800 to-slate-900 text-white flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Database className="w-5 h-5 text-blue-300" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base tracking-tight">
+                    Skrip SQL Skema Database: Tabel Master Instansi (DUDI)
+                  </h3>
+                  <p className="text-xs text-blue-100/90 mt-0.5">
+                    Pastikan tabel <code className="text-blue-200 font-mono">master_instansi</code> memiliki constraint UNIQUE dan izin akses di Supabase
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSQLModal(false)}
+                className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 flex items-start gap-2.5 leading-relaxed">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block mb-0.5">Mengapa data upload tidak langsung masuk ke database?</span>
+                  <span>
+                    Database PostgreSQL Supabase memerlukan constraint <b>UNIQUE</b> pada kolom <code>nama</code> agar proses impor dan pembaruan instansi (upsert) diizinkan. Jika constraint ini belum terpasang, PostgreSQL menolak data tersebut. Jalankan query SQL di bawah untuk memperbaikinya secara otomatis.
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <Code className="w-4 h-4 text-blue-600" />
+                    <span>Salin dan Jalankan di Supabase SQL Editor:</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCopySQL}
+                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[11px] font-bold flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
+                  >
+                    {copiedSQL ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedSQL ? 'Tersalin ke Clipboard!' : 'Salin Seluruh SQL'}</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <pre className="p-3.5 bg-slate-900 text-slate-100 rounded-xl text-[11px] font-mono max-h-56 overflow-y-auto leading-relaxed border border-slate-800">
+                    {generateInstansiSQLScript()}
+                  </pre>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                <span className="font-bold text-slate-800 block text-xs">Langkah Cepat (30 Detik):</span>
+                <ol className="list-decimal list-inside space-y-1 text-slate-600 text-[11px] leading-relaxed">
+                  <li>Klik tombol <b>"Salin Seluruh SQL"</b> di atas.</li>
+                  <li>Buka <b>Supabase Dashboard &gt; pilih Project Anda &gt; menu SQL Editor &gt; New Query</b>.</li>
+                  <li>Tempelkan (Paste) skrip SQL tersebut, lalu klik tombol hijau <b>Run</b>.</li>
+                  <li>Kembali ke halaman ini dan klik tombol <b>"Sinkronkan Data ke Cloud Sekarang"</b> di bawah.</li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">
+              <a
+                href="https://supabase.com/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-slate-600 hover:text-blue-700 font-bold text-xs"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>Buka Supabase Dashboard</span>
+              </a>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSQLModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleSyncToSupabase();
+                    setShowSQLModal(false);
+                  }}
+                  disabled={isSyncing}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>Sinkronkan Data ke Cloud Sekarang</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

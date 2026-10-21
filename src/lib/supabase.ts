@@ -777,9 +777,14 @@ export async function getMasterSiswaList(): Promise<MasterSiswaPKL[]> {
           emailLogin: d.email_login,
           passwordLogin: d.password_login,
           guruPembimbing: d.guru_pembimbing,
+          guruNip: d.guru_nip || undefined,
           instansiId: d.instansi_id || undefined,
           instansiNama: d.instansi_nama || undefined,
+          alamatInstansi: d.alamat_instansi || undefined,
           pembimbingInstansi: d.pembimbing_instansi || undefined,
+          periodeMulai: d.periode_mulai || undefined,
+          periodeSelesai: d.periode_selesai || undefined,
+          statusPlotting: d.status_plotting || undefined,
           createdAt: d.created_at,
         }));
       }
@@ -802,7 +807,12 @@ export async function getMasterSiswaList(): Promise<MasterSiswaPKL[]> {
               ...s,
               instansiId: s.instansiId || initMatch.instansiId,
               instansiNama: s.instansiNama || initMatch.instansiNama,
+              alamatInstansi: s.alamatInstansi || initMatch.alamatInstansi,
               pembimbingInstansi: s.pembimbingInstansi || initMatch.pembimbingInstansi,
+              guruNip: s.guruNip || initMatch.guruNip,
+              periodeMulai: s.periodeMulai || initMatch.periodeMulai,
+              periodeSelesai: s.periodeSelesai || initMatch.periodeSelesai,
+              statusPlotting: s.statusPlotting || initMatch.statusPlotting,
             };
           }
           return s;
@@ -829,6 +839,20 @@ export async function getMasterSiswaList(): Promise<MasterSiswaPKL[]> {
 export function isValidUUID(str: string): boolean {
   if (!str || typeof str !== 'string') return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+}
+
+/**
+ * Generate standard RFC4122 v4 UUID
+ */
+export function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 /**
@@ -866,9 +890,14 @@ export async function saveMasterSiswa(siswa: MasterSiswaPKL): Promise<MasterSisw
         email_login: siswa.emailLogin,
         password_login: siswa.passwordLogin,
         guru_pembimbing: siswa.guruPembimbing,
+        guru_nip: siswa.guruNip || null,
         instansi_id: siswa.instansiId || null,
         instansi_nama: siswa.instansiNama || null,
+        alamat_instansi: siswa.alamatInstansi || null,
         pembimbing_instansi: siswa.pembimbingInstansi || null,
+        periode_mulai: siswa.periodeMulai || null,
+        periode_selesai: siswa.periodeSelesai || null,
+        status_plotting: siswa.statusPlotting || 'Terplotting',
         updated_at: new Date().toISOString(),
       };
       // Jika id adalah UUID valid, sertakan. Jika id dummy seperti 'ms-1', biarkan Supabase generate UUID
@@ -927,9 +956,14 @@ export async function insertMasterSiswaBatch(siswaList: MasterSiswaPKL[]): Promi
           email_login: s.emailLogin,
           password_login: s.passwordLogin,
           guru_pembimbing: s.guruPembimbing,
+          guru_nip: s.guruNip || null,
           instansi_id: s.instansiId || null,
           instansi_nama: s.instansiNama || null,
+          alamat_instansi: s.alamatInstansi || null,
           pembimbing_instansi: s.pembimbingInstansi || null,
+          periode_mulai: s.periodeMulai || null,
+          periode_selesai: s.periodeSelesai || null,
+          status_plotting: s.statusPlotting || 'Terplotting',
           updated_at: new Date().toISOString(),
         };
         if (isValidUUID(s.id)) {
@@ -957,9 +991,14 @@ export async function insertMasterSiswaBatch(siswaList: MasterSiswaPKL[]): Promi
         emailLogin: d.email_login,
         passwordLogin: d.password_login,
         guruPembimbing: d.guru_pembimbing,
+        guruNip: d.guru_nip || undefined,
         instansiId: d.instansi_id || undefined,
         instansiNama: d.instansi_nama || undefined,
+        alamatInstansi: d.alamat_instansi || undefined,
         pembimbingInstansi: d.pembimbing_instansi || undefined,
+        periodeMulai: d.periode_mulai || undefined,
+        periodeSelesai: d.periode_selesai || undefined,
+        statusPlotting: d.status_plotting || undefined,
         createdAt: d.created_at,
       }));
 
@@ -1324,9 +1363,18 @@ export async function insertMasterInstansiBatch(incomingList: MasterInstansi[]):
   const client = getSupabaseClient();
   const currentList = await getMasterInstansiList();
 
+  // Deduplikasi incomingList berdasarkan nama instansi yang dinormalisasi (ambil record terakhir jika ada nama ganda di file Excel)
+  const dedupedMap = new Map<string, MasterInstansi>();
+  incomingList.forEach((incoming) => {
+    if (incoming.nama && incoming.nama.trim()) {
+      dedupedMap.set(incoming.nama.toLowerCase().trim(), incoming);
+    }
+  });
+  const cleanIncomingList = Array.from(dedupedMap.values());
+
   // Gabungkan ke penyimpanan lokal (upsert berdasarkan nama instansi yang dinormalisasi)
   const updatedList = [...currentList];
-  incomingList.forEach((incoming) => {
+  cleanIncomingList.forEach((incoming) => {
     const existingIdx = updatedList.findIndex(
       (item) => item.nama.toLowerCase().trim() === incoming.nama.toLowerCase().trim()
     );
@@ -1334,12 +1382,12 @@ export async function insertMasterInstansiBatch(incomingList: MasterInstansi[]):
       updatedList[existingIdx] = {
         ...updatedList[existingIdx],
         alamat: incoming.alamat || updatedList[existingIdx].alamat,
-        kuota: incoming.kuota || updatedList[existingIdx].kuota,
+        kuota: Number(incoming.kuota) > 0 ? Number(incoming.kuota) : updatedList[existingIdx].kuota,
         pembimbingInstansi: incoming.pembimbingInstansi || updatedList[existingIdx].pembimbingInstansi,
         bidangUsaha: incoming.bidangUsaha || updatedList[existingIdx].bidangUsaha,
         kontakPerson: incoming.kontakPerson || updatedList[existingIdx].kontakPerson,
         email: incoming.email || updatedList[existingIdx].email,
-        isActive: true,
+        isActive: incoming.isActive !== false,
         updatedAt: new Date().toISOString(),
       };
     } else {
@@ -1358,16 +1406,17 @@ export async function insertMasterInstansiBatch(incomingList: MasterInstansi[]):
 
   if (client) {
     try {
-      const recordsToInsert = incomingList.map((inst) => {
+      // 1. Siapkan record lengkap (deduplikasi menjamin tidak ada duplikat nama dalam satu batch upsert)
+      const recordsToInsert = cleanIncomingList.map((inst) => {
         const item: any = {
           nama: inst.nama.trim(),
-          alamat: inst.alamat.trim(),
-          kuota: Number(inst.kuota) || 4,
+          alamat: inst.alamat?.trim() || 'Alamat belum diisi',
+          kuota: Number(inst.kuota) > 0 ? Number(inst.kuota) : 4,
           pembimbing_instansi: inst.pembimbingInstansi?.trim() || 'Pembimbing DUDI',
           kontak_person: inst.kontakPerson?.trim() || '',
           email: inst.email?.trim() || '',
           bidang_usaha: inst.bidangUsaha?.trim() || '',
-          is_active: true,
+          is_active: inst.isActive !== false,
           updated_at: new Date().toISOString(),
         };
         if (isValidUUID(inst.id)) {
@@ -1376,18 +1425,120 @@ export async function insertMasterInstansiBatch(incomingList: MasterInstansi[]):
         return item;
       });
 
-      const { data, error } = await client
+      // 2. Coba upsert langsung dengan onConflict 'nama'
+      let { data, error } = await client
         .from('master_instansi')
         .upsert(recordsToInsert, { onConflict: 'nama' })
         .select();
 
+      // 3. Fallback jika tabel di Supabase belum memiliki kolom baru (misal kontak_person, bidang_usaha, email) -> kode error 42703
+      if (error && (error.code === '42703' || error.message?.toLowerCase().includes('column'))) {
+        console.warn('Optional columns missing in Supabase master_instansi, retrying with core columns...');
+        const coreRecords = recordsToInsert.map((rec) => {
+          const core: any = {
+            nama: rec.nama,
+            alamat: rec.alamat,
+            kuota: rec.kuota,
+            pembimbing_instansi: rec.pembimbing_instansi,
+            updated_at: rec.updated_at,
+          };
+          if (rec.id) core.id = rec.id;
+          return core;
+        });
+
+        const retryRes = await client
+          .from('master_instansi')
+          .upsert(coreRecords, { onConflict: 'nama' })
+          .select();
+
+        if (!retryRes.error) {
+          data = retryRes.data;
+          error = null;
+        } else {
+          error = retryRes.error;
+        }
+      }
+
+      // 4. Fallback jika belum ada constraint UNIQUE pada kolom 'nama' (kode error 42P10)
+      if (
+        error &&
+        (error.code === '42P10' ||
+          error.message?.toLowerCase().includes('on conflict') ||
+          error.message?.toLowerCase().includes('constraint'))
+      ) {
+        console.warn('Supabase onConflict nama constraint missing, attempting manual match & update fallback...');
+        const { data: existingRows } = await client.from('master_instansi').select('id, nama');
+        const existingMap = new Map<string, string>();
+        if (existingRows) {
+          existingRows.forEach((r: any) => {
+            if (r.nama) existingMap.set(r.nama.toLowerCase().trim(), r.id);
+          });
+        }
+
+        const toUpdate: any[] = [];
+        const toInsert: any[] = [];
+
+        recordsToInsert.forEach((rec) => {
+          const matchId = existingMap.get(rec.nama.toLowerCase().trim());
+          if (matchId) {
+            toUpdate.push({ ...rec, id: matchId });
+          } else {
+            toInsert.push(rec);
+          }
+        });
+
+        // Jalankan update untuk baris yang sudah ada
+        for (const item of toUpdate) {
+          const { id, ...fields } = item;
+          try {
+            await client.from('master_instansi').update(fields).eq('id', id);
+          } catch {
+            // Fallback dengan core fields saja jika gagal
+            await client
+              .from('master_instansi')
+              .update({
+                nama: fields.nama,
+                alamat: fields.alamat,
+                kuota: fields.kuota,
+                pembimbing_instansi: fields.pembimbing_instansi,
+                updated_at: fields.updated_at,
+              })
+              .eq('id', id);
+          }
+        }
+
+        // Jalankan insert untuk data instansi baru
+        if (toInsert.length > 0) {
+          let insertRes = await client.from('master_instansi').insert(toInsert).select();
+          if (insertRes.error && (insertRes.error.code === '42703' || insertRes.error.message?.toLowerCase().includes('column'))) {
+            const coreToInsert = toInsert.map((rec) => ({
+              nama: rec.nama,
+              alamat: rec.alamat,
+              kuota: rec.kuota,
+              pembimbing_instansi: rec.pembimbing_instansi,
+              updated_at: rec.updated_at,
+            }));
+            insertRes = await client.from('master_instansi').insert(coreToInsert).select();
+          }
+          if (insertRes.error) {
+            throw insertRes.error;
+          }
+          data = [...toUpdate, ...(insertRes.data || [])];
+        } else {
+          data = toUpdate;
+        }
+        error = null;
+      }
+
       if (error) {
-        throw new Error(error.message);
+        throw error;
       }
 
       if (data && data.length > 0) {
         data.forEach((dbRow: any) => {
-          const idx = updatedList.findIndex((i) => i.nama.toLowerCase().trim() === dbRow.nama.toLowerCase().trim());
+          const idx = updatedList.findIndex(
+            (i) => i.nama.toLowerCase().trim() === dbRow.nama.toLowerCase().trim()
+          );
           if (idx >= 0) {
             updatedList[idx].id = dbRow.id;
           }
@@ -1399,17 +1550,41 @@ export async function insertMasterInstansiBatch(incomingList: MasterInstansi[]):
 
       return {
         success: true,
-        count: incomingList.length,
+        count: cleanIncomingList.length,
         savedToDatabase: true,
-        message: `Berhasil menyimpan ${incomingList.length} data instansi ke database Supabase Cloud!`,
+        message: `Berhasil menyimpan & memperbarui ${cleanIncomingList.length} data instansi ke database Supabase Cloud!`,
       };
     } catch (err: any) {
       console.warn('Supabase batch insert master_instansi warning, saved locally:', err);
+      const isTableMissing =
+        err?.code === '42P01' ||
+        err?.message?.toLowerCase().includes('does not exist') ||
+        err?.message?.toLowerCase().includes('master_instansi');
+
+      const isConstraintMissing =
+        err?.code === '42P10' ||
+        err?.message?.toLowerCase().includes('on conflict');
+
+      const isPermissionDenied =
+        err?.code === '42501' ||
+        err?.message?.toLowerCase().includes('policy') ||
+        err?.message?.toLowerCase().includes('permission');
+
+      let message = `Tersimpan di penyimpanan lokal (${cleanIncomingList.length} instansi). Catatan Supabase: ${err?.message || 'Database offline.'}`;
+
+      if (isTableMissing) {
+        message = `Tersimpan di browser lokal (${cleanIncomingList.length} instansi). Perhatian: Tabel "master_instansi" belum dibuat di Supabase Cloud. Silakan jalankan skrip SQL skema di Supabase SQL Editor.`;
+      } else if (isConstraintMissing) {
+        message = `Tersimpan di browser lokal (${cleanIncomingList.length} instansi). Perlu menambahkan constraint UNIQUE pada kolom 'nama' di tabel master_instansi Supabase. Silakan jalankan query SQL pembaruan.`;
+      } else if (isPermissionDenied) {
+        message = `Tersimpan di browser lokal (${cleanIncomingList.length} instansi). Izin akses RLS ditolak di Supabase. Jalankan skrip SQL pembaruan untuk mengaktifkan izin public anon write.`;
+      }
+
       return {
         success: true,
-        count: incomingList.length,
+        count: cleanIncomingList.length,
         savedToDatabase: false,
-        message: `Tersimpan di penyimpanan lokal (${incomingList.length} instansi). Catatan: ${err?.message || 'Database offline.'}`,
+        message,
       };
     }
   }
@@ -1418,8 +1593,81 @@ export async function insertMasterInstansiBatch(incomingList: MasterInstansi[]):
     success: true,
     count: incomingList.length,
     savedToDatabase: false,
-    message: `Berhasil mengimpor ${incomingList.length} data instansi ke penyimpanan lokal.`,
+    message: `Tersimpan di penyimpanan lokal (${incomingList.length} instansi). Database Supabase belum terhubung (klik menu Supabase di kanan atas untuk menghubungkan URL & Key).`,
   };
+}
+
+/**
+ * Sinkronkan seluruh data Master Instansi dari LocalStorage ke database Supabase Cloud
+ */
+export async function syncMasterInstansiToSupabase(): Promise<BatchInsertResult> {
+  const currentList = await getMasterInstansiList();
+  if (currentList.length === 0) {
+    return {
+      success: false,
+      count: 0,
+      savedToDatabase: false,
+      message: 'Tidak ada data instansi yang tersimpan di lokal untuk disinkronkan.',
+    };
+  }
+  return await insertMasterInstansiBatch(currentList);
+}
+
+/**
+ * Cek apakah tabel master_instansi sudah ada di database Supabase Cloud
+ */
+export async function checkMasterInstansiTableStatus(): Promise<{
+  connected: boolean;
+  tableExists: boolean;
+  rowCount: number;
+  message: string;
+}> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return {
+      connected: false,
+      tableExists: false,
+      rowCount: 0,
+      message: 'Database Supabase belum terhubung. Konfigurasikan URL dan Anon Key di menu Supabase.',
+    };
+  }
+
+  try {
+    const { count, error } = await client
+      .from('master_instansi')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      if (error.code === '42P01' || error.message?.toLowerCase().includes('does not exist')) {
+        return {
+          connected: true,
+          tableExists: false,
+          rowCount: 0,
+          message: 'Tabel "master_instansi" belum dibuat di database Supabase Anda. Perlu menjalankan skrip SQL.',
+        };
+      }
+      return {
+        connected: true,
+        tableExists: false,
+        rowCount: 0,
+        message: `Koneksi ke tabel master_instansi gagal: ${error.message}`,
+      };
+    }
+
+    return {
+      connected: true,
+      tableExists: true,
+      rowCount: count ?? 0,
+      message: `Tabel "master_instansi" aktif di Supabase Cloud (${count ?? 0} perusahaan terdaftar).`,
+    };
+  } catch (err: any) {
+    return {
+      connected: true,
+      tableExists: false,
+      rowCount: 0,
+      message: err?.message || 'Gagal memeriksa status tabel master_instansi.',
+    };
+  }
 }
 
 /**
@@ -1475,8 +1723,9 @@ export async function getMasterGuruList(): Promise<MasterGuruPembimbing[]> {
  */
 export async function saveMasterGuru(guru: MasterGuruPembimbing): Promise<MasterGuruPembimbing[]> {
   const currentList = await getMasterGuruList();
+  const cleanNip = guru.nip.replace(/\s+/g, '');
   const existingIdx = currentList.findIndex(
-    (g) => g.id === guru.id || g.nip.replace(/\s+/g, '') === guru.nip.replace(/\s+/g, '')
+    (g) => g.id === guru.id || g.nip.replace(/\s+/g, '') === cleanNip
   );
   let updatedList: MasterGuruPembimbing[];
 
@@ -1499,7 +1748,9 @@ export async function saveMasterGuru(guru: MasterGuruPembimbing): Promise<Master
   const client = getSupabaseClient();
   if (client) {
     try {
+      const assignedId = isValidUUID(guru.id) ? guru.id : generateUUID();
       const record: any = {
+        id: assignedId,
         nip: guru.nip.trim(),
         nama: guru.nama.trim(),
         telepon: guru.telepon.trim(),
@@ -1510,29 +1761,75 @@ export async function saveMasterGuru(guru: MasterGuruPembimbing): Promise<Master
         is_active: guru.isActive ?? true,
         updated_at: new Date().toISOString(),
       };
-      if (isValidUUID(guru.id)) {
-        record.id = guru.id;
+
+      // Cek apakah ada record yang sudah ada di Supabase
+      const { data: existingRows } = await client
+        .from('master_guru_pembimbing')
+        .select('id, nip');
+
+      let matchedRowId: string | null = null;
+      if (existingRows && existingRows.length > 0) {
+        const found = existingRows.find(
+          (r: any) =>
+            r.id === guru.id || (r.nip && r.nip.replace(/\s+/g, '') === cleanNip)
+        );
+        if (found) matchedRowId = found.id;
       }
 
-      const { data, error } = await client
-        .from('master_guru_pembimbing')
-        .upsert(record, { onConflict: 'nip' })
-        .select();
+      if (matchedRowId) {
+        // Update record yang sudah ada berdasarkan ID primer
+        const { error: updateErr } = await client
+          .from('master_guru_pembimbing')
+          .update(record)
+          .eq('id', matchedRowId);
 
-      if (error) {
-        console.error('Supabase upsert master_guru_pembimbing error:', error);
-      } else if (data && data[0]) {
-        const realId = data[0].id;
-        const idx = updatedList.findIndex((g) => g.nip.replace(/\s+/g, '') === guru.nip.replace(/\s+/g, ''));
-        if (idx >= 0) {
-          updatedList[idx].id = realId;
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(updatedList));
+        if (updateErr) {
+          // Fallback ke kolom core jika skema database lama belum punya avatar/bidang_studi
+          await client
+            .from('master_guru_pembimbing')
+            .update({
+              nip: record.nip,
+              nama: record.nama,
+              telepon: record.telepon,
+              email_login: record.email_login,
+              password_login: record.password_login,
+              updated_at: record.updated_at,
+            })
+            .eq('id', matchedRowId);
+        }
+      } else {
+        // Insert record baru
+        const { data: insertData, error: insertErr } = await client
+          .from('master_guru_pembimbing')
+          .insert([record])
+          .select();
+
+        if (insertErr && (insertErr.code === '42703' || insertErr.message?.toLowerCase().includes('column'))) {
+          await client.from('master_guru_pembimbing').insert([
+            {
+              id: assignedId,
+              nip: record.nip,
+              nama: record.nama,
+              telepon: record.telepon,
+              email_login: record.email_login,
+              password_login: record.password_login,
+              updated_at: record.updated_at,
+            },
+          ]);
+        }
+
+        if (insertData && insertData[0]) {
+          const idx = updatedList.findIndex((g) => g.nip.replace(/\s+/g, '') === cleanNip);
+          if (idx >= 0) {
+            updatedList[idx].id = insertData[0].id;
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(updatedList));
+            }
           }
         }
       }
     } catch (err) {
-      console.warn('Supabase upsert master_guru_pembimbing error:', err);
+      console.warn('Supabase saveMasterGuru error:', err);
     }
   }
 
@@ -1569,15 +1866,28 @@ export async function deleteMasterGuru(id: string): Promise<MasterGuruPembimbing
 
 /**
  * Batch insert Master Guru Pembimbing
+ * Dirancang toleran terhadap perbedaan spasi NIP, ketiadaan default UUID, dan perbedaan kolom skema Supabase.
  */
 export async function insertMasterGuruBatch(incomingList: MasterGuruPembimbing[]): Promise<BatchInsertResult> {
   const client = getSupabaseClient();
   const currentList = await getMasterGuruList();
 
-  const updatedList = [...currentList];
+  // 1. Deduplikasi incomingList berdasarkan NIP bersih (ambil record terakhir jika ada NIP ganda di file Excel)
+  const dedupedMap = new Map<string, MasterGuruPembimbing>();
   incomingList.forEach((incoming) => {
+    const cleanNip = (incoming.nip || '').replace(/\s+/g, '');
+    if (cleanNip) {
+      dedupedMap.set(cleanNip, incoming);
+    }
+  });
+  const cleanIncomingList = Array.from(dedupedMap.values());
+
+  // 2. Gabungkan data ke LocalStorage browser terlebih dahulu (Offline-first safety)
+  const updatedList = [...currentList];
+  cleanIncomingList.forEach((incoming) => {
+    const cleanNip = incoming.nip.replace(/\s+/g, '');
     const existingIdx = updatedList.findIndex(
-      (item) => item.nip.replace(/\s+/g, '') === incoming.nip.replace(/\s+/g, '')
+      (item) => item.nip.replace(/\s+/g, '') === cleanNip
     );
     if (existingIdx >= 0) {
       updatedList[existingIdx] = {
@@ -1587,11 +1897,14 @@ export async function insertMasterGuruBatch(incomingList: MasterGuruPembimbing[]
         emailLogin: incoming.emailLogin || updatedList[existingIdx].emailLogin,
         passwordLogin: incoming.passwordLogin || updatedList[existingIdx].passwordLogin,
         bidangStudi: incoming.bidangStudi || updatedList[existingIdx].bidangStudi,
-        isActive: true,
+        isActive: incoming.isActive !== false,
         updatedAt: new Date().toISOString(),
       };
     } else {
-      updatedList.push(incoming);
+      updatedList.push({
+        ...incoming,
+        id: isValidUUID(incoming.id) ? incoming.id : generateUUID(),
+      });
     }
   });
 
@@ -1604,70 +1917,243 @@ export async function insertMasterGuruBatch(incomingList: MasterGuruPembimbing[]
     payload: updatedList,
   });
 
+  // 3. Simpan dan sinkronkan ke database Supabase Cloud
   if (client) {
     try {
-      const recordsToInsert = incomingList.map((g) => {
-        const item: any = {
-          nip: g.nip.trim(),
-          nama: g.nama.trim(),
-          telepon: g.telepon.trim(),
-          email_login: g.emailLogin.trim(),
-          password_login: g.passwordLogin.trim(),
-          bidang_studi: g.bidangStudi?.trim() || '',
-          avatar: g.avatar || '',
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        };
-        if (isValidUUID(g.id)) {
-          item.id = g.id;
-        }
-        return item;
-      });
-
-      const { data, error } = await client
+      // Periksa apakah tabel master_guru_pembimbing ada di database Supabase
+      const { data: existingRows, error: fetchErr } = await client
         .from('master_guru_pembimbing')
-        .upsert(recordsToInsert, { onConflict: 'nip' })
-        .select();
+        .select('id, nip');
 
-      if (error) {
-        throw new Error(error.message);
+      if (fetchErr) {
+        if (fetchErr.code === '42P01' || fetchErr.message?.toLowerCase().includes('does not exist')) {
+          return {
+            success: true,
+            count: cleanIncomingList.length,
+            savedToDatabase: false,
+            message: `Tersimpan di browser lokal (${cleanIncomingList.length} guru). Tabel "master_guru_pembimbing" belum dibuat di Supabase Cloud. Silakan salin & jalankan Skrip SQL skema di Supabase SQL Editor.`,
+          };
+        }
+        if (fetchErr.code === '42501' || fetchErr.message?.toLowerCase().includes('permission') || fetchErr.message?.toLowerCase().includes('policy')) {
+          return {
+            success: true,
+            count: cleanIncomingList.length,
+            savedToDatabase: false,
+            message: `Tersimpan di browser lokal (${cleanIncomingList.length} guru). Izin akses RLS ditolak di Supabase. Silakan jalankan Skrip SQL pembaruan untuk mengaktifkan izin public anon write.`,
+          };
+        }
       }
 
-      if (data && data.length > 0) {
-        data.forEach((dbRow: any) => {
-          const idx = updatedList.findIndex((i) => i.nip.replace(/\s+/g, '') === dbRow.nip.replace(/\s+/g, ''));
-          if (idx >= 0) {
-            updatedList[idx].id = dbRow.id;
+      // Bangun map baris yang sudah ada di Supabase berdasarkan NIP yang dinormalisasi
+      const existingDbMap = new Map<string, string>();
+      if (existingRows) {
+        existingRows.forEach((r: any) => {
+          if (r.nip) {
+            existingDbMap.set(r.nip.replace(/\s+/g, ''), r.id);
           }
         });
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(updatedList));
+      }
+
+      const toUpdate: any[] = [];
+      const toInsert: any[] = [];
+
+      cleanIncomingList.forEach((g) => {
+        const cleanNip = g.nip.replace(/\s+/g, '');
+        const matchedDbId = existingDbMap.get(cleanNip);
+
+        const rec: any = {
+          nip: g.nip.trim(),
+          nama: g.nama.trim(),
+          telepon: g.telepon?.trim() || '',
+          email_login: g.emailLogin?.trim() || `${g.nama.toLowerCase().replace(/[^a-z0-9]/g, '.')}@smk.belajar.id`,
+          password_login: g.passwordLogin?.trim() || `Guru#${g.nip.slice(-4)}`,
+          bidang_studi: g.bidangStudi?.trim() || 'Produktif & Kejuruan',
+          avatar: g.avatar || '',
+          is_active: g.isActive !== false,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (matchedDbId) {
+          toUpdate.push({ id: matchedDbId, ...rec });
+        } else {
+          toInsert.push({
+            id: isValidUUID(g.id) ? g.id : generateUUID(),
+            ...rec,
+          });
+        }
+      });
+
+      // Jalankan UPDATE untuk guru yang sudah ada di database
+      for (const item of toUpdate) {
+        const { id, ...fields } = item;
+        const { error: errUpd } = await client
+          .from('master_guru_pembimbing')
+          .update(fields)
+          .eq('id', id);
+
+        if (errUpd && (errUpd.code === '42703' || errUpd.message?.toLowerCase().includes('column'))) {
+          // Fallback update tanpa kolom baru jika tabel lama belum memiliki kolom avatar/bidang_studi
+          await client
+            .from('master_guru_pembimbing')
+            .update({
+              nip: fields.nip,
+              nama: fields.nama,
+              telepon: fields.telepon,
+              email_login: fields.email_login,
+              password_login: fields.password_login,
+              updated_at: fields.updated_at,
+            })
+            .eq('id', id);
+        }
+      }
+
+      // Jalankan INSERT untuk guru baru
+      if (toInsert.length > 0) {
+        let insertRes = await client.from('master_guru_pembimbing').insert(toInsert).select();
+        
+        if (insertRes.error && (insertRes.error.code === '42703' || insertRes.error.message?.toLowerCase().includes('column'))) {
+          // Fallback insert dengan core columns
+          const coreToInsert = toInsert.map((rec) => ({
+            id: rec.id,
+            nip: rec.nip,
+            nama: rec.nama,
+            telepon: rec.telepon,
+            email_login: rec.email_login,
+            password_login: rec.password_login,
+            updated_at: rec.updated_at,
+          }));
+          insertRes = await client.from('master_guru_pembimbing').insert(coreToInsert).select();
+        }
+
+        if (insertRes.data && insertRes.data.length > 0) {
+          insertRes.data.forEach((dbRow: any) => {
+            const idx = updatedList.findIndex(
+              (i) => i.nip.replace(/\s+/g, '') === dbRow.nip.replace(/\s+/g, '')
+            );
+            if (idx >= 0) {
+              updatedList[idx].id = dbRow.id;
+            }
+          });
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY_MASTER_GURU, JSON.stringify(updatedList));
+          }
         }
       }
 
       return {
         success: true,
-        count: incomingList.length,
+        count: cleanIncomingList.length,
         savedToDatabase: true,
-        message: `Berhasil menyimpan ${incomingList.length} guru pembimbing ke database Supabase Cloud!`,
+        message: `Berhasil menyimpan & memperbarui ${cleanIncomingList.length} guru pembimbing ke database Supabase Cloud!`,
       };
     } catch (err: any) {
       console.warn('Supabase batch insert master_guru_pembimbing warning, saved locally:', err);
+      const isTableMissing =
+        err?.code === '42P01' ||
+        err?.message?.toLowerCase().includes('does not exist') ||
+        err?.message?.toLowerCase().includes('master_guru_pembimbing');
+
+      const isPermissionDenied =
+        err?.code === '42501' ||
+        err?.message?.toLowerCase().includes('policy') ||
+        err?.message?.toLowerCase().includes('permission');
+
+      let message = `Tersimpan di penyimpanan lokal (${cleanIncomingList.length} guru). Catatan Supabase: ${err?.message || 'Database offline.'}`;
+
+      if (isTableMissing) {
+        message = `Tersimpan di browser lokal (${cleanIncomingList.length} guru). Perhatian: Tabel "master_guru_pembimbing" belum dibuat di Supabase Cloud. Silakan jalankan skrip SQL skema di Supabase SQL Editor.`;
+      } else if (isPermissionDenied) {
+        message = `Tersimpan di browser lokal (${cleanIncomingList.length} guru). Izin akses RLS ditolak di Supabase. Jalankan skrip SQL pembaruan untuk mengaktifkan izin public anon write.`;
+      }
+
       return {
         success: true,
-        count: incomingList.length,
+        count: cleanIncomingList.length,
         savedToDatabase: false,
-        message: `Tersimpan di penyimpanan lokal (${incomingList.length} guru). Catatan: ${err?.message || 'Database offline.'}`,
+        message,
       };
     }
   }
 
   return {
     success: true,
-    count: incomingList.length,
+    count: cleanIncomingList.length,
     savedToDatabase: false,
-    message: `Berhasil mengimpor ${incomingList.length} guru pembimbing ke penyimpanan lokal.`,
+    message: `Tersimpan di penyimpanan lokal (${cleanIncomingList.length} guru). Database Supabase belum terhubung (klik menu Supabase di kanan atas untuk menghubungkan URL & Key).`,
   };
+}
+
+/**
+ * Sinkronkan seluruh data Master Guru dari LocalStorage ke database Supabase Cloud
+ */
+export async function syncMasterGuruToSupabase(): Promise<BatchInsertResult> {
+  const currentList = await getMasterGuruList();
+  if (currentList.length === 0) {
+    return {
+      success: false,
+      count: 0,
+      savedToDatabase: false,
+      message: 'Tidak ada data guru pembimbing yang tersimpan di lokal untuk disinkronkan.',
+    };
+  }
+  return await insertMasterGuruBatch(currentList);
+}
+
+/**
+ * Cek apakah tabel master_guru_pembimbing sudah ada di database Supabase Cloud
+ */
+export async function checkMasterGuruTableStatus(): Promise<{
+  connected: boolean;
+  tableExists: boolean;
+  rowCount: number;
+  message: string;
+}> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return {
+      connected: false,
+      tableExists: false,
+      rowCount: 0,
+      message: 'Database Supabase belum terhubung. Konfigurasikan URL dan Anon Key di menu Supabase.',
+    };
+  }
+
+  try {
+    const { count, error } = await client
+      .from('master_guru_pembimbing')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      if (error.code === '42P01' || error.message?.toLowerCase().includes('does not exist')) {
+        return {
+          connected: true,
+          tableExists: false,
+          rowCount: 0,
+          message: 'Tabel "master_guru_pembimbing" belum dibuat di database Supabase Anda. Perlu menjalankan skrip SQL.',
+        };
+      }
+      return {
+        connected: true,
+        tableExists: false,
+        rowCount: 0,
+        message: `Koneksi ke tabel master_guru_pembimbing gagal: ${error.message}`,
+      };
+    }
+
+    return {
+      connected: true,
+      tableExists: true,
+      rowCount: count ?? 0,
+      message: `Tabel master_guru_pembimbing aktif dan terhubung di cloud (${count ?? 0} data).`,
+    };
+  } catch (err: any) {
+    return {
+      connected: true,
+      tableExists: false,
+      rowCount: 0,
+      message: err?.message || 'Gagal memeriksa status tabel master_guru_pembimbing.',
+    };
+  }
 }
 
 /**
@@ -1808,6 +2294,31 @@ export async function savePlottingItem(item: PlottingSiswaPKL): Promise<Plotting
       await client
         .from('plotting_siswa_pkl')
         .upsert(record, { onConflict: 'nisn' });
+
+      // Sinkronisasi otomatis ke master_siswa_pkl di Supabase
+      try {
+        await client
+          .from('master_siswa_pkl')
+          .upsert(
+            {
+              nisn: item.nisn.trim(),
+              nama_lengkap: item.namaSiswa.trim(),
+              kelas: item.kelas.trim(),
+              jurusan: item.jurusan.trim(),
+              guru_pembimbing: item.guruNama?.trim() || 'Belum Ditentukan',
+              guru_nip: item.guruNip?.trim() || null,
+              instansi_nama: item.instansiNama?.trim() || null,
+              alamat_instansi: item.alamatInstansi?.trim() || null,
+              periode_mulai: item.periodeMulai?.trim() || null,
+              periode_selesai: item.periodeSelesai?.trim() || null,
+              status_plotting: item.statusPlotting || 'Terplotting',
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'nisn' }
+          );
+      } catch (siswaSyncErr) {
+        console.warn('Auto-sync to master_siswa_pkl in savePlottingItem warning:', siswaSyncErr);
+      }
     } catch (err) {
       console.warn('Supabase upsert plotting_siswa_pkl error:', err);
     }
@@ -2042,7 +2553,7 @@ export async function insertPlottingBatch(incomingList: PlottingSiswaPKL[]): Pro
         .select();
 
       if (error) {
-        throw new Error(error.message);
+        throw error;
       }
 
       if (data && data.length > 0) {
@@ -2057,19 +2568,52 @@ export async function insertPlottingBatch(incomingList: PlottingSiswaPKL[]): Pro
         }
       }
 
+      // Sinkronisasi otomatis juga ke tabel master_siswa_pkl di Supabase jika ada
+      try {
+        const siswaSyncRecords = incomingList.map((p) => ({
+          nisn: p.nisn.trim(),
+          nama_lengkap: p.namaSiswa.trim(),
+          kelas: p.kelas.trim(),
+          jurusan: p.jurusan.trim(),
+          guru_pembimbing: p.guruNama?.trim() || 'Belum Ditentukan',
+          guru_nip: p.guruNip?.trim() || null,
+          instansi_nama: p.instansiNama?.trim() || null,
+          alamat_instansi: p.alamatInstansi?.trim() || null,
+          periode_mulai: p.periodeMulai?.trim() || null,
+          periode_selesai: p.periodeSelesai?.trim() || null,
+          status_plotting: p.statusPlotting || 'Terplotting',
+          updated_at: new Date().toISOString(),
+        }));
+
+        await client
+          .from('master_siswa_pkl')
+          .upsert(siswaSyncRecords, { onConflict: 'nisn' });
+      } catch (siswaSyncErr) {
+        console.warn('Auto-sync to Supabase master_siswa_pkl warning:', siswaSyncErr);
+      }
+
       return {
         success: true,
         count: incomingList.length,
         savedToDatabase: true,
-        message: `Berhasil menyimpan ${incomingList.length} data plotting siswa ke database Supabase Cloud!`,
+        message: `Berhasil menyimpan ${incomingList.length} data plotting siswa ke tabel "plotting_siswa_pkl" dan menyelaraskan "master_siswa_pkl" di Supabase Cloud!`,
       };
     } catch (err: any) {
       console.warn('Supabase batch insert plotting_siswa_pkl warning, saved locally:', err);
+      const isTableMissing =
+        err?.code === '42P01' ||
+        err?.message?.toLowerCase().includes('does not exist') ||
+        err?.message?.toLowerCase().includes('plotting_siswa_pkl');
+
+      const message = isTableMissing
+        ? `Tersimpan di penyimpanan lokal browser (${incomingList.length} data). Perhatian: Tabel "plotting_siswa_pkl" belum dibuat di Supabase Cloud Anda. Silakan salin & jalankan skrip SQL di Supabase SQL Editor.`
+        : `Tersimpan di penyimpanan lokal (${incomingList.length} plotting). Catatan Supabase: ${err?.message || 'Database offline.'}`;
+
       return {
         success: true,
         count: incomingList.length,
         savedToDatabase: false,
-        message: `Tersimpan di penyimpanan lokal (${incomingList.length} plotting). Catatan: ${err?.message || 'Database offline.'}`,
+        message,
       };
     }
   }
@@ -2078,6 +2622,80 @@ export async function insertPlottingBatch(incomingList: PlottingSiswaPKL[]): Pro
     success: true,
     count: incomingList.length,
     savedToDatabase: false,
-    message: `Berhasil mengimpor ${incomingList.length} data plotting siswa ke penyimpanan lokal.`,
+    message: `Tersimpan di penyimpanan lokal browser (${incomingList.length} plotting). Supabase belum dihubungkan (klik menu Supabase di kanan atas untuk menghubungkan database online).`,
   };
 }
+
+/**
+ * Sinkronkan seluruh data plotting dari LocalStorage ke database Supabase Cloud
+ */
+export async function syncPlottingToSupabase(): Promise<BatchInsertResult> {
+  const currentList = await getPlottingList();
+  if (currentList.length === 0) {
+    return {
+      success: false,
+      count: 0,
+      savedToDatabase: false,
+      message: 'Tidak ada data plotting yang tersimpan di lokal untuk disinkronkan.',
+    };
+  }
+  return await insertPlottingBatch(currentList);
+}
+
+/**
+ * Cek apakah tabel plotting_siswa_pkl sudah ada di database Supabase Cloud
+ */
+export async function checkPlottingTableStatus(): Promise<{
+  connected: boolean;
+  tableExists: boolean;
+  rowCount: number;
+  message: string;
+}> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return {
+      connected: false,
+      tableExists: false,
+      rowCount: 0,
+      message: 'Database Supabase belum terhubung. Konfigurasikan URL dan Anon Key di menu Supabase.',
+    };
+  }
+
+  try {
+    const { count, error } = await client
+      .from('plotting_siswa_pkl')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      if (error.code === '42P01' || error.message?.toLowerCase().includes('does not exist')) {
+        return {
+          connected: true,
+          tableExists: false,
+          rowCount: 0,
+          message: 'Tabel "plotting_siswa_pkl" belum dibuat di database Supabase Anda. Perlu menjalankan skrip SQL.',
+        };
+      }
+      return {
+        connected: true,
+        tableExists: false,
+        rowCount: 0,
+        message: `Koneksi ke tabel gagal: ${error.message}`,
+      };
+    }
+
+    return {
+      connected: true,
+      tableExists: true,
+      rowCount: count ?? 0,
+      message: `Tabel "plotting_siswa_pkl" aktif di Supabase Cloud (${count ?? 0} data tersimpan).`,
+    };
+  } catch (err: any) {
+    return {
+      connected: true,
+      tableExists: false,
+      rowCount: 0,
+      message: err?.message || 'Gagal memeriksa status tabel database.',
+    };
+  }
+}
+

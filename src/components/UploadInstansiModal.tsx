@@ -16,7 +16,10 @@ import {
   Briefcase,
   Phone,
   Mail,
-  AlertTriangle
+  AlertTriangle,
+  Copy,
+  Check,
+  ExternalLink
 } from 'lucide-react';
 import { MasterInstansi } from '../types/index.ts';
 import { 
@@ -25,6 +28,7 @@ import {
   ParseInstansiResult 
 } from '../utils/instansiExcelParser.ts';
 import { insertMasterInstansiBatch, getSupabaseConfig } from '../lib/supabase.ts';
+import { generateInstansiSQLScript } from '../utils/scoring.ts';
 
 interface UploadInstansiModalProps {
   isOpen: boolean;
@@ -50,9 +54,20 @@ export const UploadInstansiModal: React.FC<UploadInstansiModalProps> = ({
     type: 'success' | 'warning' | 'error' | null;
     message: string;
   }>({ type: null, message: '' });
+  const [copiedSQL, setCopiedSQL] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const config = getSupabaseConfig();
+
+  const handleCopySQL = async () => {
+    try {
+      await navigator.clipboard.writeText(generateInstansiSQLScript());
+      setCopiedSQL(true);
+      setTimeout(() => setCopiedSQL(false), 2500);
+    } catch {
+      // ignore
+    }
+  };
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -133,8 +148,16 @@ export const UploadInstansiModal: React.FC<UploadInstansiModalProps> = ({
     try {
       const result = await insertMasterInstansiBatch(parseResult.validInstansi);
       if (result.success) {
-        onSuccess(result.count, result.message);
-        onClose();
+        if (result.savedToDatabase || !config.isConnected) {
+          onSuccess(result.count, result.message);
+          onClose();
+        } else {
+          onSuccess(result.count, `Tersimpan di browser lokal (${result.count} data). Perlu update query Supabase.`);
+          setImportStatus({
+            type: 'warning',
+            message: result.message || 'Tersimpan di penyimpanan lokal, namun gagal masuk ke database Supabase Cloud karena tabel belum sesuai.',
+          });
+        }
       } else {
         setImportStatus({
           type: 'error',
@@ -166,15 +189,20 @@ export const UploadInstansiModal: React.FC<UploadInstansiModalProps> = ({
         className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Modal */}
-        <div className="px-6 py-5 bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 text-white flex items-center justify-between flex-shrink-0">
+        {/* Header Modal with Luxury Orange Gradient */}
+        <div className="px-6 py-5 bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 text-white flex items-center justify-between flex-shrink-0 shadow-md">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-              <Building2 className="w-6 h-6 text-blue-200" />
+            <div className="p-2.5 bg-white/15 rounded-xl backdrop-blur-md border border-white/20">
+              <Building2 className="w-6 h-6 text-amber-200" />
             </div>
             <div>
-              <h3 className="font-extrabold text-lg tracking-tight">Upload Master Data Instansi / Perusahaan</h3>
-              <p className="text-xs text-blue-100/90 mt-0.5">
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-lg tracking-tight">Upload Master Data Instansi / Perusahaan</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30">
+                  Excel / CSV
+                </span>
+              </div>
+              <p className="text-xs text-orange-100/90 mt-0.5">
                 Impor massal mitra DUDI, kuota siswa, alamat lengkap, dan pembimbing via Excel/CSV
               </p>
             </div>
@@ -182,7 +210,7 @@ export const UploadInstansiModal: React.FC<UploadInstansiModalProps> = ({
           <button
             onClick={onClose}
             aria-label="Tutup modal upload"
-            className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -196,18 +224,75 @@ export const UploadInstansiModal: React.FC<UploadInstansiModalProps> = ({
             <div className={`p-4 rounded-xl border flex items-start gap-3 text-xs leading-relaxed ${
               importStatus.type === 'error' 
                 ? 'bg-red-50 border-red-200 text-red-800' 
+                : importStatus.type === 'warning'
+                ? 'bg-amber-50/90 border-amber-300 text-amber-900'
                 : 'bg-emerald-50 border-emerald-200 text-emerald-800'
             }`}>
               {importStatus.type === 'error' ? (
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              ) : importStatus.type === 'warning' ? (
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               ) : (
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
               )}
-              <div className="flex-1">
-                <span className="font-bold block mb-0.5">
-                  {importStatus.type === 'error' ? 'Kendala Import:' : 'Sukses:'}
-                </span>
-                <span>{importStatus.message}</span>
+              <div className="flex-1 space-y-2">
+                <div>
+                  <span className="font-bold block mb-0.5 text-sm">
+                    {importStatus.type === 'error' ? 'Kendala Import:' : importStatus.type === 'warning' ? 'Perhatian: Tabel Database Perlu Diperbarui' : 'Sukses:'}
+                  </span>
+                  <span>{importStatus.message}</span>
+                </div>
+
+                {importStatus.type === 'warning' && (
+                  <div className="pt-2 border-t border-amber-200 space-y-2">
+                    <p className="text-[11px] font-semibold text-amber-900">
+                      Jalankan skrip query SQL berikut di <b>Supabase Dashboard &gt; SQL Editor &gt; New Query</b> agar tabel <code>master_instansi</code> memiliki constraint UNIQUE dan izin akses yang sesuai:
+                    </p>
+                    <div className="relative">
+                      <pre className="p-3 bg-slate-900 text-slate-100 rounded-lg text-[10px] font-mono max-h-32 overflow-y-auto leading-relaxed">
+                        {generateInstansiSQLScript()}
+                      </pre>
+                      <button
+                        type="button"
+                        onClick={handleCopySQL}
+                        className="absolute top-2 right-2 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-bold flex items-center gap-1 shadow-xs cursor-pointer"
+                      >
+                        {copiedSQL ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedSQL ? 'Tersalin!' : 'Salin SQL'}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+                      <a
+                        href="https://supabase.com/dashboard"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-amber-900 hover:text-amber-950 font-bold underline text-[11px] flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Buka Supabase SQL Editor</span>
+                      </a>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={onClose}
+                          className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200/90 text-amber-900 rounded-lg font-bold text-[11px] transition-colors cursor-pointer"
+                        >
+                          Tutup (Tetap Simpan di Lokal)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleImportData}
+                          disabled={isSaving}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-[11px] flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
+                          <span>Coba Simpan Ulang ke Database</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -462,10 +547,10 @@ export const UploadInstansiModal: React.FC<UploadInstansiModalProps> = ({
             type="button"
             onClick={handleImportData}
             disabled={isSaving || !parseResult || parseResult.validInstansi.length === 0}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-xs shadow-md transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-xs shadow-md transition-all cursor-pointer ${
               !parseResult || parseResult.validInstansi.length === 0 || isSaving
                 ? 'bg-slate-300 cursor-not-allowed shadow-none'
-                : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20 hover:scale-[1.01]'
+                : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:via-orange-600 hover:to-amber-700 shadow-orange-500/25 hover:scale-[1.01]'
             }`}
           >
             {isSaving ? (
@@ -477,7 +562,7 @@ export const UploadInstansiModal: React.FC<UploadInstansiModalProps> = ({
               <>
                 <UploadCloud className="w-4 h-4" />
                 <span>
-                  Import {parseResult?.validInstansi.length || 0} Data Instansi
+                  Simpan & Import {parseResult?.validInstansi.length || 0} Data Instansi
                 </span>
               </>
             )}

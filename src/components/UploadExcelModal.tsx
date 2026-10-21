@@ -150,24 +150,29 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
     >
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
-        {/* Modal Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-slate-50/50">
+        {/* Modal Header with Luxury Orange Gradient */}
+        <div className="flex items-center justify-between p-5 bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 text-white shadow-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs">
-              <FileSpreadsheet className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-xs">
+              <FileSpreadsheet className="w-5 h-5 text-amber-200" />
             </div>
             <div>
-              <h3 className="font-extrabold text-slate-900 text-base">
-                Upload Data Master Siswa PKL (Excel / CSV)
-              </h3>
-              <p className="text-xs text-slate-500">
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-white text-base">
+                  Upload Data Master Siswa PKL (Excel / CSV)
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30">
+                  Excel / CSV
+                </span>
+              </div>
+              <p className="text-xs text-orange-100/90 mt-0.5">
                 Impor massal akun siswa, NISN, kelas, jurusan, password, dan guru pembimbing.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
+            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -412,7 +417,7 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
               type="button"
               disabled={!parseResult || parseResult.validSiswa.length === 0 || isSaving}
               onClick={handleImportData}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:via-orange-600 hover:to-amber-700 disabled:bg-slate-300 text-white font-bold text-xs shadow-md shadow-orange-500/25 transition-all cursor-pointer"
             >
               {isSaving ? (
                 <>
@@ -421,7 +426,7 @@ export const UploadExcelModal: React.FC<UploadExcelModalProps> = ({
                 </>
               ) : (
                 <>
-                  <span>Simpan {parseResult ? parseResult.validSiswa.length : 0} Siswa Langsung ke Supabase</span>
+                  <span>Simpan & Import {parseResult ? parseResult.validSiswa.length : 0} Siswa ke Supabase</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

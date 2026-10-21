@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   GraduationCap, 
   Search, 
@@ -26,38 +26,72 @@ import {
   Layers,
   ChevronRight,
   FileSpreadsheet,
-  UploadCloud
+  UploadCloud,
+  Code,
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
-import { MasterGuruPembimbing, MasterSiswaPKL } from '../types/index.ts';
-import { saveMasterGuru, deleteMasterGuru } from '../lib/supabase.ts';
+import { MasterGuruPembimbing, MasterSiswaPKL, PlottingSiswaPKL } from '../types/index.ts';
+import { 
+  saveMasterGuru, 
+  deleteMasterGuru,
+  checkMasterGuruTableStatus,
+  syncMasterGuruToSupabase
+} from '../lib/supabase.ts';
 import { 
   calculateGuruStats, 
   generateGuruCSV, 
   generateGuruCredentials 
 } from '../utils/guruUtils.ts';
+import { generateGuruSQLScript } from '../utils/scoring.ts';
 import { UploadGuruModal } from './UploadGuruModal.tsx';
 
 interface MasterGuruTableProps {
   guruList: MasterGuruPembimbing[];
   siswaList: MasterSiswaPKL[];
+  plottingList?: PlottingSiswaPKL[];
   onGuruUpdated: () => void;
   onFilterSiswaByGuru?: (namaGuru: string) => void;
   onNavigateToSiswa?: () => void;
+  onNavigateToPlotting?: (namaGuru?: string) => void;
   onOpenSupabaseModal?: () => void;
   initialOpenUpload?: boolean;
+  onCloseUpload?: () => void;
 }
 
 export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
   guruList,
   siswaList,
+  plottingList = [],
   onGuruUpdated,
   onFilterSiswaByGuru,
   onNavigateToSiswa,
+  onNavigateToPlotting,
   onOpenSupabaseModal,
   initialOpenUpload,
+  onCloseUpload,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterBeban, setFilterBeban] = useState<'semua' | 'ada' | 'kosong'>('semua');
+
+  // Supabase cloud table status
+  const [dbStatus, setDbStatus] = useState<{
+    connected: boolean;
+    tableExists: boolean;
+    rowCount: number;
+    message: string;
+    checked: boolean;
+  }>({
+    connected: false,
+    tableExists: false,
+    rowCount: 0,
+    message: '',
+    checked: false,
+  });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isCheckingDb, setIsCheckingDb] = useState(false);
+  const [showSQLModal, setShowSQLModal] = useState(false);
+  const [copiedSQL, setCopiedSQL] = useState(false);
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -66,8 +100,59 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
   const [deleteCandidate, setDeleteCandidate] = useState<MasterGuruPembimbing | null>(null);
   const [viewSiswaGuru, setViewSiswaGuru] = useState<MasterGuruPembimbing | null>(null);
 
+  const checkDb = async () => {
+    setIsCheckingDb(true);
+    try {
+      const res = await checkMasterGuruTableStatus();
+      setDbStatus({
+        ...res,
+        checked: true,
+      });
+    } catch {
+      // ignore
+    } finally {
+      setIsCheckingDb(false);
+    }
+  };
+
+  useEffect(() => {
+    checkDb();
+  }, [guruList.length]);
+
+  const handleSyncToSupabase = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await syncMasterGuruToSupabase();
+      if (res.savedToDatabase) {
+        setToastMessage(`Sukses! ${res.count} data guru pembimbing tersimpan ke Supabase Cloud.`);
+        await checkDb();
+        onGuruUpdated();
+      } else {
+        setToastMessage(res.message);
+        if (res.message.toLowerCase().includes('belum dibuat')) {
+          setShowSQLModal(true);
+        }
+      }
+    } catch (e: any) {
+      setToastMessage(`Gagal sinkron: ${e?.message}`);
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setToastMessage(null), 4500);
+    }
+  };
+
+  const handleCopySQL = async () => {
+    try {
+      await navigator.clipboard.writeText(generateGuruSQLScript());
+      setCopiedSQL(true);
+      setTimeout(() => setCopiedSQL(false), 2500);
+    } catch {
+      // ignore
+    }
+  };
+
   // Auto-open upload modal if triggered from sidebar or navigation
-  React.useEffect(() => {
+  useEffect(() => {
     if (initialOpenUpload) {
       setIsUploadModalOpen(true);
     }
@@ -90,17 +175,18 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Keyboard accessibility
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (isModalOpen) setIsModalOpen(false);
         if (deleteCandidate) setDeleteCandidate(null);
         if (viewSiswaGuru) setViewSiswaGuru(null);
+        if (showSQLModal) setShowSQLModal(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen, deleteCandidate, viewSiswaGuru]);
+  }, [isModalOpen, deleteCandidate, viewSiswaGuru, showSQLModal]);
 
   const togglePasswordVisibility = (id: string) => {
     setVisiblePasswords((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -119,7 +205,7 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
     let guruDenganSiswa = 0;
 
     guruList.forEach((guru) => {
-      const stats = calculateGuruStats(guru, siswaList);
+      const stats = calculateGuruStats(guru, siswaList, plottingList);
       totalSiswaBimbingan += stats.jumlahSiswaBimbingan;
       if (stats.jumlahSiswaBimbingan > 0) guruDenganSiswa++;
     });
@@ -132,12 +218,12 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
       rataRata,
       guruDenganSiswa,
     };
-  }, [guruList, siswaList]);
+  }, [guruList, siswaList, plottingList]);
 
   // Filtered List
   const filteredList = useMemo(() => {
     return guruList.filter((guru) => {
-      const stats = calculateGuruStats(guru, siswaList);
+      const stats = calculateGuruStats(guru, siswaList, plottingList);
 
       const matchSearch =
         guru.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -155,7 +241,7 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
 
       return matchSearch && matchBeban;
     });
-  }, [guruList, siswaList, searchTerm, filterBeban]);
+  }, [guruList, siswaList, plottingList, searchTerm, filterBeban]);
 
   // Modal open handlers
   const handleOpenAddModal = () => {
@@ -294,20 +380,62 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Connected students for currently selected modal guru
+  // Connected students for currently selected modal guru (disinkronkan dari Plotting Siswa & Master Siswa)
   const connectedSiswaForModal = useMemo(() => {
     if (!viewSiswaGuru) return [];
-    return calculateGuruStats(viewSiswaGuru, siswaList).siswaBimbinganList;
-  }, [siswaList, viewSiswaGuru]);
+    return calculateGuruStats(viewSiswaGuru, siswaList, plottingList).siswaBimbinganList;
+  }, [siswaList, viewSiswaGuru, plottingList]);
 
   return (
     <div className="space-y-6">
       
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 text-xs font-semibold animate-fade-in">
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 text-xs font-semibold animate-fade-in border border-slate-700">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Database Warning / Status Alert Banner */}
+      {dbStatus.checked && dbStatus.connected && !dbStatus.tableExists && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50 border border-amber-300 rounded-2xl p-4 sm:p-5 text-amber-900 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-amber-100 rounded-xl text-amber-700 flex-shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-extrabold text-sm text-amber-950">
+                  Tabel Database Supabase Belum Dibuat / Belum Sesuai
+                </span>
+                <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded-md text-[10px] font-bold">
+                  Perlu Jalankan SQL
+                </span>
+              </div>
+              <p className="text-xs text-amber-800/90 mt-1 max-w-3xl leading-relaxed">
+                Tabel <code>master_guru_pembimbing</code> di database Supabase Anda belum dibuat atau belum memiliki constraint <code>UNIQUE (nip)</code>. Karena itu, data setelah di-upload saat ini baru tersimpan di browser lokal. Jalankan query SQL pembaruan sekali saja di Supabase SQL Editor agar data langsung tersimpan permanen di cloud.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+            <button
+              onClick={() => setShowSQLModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition-colors"
+            >
+              <Code className="w-4 h-4" />
+              <span>Lihat Skrip SQL</span>
+            </button>
+            <button
+              onClick={checkDb}
+              disabled={isCheckingDb}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-amber-100/60 border border-amber-300 text-amber-900 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              title="Cek ulang status tabel master_guru_pembimbing di Supabase"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-700 ${isCheckingDb ? 'animate-spin' : ''}`} />
+              <span>Cek Status</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -315,7 +443,7 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/20">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-600 text-white flex items-center justify-center shadow-lg shadow-orange-500/20">
               <GraduationCap className="w-6 h-6" />
             </div>
             <div>
@@ -323,9 +451,38 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
                 <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
                   Data Master Guru Pembimbing PKL
                 </h2>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-orange-50 text-orange-800 border border-orange-200">
                   Pembimbing Sekolah
                 </span>
+                {dbStatus.checked && (
+                  <span
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                      dbStatus.tableExists
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : dbStatus.connected
+                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}
+                    title={dbStatus.message}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        dbStatus.tableExists
+                          ? 'bg-emerald-500'
+                          : dbStatus.connected
+                          ? 'bg-amber-500 animate-pulse'
+                          : 'bg-slate-400'
+                      }`}
+                    />
+                    <span>
+                      {dbStatus.tableExists
+                        ? `Cloud Aktif (${dbStatus.rowCount} guru)`
+                        : dbStatus.connected
+                        ? 'Tabel Cloud Belum Ada'
+                        : 'Lokal Browser'}
+                    </span>
+                  </span>
+                )}
               </div>
               <p className="text-slate-500 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
                 Kelola data NIP/NIK guru pembimbing, akun akses login, kontak telepon/WhatsApp, dan pemantauan jumlah siswa PKL bimbingan secara terintegrasi.
@@ -336,11 +493,20 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={() => setIsUploadModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100/80 text-purple-700 border border-purple-200/80 font-bold text-xs transition-colors shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-50 hover:bg-orange-100/90 text-orange-900 border border-orange-200 font-bold text-xs transition-colors shadow-xs cursor-pointer"
               title="Upload data guru dari file Excel (.xlsx) atau CSV (.csv)"
             >
-              <FileSpreadsheet className="w-4 h-4 text-purple-600" />
+              <FileSpreadsheet className="w-4 h-4 text-orange-600" />
               <span>Upload Excel / CSV</span>
+            </button>
+
+            <button
+              onClick={() => setShowSQLModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-orange-50 text-orange-900 border border-orange-200 font-bold text-xs transition-colors shadow-xs cursor-pointer"
+              title="Lihat skrip SQL untuk membuat atau memperbaiki tabel master_guru_pembimbing di Supabase"
+            >
+              <Code className="w-4 h-4 text-orange-600" />
+              <span>Skrip SQL</span>
             </button>
 
             <button
@@ -355,17 +521,17 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
             {onNavigateToSiswa && (
               <button
                 onClick={onNavigateToSiswa}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 hover:text-purple-700 transition-colors shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 hover:text-orange-700 transition-colors shadow-xs"
                 title="Buka Halaman Master Siswa PKL"
               >
-                <Users className="w-4 h-4 text-emerald-600" />
+                <Users className="w-4 h-4 text-slate-600" />
                 <span>Buka Master Siswa</span>
               </button>
             )}
 
             <button
               onClick={handleOpenAddModal}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-purple-500/20 transition-all cursor-pointer hover:scale-[1.01]"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:via-orange-600 hover:to-amber-700 text-white font-bold text-xs shadow-md shadow-orange-500/25 transition-all cursor-pointer hover:scale-[1.01]"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Guru Pembimbing</span>
@@ -488,7 +654,7 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
                 </tr>
               ) : (
                 filteredList.map((guru, index) => {
-                  const stats = calculateGuruStats(guru, siswaList);
+                  const stats = calculateGuruStats(guru, siswaList, plottingList);
                   const isPassVisible = visiblePasswords[guru.id];
                   const isCopied = copiedId === guru.id;
 
@@ -842,18 +1008,32 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
                     Total Siswa Terdaftar: <b>{connectedSiswaForModal.length} Siswa</b>
                   </span>
                 </div>
-                {onFilterSiswaByGuru && connectedSiswaForModal.length > 0 && (
-                  <button
-                    onClick={() => {
-                      onFilterSiswaByGuru(viewSiswaGuru.nama);
-                      setViewSiswaGuru(null);
-                    }}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-white px-3 py-1 rounded-lg border border-purple-200 shadow-2xs"
-                  >
-                    <span>Buka &amp; Filter di Master Siswa</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {onFilterSiswaByGuru && connectedSiswaForModal.length > 0 && (
+                    <button
+                      onClick={() => {
+                        onFilterSiswaByGuru(viewSiswaGuru.nama);
+                        setViewSiswaGuru(null);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-white px-3 py-1 rounded-lg border border-purple-200 shadow-2xs"
+                    >
+                      <span>Filter di Master Siswa</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {onNavigateToPlotting && connectedSiswaForModal.length > 0 && (
+                    <button
+                      onClick={() => {
+                        onNavigateToPlotting(viewSiswaGuru.nama);
+                        setViewSiswaGuru(null);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-white px-3 py-1 rounded-lg border border-emerald-200 shadow-2xs"
+                    >
+                      <span>Lihat di Plotting Siswa</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {connectedSiswaForModal.length === 0 ? (
@@ -861,7 +1041,7 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
                   <Users className="w-10 h-10 mx-auto mb-2 text-slate-300" />
                   <p className="font-semibold text-slate-700 text-sm">Belum Ada Siswa Bimbingan</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    Guru ini belum ditugaskan untuk membimbing siswa di Master Siswa PKL.
+                    Guru ini belum ditugaskan untuk membimbing siswa di Master Siswa atau Plotting Siswa PKL.
                   </p>
                 </div>
               ) : (
@@ -907,10 +1087,23 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
               )}
             </div>
 
-            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              {onNavigateToPlotting && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onNavigateToPlotting(viewSiswaGuru.nama);
+                    setViewSiswaGuru(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl font-bold text-xs border border-purple-200 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Buka Tabel Plotting Siswa</span>
+                </button>
+              )}
               <button
                 onClick={() => setViewSiswaGuru(null)}
-                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-colors"
+                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-colors ml-auto"
               >
                 Tutup
               </button>
@@ -943,11 +1136,11 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
               <p className="text-slate-600">Email: {deleteCandidate.emailLogin}</p>
             </div>
 
-            {calculateGuruStats(deleteCandidate, siswaList).jumlahSiswaBimbingan > 0 && (
+            {calculateGuruStats(deleteCandidate, siswaList, plottingList).jumlahSiswaBimbingan > 0 && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  Perhatian: Saat ini guru ini tercatat membimbing <b>{calculateGuruStats(deleteCandidate, siswaList).jumlahSiswaBimbingan} siswa</b> di Master Siswa PKL.
+                  Perhatian: Saat ini guru ini tercatat membimbing <b>{calculateGuruStats(deleteCandidate, siswaList, plottingList).jumlahSiswaBimbingan} siswa</b> di Master Siswa PKL.
                 </span>
               </div>
             )}
@@ -975,16 +1168,126 @@ export const MasterGuruTable: React.FC<MasterGuruTableProps> = ({
       {/* Modal Upload Excel Master Guru Pembimbing */}
       <UploadGuruModal
         isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
+        onClose={() => {
+          setIsUploadModalOpen(false);
+          onCloseUpload?.();
+        }}
         existingGuruList={guruList}
         onSuccess={(count, message) => {
           setIsUploadModalOpen(false);
+          onCloseUpload?.();
           onGuruUpdated();
           setToastMessage(message || `Berhasil mengimpor ${count} data guru pembimbing.`);
           setTimeout(() => setToastMessage(null), 4000);
+          checkDb();
         }}
         onOpenSupabaseModal={onOpenSupabaseModal}
       />
+
+      {/* MODAL SKRIP SQL SCHEMA MASTER GURU PEMBIMBING */}
+      {showSQLModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div 
+            className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 bg-gradient-to-r from-purple-800 to-indigo-900 text-white flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white/10 rounded-xl">
+                  <Code className="w-5 h-5 text-purple-200" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base">Skrip SQL Tabel Master Guru Pembimbing</h3>
+                  <p className="text-xs text-purple-200">
+                    Jalankan skrip ini di Supabase SQL Editor agar data guru pembimbing otomatis tersimpan di cloud
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSQLModal(false)}
+                className="p-1 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 flex-1">
+              <div className="p-3.5 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-900 leading-relaxed">
+                <p className="font-bold mb-1">Panduan Menjalankan di Supabase:</p>
+                <ol className="list-decimal pl-4 space-y-1 text-slate-700">
+                  <li>Buka <b>Dashboard Supabase</b> proyek Anda.</li>
+                  <li>Pilih menu <b>SQL Editor</b> di sidebar kiri &gt; klik <b>New query</b>.</li>
+                  <li>Salin seluruh skrip di bawah ini lalu tempel (paste) ke editor.</li>
+                  <li>Klik tombol hijau <b>Run</b>. Tabel guru dan izin RLS akan aktif permanen.</li>
+                </ol>
+              </div>
+
+              <div className="relative">
+                <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono max-h-72 overflow-y-auto border border-slate-800 leading-relaxed">
+                  {generateGuruSQLScript()}
+                </pre>
+                <button
+                  type="button"
+                  onClick={handleCopySQL}
+                  className="absolute top-3 right-3 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer transition-colors"
+                >
+                  {copiedSQL ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedSQL ? 'Tersalin!' : 'Salin Skrip SQL'}</span>
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 flex-wrap pt-2">
+                <a
+                  href="https://supabase.com/dashboard"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-700 hover:text-purple-900 font-bold text-xs flex items-center gap-1.5 underline"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Buka Supabase Dashboard</span>
+                </a>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await checkDb();
+                      if (dbStatus.tableExists) {
+                        setToastMessage('Tabel master_guru_pembimbing aktif di Supabase!');
+                        setShowSQLModal(false);
+                      }
+                    }}
+                    disabled={isCheckingDb}
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingDb ? 'animate-spin' : ''}`} />
+                    <span>Periksa Ulang Status</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSyncToSupabase}
+                    disabled={isSyncing}
+                    className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <UploadCloud className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    <span>{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan Data Sekarang'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
+              <button
+                onClick={() => setShowSQLModal(false)}
+                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

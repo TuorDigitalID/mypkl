@@ -304,6 +304,32 @@ CREATE TABLE IF NOT EXISTS public.master_guru_pembimbing (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
+-- 8. Tabel Plotting & Penempatan Siswa PKL (Relasi Siswa, DUDI, Guru, Periode)
+CREATE TABLE IF NOT EXISTS public.plotting_siswa_pkl (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nisn VARCHAR(20) NOT NULL UNIQUE,
+    nama_siswa VARCHAR(150) NOT NULL,
+    kelas VARCHAR(50) NOT NULL,
+    jurusan VARCHAR(100) NOT NULL,
+    instansi_nama VARCHAR(150),
+    alamat_instansi TEXT,
+    guru_nama VARCHAR(150),
+    guru_nip VARCHAR(50),
+    periode_mulai VARCHAR(50) DEFAULT '15 Juli 2026',
+    periode_selesai VARCHAR(50) DEFAULT '15 Desember 2026',
+    status_plotting VARCHAR(50) DEFAULT 'Terplotting',
+    catatan TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- Tambah kolom relasi penempatan pada master_siswa_pkl jika belum ada
+ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS guru_nip VARCHAR(50);
+ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS alamat_instansi TEXT;
+ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS periode_mulai VARCHAR(50);
+ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS periode_selesai VARCHAR(50);
+ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS status_plotting VARCHAR(50) DEFAULT 'Terplotting';
+
 -- Aktifkan Realtime Publikasi untuk Supabase secara aman (Aman dijalankan berulang kali)
 DO $$
 BEGIN
@@ -342,6 +368,12 @@ BEGIN
     EXCEPTION WHEN duplicate_object THEN
         NULL;
     END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.plotting_siswa_pkl;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
 END $$;
 
 -- Enable Row Level Security (RLS) & Public Access Policies for Sidang
@@ -352,6 +384,7 @@ ALTER TABLE public.master_siswa_pkl ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_jurusan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_instansi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_guru_pembimbing ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.plotting_siswa_pkl ENABLE ROW LEVEL SECURITY;
 
 -- Berikan izin akses penuh ke role anon dan authenticated Supabase
 GRANT ALL ON TABLE public.peserta_sidang TO anon, authenticated;
@@ -361,6 +394,7 @@ GRANT ALL ON TABLE public.master_siswa_pkl TO anon, authenticated;
 GRANT ALL ON TABLE public.master_jurusan TO anon, authenticated;
 GRANT ALL ON TABLE public.master_instansi TO anon, authenticated;
 GRANT ALL ON TABLE public.master_guru_pembimbing TO anon, authenticated;
+GRANT ALL ON TABLE public.plotting_siswa_pkl TO anon, authenticated;
 
 -- Policies (DROP IF EXISTS agar tidak error jika sudah ada)
 DROP POLICY IF EXISTS "Public Read Access Peserta" ON public.peserta_sidang;
@@ -405,6 +439,12 @@ CREATE POLICY "Public Read Access Master Guru" ON public.master_guru_pembimbing 
 DROP POLICY IF EXISTS "Public Write Access Master Guru" ON public.master_guru_pembimbing;
 CREATE POLICY "Public Write Access Master Guru" ON public.master_guru_pembimbing FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public Read Access Plotting Siswa" ON public.plotting_siswa_pkl;
+CREATE POLICY "Public Read Access Plotting Siswa" ON public.plotting_siswa_pkl FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Plotting Siswa" ON public.plotting_siswa_pkl;
+CREATE POLICY "Public Write Access Plotting Siswa" ON public.plotting_siswa_pkl FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
 -- Insert Data Penguji Awal (Seed Data)
 INSERT INTO public.penguji (nip, nama, peran)
 VALUES 
@@ -445,5 +485,257 @@ VALUES
     ('32730115 04920005', 'Rizal Fahmi, S.Kom.', '0819-0123-4567', 'rizal.fahmi@smk.belajar.id', 'Guru#Rizal2026', 'Mobile App Development & IoT')
 ON CONFLICT (nip) DO NOTHING;
 
+-- Insert Data Plotting Siswa Awal (Seed Data)
+INSERT INTO public.plotting_siswa_pkl (nisn, nama_siswa, kelas, jurusan, instansi_nama, alamat_instansi, guru_nama, guru_nip, periode_mulai, periode_selesai, status_plotting)
+VALUES
+    ('0061245678', 'Muhammad Rizky Pratama', 'XII RPL 1', 'Rekayasa Perangkat Lunak', 'PT Telekomunikasi Indonesia (Telkom Regional)', 'Jl. Japati No. 1, Coblong, Kota Bandung', 'Dr. Ir. Hendra Kurniawan, M.T.', '19820315 200812 1 001', '15 Juli 2026', '15 Desember 2026', 'Terplotting'),
+    ('0062356789', 'Anisa Putri Rahmadani', 'XII SIJA 2', 'Sistem Informasi Jaringan & Aplikasi', 'PT Bank Central Asia Tbk (BCA) - Digital Lab', 'Menara BCA Grand Indonesia Lt. 32, Jakarta Pusat', 'Siti Nurhaliza, S.Kom., M.Cs.', '19870520 201012 2 003', '15 Juli 2026', '15 Desember 2026', 'Sedang PKL'),
+    ('0063467890', 'Dimas Arya Pamungkas', 'XII TKJ 1', 'Teknik Komputer & Jaringan', 'Dinas Komunikasi & Informatika (Diskominfo)', 'Balai Kota Blok G Lt. 3, Gambir, Jakarta Pusat', 'Dr. Ir. Hendra Kurniawan, M.T.', '19820315 200812 1 001', '15 Juli 2026', '15 Desember 2026', 'Terplotting'),
+    ('0064578901', 'Siti Aisyah Nur', 'XII DKV 2', 'Desain Komunikasi Visual', 'PT Pixel Visual Media Kreatif', 'Gedung Creative Hub Lt. 4, Gandaria, Jakarta Selatan', 'Siti Nurhaliza, S.Kom., M.Cs.', '19870520 201012 2 003', '15 Juli 2026', '15 Desember 2026', 'Selesai PKL'),
+    ('0069923456', 'Aditya Pratama Putra', 'XII RPL 1', 'Rekayasa Perangkat Lunak', NULL, NULL, NULL, NULL, '15 Juli 2026', '15 Desember 2026', 'Belum Terplotting')
+ON CONFLICT (nisn) DO NOTHING;
+
 `;
 }
+
+/**
+ * Menghasilkan skrip SQL khusus untuk membuat tabel plotting_siswa_pkl di Supabase
+ * Berguna jika database Supabase pengguna sudah memiliki tabel master lama dan hanya perlu menambahkan tabel plotting
+ */
+export function generatePlottingSQLScript(): string {
+  return `-- ====================================================================
+-- SKRIP SQL KHUSUS: TABEL PLOTTING SISWA PKL (SUPABASE)
+-- Jalankan perintah ini di Supabase SQL Editor (Dashboard > SQL Editor > New query)
+-- ====================================================================
+
+-- 1. Buat Tabel Plotting Siswa PKL
+CREATE TABLE IF NOT EXISTS public.plotting_siswa_pkl (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nisn VARCHAR(20) NOT NULL UNIQUE,
+    nama_siswa VARCHAR(150) NOT NULL,
+    kelas VARCHAR(50) NOT NULL,
+    jurusan VARCHAR(100) NOT NULL,
+    instansi_nama VARCHAR(150),
+    alamat_instansi TEXT,
+    guru_nama VARCHAR(150),
+    guru_nip VARCHAR(50),
+    periode_mulai VARCHAR(50) DEFAULT '15 Juli 2026',
+    periode_selesai VARCHAR(50) DEFAULT '15 Desember 2026',
+    status_plotting VARCHAR(50) DEFAULT 'Terplotting',
+    catatan TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 2. Tambah Kolom Relasi Plotting pada Tabel Master Siswa (Jika Belum Ada)
+ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS guru_nip VARCHAR(50);
+ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS alamat_instansi TEXT;
+ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS periode_mulai VARCHAR(50);
+ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS periode_selesai VARCHAR(50);
+ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS status_plotting VARCHAR(50) DEFAULT 'Terplotting';
+
+-- 3. Aktifkan Realtime Synchronisation
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.plotting_siswa_pkl;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+END $$;
+
+-- 4. Aktifkan Row Level Security (RLS) & Hak Akses
+ALTER TABLE public.plotting_siswa_pkl ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE public.plotting_siswa_pkl TO anon, authenticated;
+
+DROP POLICY IF EXISTS "Public Read Access Plotting Siswa" ON public.plotting_siswa_pkl;
+CREATE POLICY "Public Read Access Plotting Siswa" ON public.plotting_siswa_pkl FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Plotting Siswa" ON public.plotting_siswa_pkl;
+CREATE POLICY "Public Write Access Plotting Siswa" ON public.plotting_siswa_pkl FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+`;
+}
+
+/**
+ * Menghasilkan skrip SQL khusus untuk perbaikan & inisialisasi tabel master_instansi di Supabase
+ */
+export function generateInstansiSQLScript(): string {
+  return `-- ====================================================================
+-- SKRIP SQL PERBAIKAN & UPDATE TABEL MASTER INSTANSI (SUPABASE)
+-- Jalankan di Supabase Dashboard > SQL Editor > New query > Run
+-- ====================================================================
+
+-- 1. Buat Tabel Master Instansi jika belum ada
+CREATE TABLE IF NOT EXISTS public.master_instansi (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nama VARCHAR(150) NOT NULL,
+    alamat TEXT NOT NULL,
+    kuota INTEGER NOT NULL DEFAULT 5,
+    pembimbing_instansi VARCHAR(150) NOT NULL DEFAULT 'Pembimbing DUDI',
+    kontak_person VARCHAR(100),
+    email VARCHAR(100),
+    bidang_usaha VARCHAR(100),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 2. Pastikan Kolom Id Memiliki Default UUID Otomatis
+ALTER TABLE public.master_instansi ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+-- 3. Tambahkan Kolom Tambahan jika belum ada pada tabel lama
+ALTER TABLE public.master_instansi ADD COLUMN IF NOT EXISTS kuota INTEGER DEFAULT 4;
+ALTER TABLE public.master_instansi ADD COLUMN IF NOT EXISTS pembimbing_instansi VARCHAR(150) DEFAULT 'Pembimbing DUDI';
+ALTER TABLE public.master_instansi ADD COLUMN IF NOT EXISTS kontak_person VARCHAR(100);
+ALTER TABLE public.master_instansi ADD COLUMN IF NOT EXISTS email VARCHAR(100);
+ALTER TABLE public.master_instansi ADD COLUMN IF NOT EXISTS bidang_usaha VARCHAR(100);
+ALTER TABLE public.master_instansi ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE public.master_instansi ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+-- 4. PENTING: Bersihkan duplikat nama instansi jika ada sebelumnya (simpan data terbaru)
+-- Supaya penambahan constraint UNIQUE tidak ditolak oleh PostgreSQL
+DELETE FROM public.master_instansi
+WHERE id IN (
+    SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (
+            PARTITION BY lower(trim(nama)) 
+            ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
+        ) as rnum
+        FROM public.master_instansi
+    ) t
+    WHERE t.rnum > 1
+);
+
+-- 5. Tambahkan UNIQUE Constraint pada kolom 'nama'
+-- Diperlukan untuk operasi Upsert (ON CONFLICT nama)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'master_instansi_nama_key'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.master_instansi ADD CONSTRAINT master_instansi_nama_key UNIQUE (nama);
+        EXCEPTION WHEN duplicate_table OR duplicate_object THEN
+            NULL;
+        END;
+    END IF;
+END $$;
+
+-- Buat Unique Index pendukung
+CREATE UNIQUE INDEX IF NOT EXISTS master_instansi_nama_unique_idx ON public.master_instansi (lower(trim(nama)));
+
+-- 6. Aktifkan Realtime Synchronization
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.master_instansi;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+END $$;
+
+-- 7. Aktifkan Row Level Security (RLS) & Hak Akses Penuh (Insert, Update, Select, Delete)
+ALTER TABLE public.master_instansi ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE public.master_instansi TO anon, authenticated;
+
+DROP POLICY IF EXISTS "Public Read Access Master Instansi" ON public.master_instansi;
+CREATE POLICY "Public Read Access Master Instansi" ON public.master_instansi FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Master Instansi" ON public.master_instansi;
+CREATE POLICY "Public Write Access Master Instansi" ON public.master_instansi FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+`;
+}
+
+/**
+ * Menghasilkan skrip SQL khusus untuk perbaikan & inisialisasi tabel master_guru_pembimbing di Supabase
+ */
+export function generateGuruSQLScript(): string {
+  return `-- ====================================================================
+-- SKRIP SQL PERBAIKAN & UPDATE TABEL MASTER GURU PEMBIMBING (SUPABASE)
+-- Jalankan di Supabase Dashboard > SQL Editor > New query > Run
+-- ====================================================================
+
+-- 1. Buat Tabel Master Guru Pembimbing jika belum ada
+CREATE TABLE IF NOT EXISTS public.master_guru_pembimbing (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nip VARCHAR(50) NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    telepon VARCHAR(50),
+    email_login VARCHAR(150) NOT NULL,
+    password_login VARCHAR(100) NOT NULL,
+    bidang_studi VARCHAR(150),
+    avatar TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 2. Pastikan Kolom Id Memiliki Default UUID Otomatis
+ALTER TABLE public.master_guru_pembimbing ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+-- 3. Tambahkan Kolom Tambahan jika belum ada pada tabel lama
+ALTER TABLE public.master_guru_pembimbing ADD COLUMN IF NOT EXISTS telepon VARCHAR(50);
+ALTER TABLE public.master_guru_pembimbing ADD COLUMN IF NOT EXISTS bidang_studi VARCHAR(150);
+ALTER TABLE public.master_guru_pembimbing ADD COLUMN IF NOT EXISTS avatar TEXT;
+ALTER TABLE public.master_guru_pembimbing ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE public.master_guru_pembimbing ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+-- 4. Hapus Constraint Unik Email (Jika Ada di Skema Lama) Agar Impor Tidak Ditolak
+ALTER TABLE public.master_guru_pembimbing DROP CONSTRAINT IF EXISTS master_guru_pembimbing_email_login_key;
+DROP INDEX IF EXISTS master_guru_email_login_unique_idx;
+
+-- 5. PENTING: Bersihkan duplikat NIP guru jika ada sebelumnya (simpan data terbaru)
+-- Supaya penambahan constraint UNIQUE tidak ditolak oleh PostgreSQL
+DELETE FROM public.master_guru_pembimbing
+WHERE id IN (
+    SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (
+            PARTITION BY regexp_replace(nip, '\s+', '', 'g')
+            ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
+        ) as rnum
+        FROM public.master_guru_pembimbing
+    ) t
+    WHERE t.rnum > 1
+);
+
+-- 6. Tambahkan UNIQUE Constraint pada kolom 'nip' (Wajib untuk Upsert ON CONFLICT nip)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'master_guru_pembimbing_nip_key'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.master_guru_pembimbing ADD CONSTRAINT master_guru_pembimbing_nip_key UNIQUE (nip);
+        EXCEPTION WHEN duplicate_table OR duplicate_object THEN
+            NULL;
+        END;
+    END IF;
+END $$;
+
+-- Buat Unique Index pendukung pencarian NIP bersih tanpa spasi
+CREATE UNIQUE INDEX IF NOT EXISTS master_guru_nip_unique_idx ON public.master_guru_pembimbing (regexp_replace(nip, '\s+', '', 'g'));
+
+-- 7. Aktifkan Realtime Synchronization Supabase
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.master_guru_pembimbing;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+END $$;
+
+-- 8. Aktifkan Row Level Security (RLS) & Hak Akses Penuh (Insert, Update, Select, Delete)
+ALTER TABLE public.master_guru_pembimbing ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE public.master_guru_pembimbing TO anon, authenticated;
+
+DROP POLICY IF EXISTS "Public Read Access Master Guru" ON public.master_guru_pembimbing;
+CREATE POLICY "Public Read Access Master Guru" ON public.master_guru_pembimbing FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Master Guru" ON public.master_guru_pembimbing;
+CREATE POLICY "Public Write Access Master Guru" ON public.master_guru_pembimbing FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+`;
+}
+
+
+
