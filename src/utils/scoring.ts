@@ -1,35 +1,205 @@
 import type { KriteriaNilai, NilaiKriteriaItem, PenilaianPenguji, HasilRekapitulasi } from '../types/index.ts';
 
+export interface GradeRangeInfo {
+  huruf: 'A' | 'B' | 'C' | 'D';
+  predikatSingkat: string;
+  min: number;
+  max: number;
+  keterangan: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  isLulus: boolean;
+}
+
+/**
+ * Standar Range Nilai Sidang PKL:
+ * Baik Sekali | A | 85 – 100 | Amat Kompeten / Sangat Memuaskan
+ * Baik        | B | 70 – 84  | Kompeten / Memuaskan
+ * Cukup       | C | 60 – 69  | Batas Minimal Lulus KKM
+ * Kurang      | D | 0 – 59   | Belum Kompeten / Remedial
+ */
+export const GRADE_RANGES: GradeRangeInfo[] = [
+  {
+    huruf: 'A',
+    predikatSingkat: 'Baik Sekali',
+    min: 85,
+    max: 100,
+    keterangan: 'Amat Kompeten / Sangat Memuaskan',
+    badgeBg: 'bg-emerald-50',
+    badgeText: 'text-emerald-800',
+    badgeBorder: 'border-emerald-300',
+    isLulus: true,
+  },
+  {
+    huruf: 'B',
+    predikatSingkat: 'Baik',
+    min: 70,
+    max: 84,
+    keterangan: 'Kompeten / Memuaskan',
+    badgeBg: 'bg-blue-50',
+    badgeText: 'text-blue-800',
+    badgeBorder: 'border-blue-300',
+    isLulus: true,
+  },
+  {
+    huruf: 'C',
+    predikatSingkat: 'Cukup',
+    min: 60,
+    max: 69,
+    keterangan: 'Batas Minimal Lulus KKM',
+    badgeBg: 'bg-amber-50',
+    badgeText: 'text-amber-800',
+    badgeBorder: 'border-amber-300',
+    isLulus: true,
+  },
+  {
+    huruf: 'D',
+    predikatSingkat: 'Kurang',
+    min: 0,
+    max: 59,
+    keterangan: 'Belum Kompeten / Remedial',
+    badgeBg: 'bg-red-50',
+    badgeText: 'text-red-800',
+    badgeBorder: 'border-red-300',
+    isLulus: false,
+  },
+];
+
+/**
+ * 7 Aspek Penilaian Sidang Siswa PKL:
+ * - Aspek Buku Agenda PSG/PKL (5 Aspek): 50% (masing-masing 10%)
+ * - Aspek Ujian Sidang PKL (2 Aspek): 50% (masing-masing 25%)
+ */
 export const DEFAULT_KRITERIA: KriteriaNilai[] = [
+  // ==========================================
+  // KATEGORI 1: Aspek Buku Agenda PSG/PKL (50%)
+  // ==========================================
   {
-    id: 'k1',
-    nama: 'Sistematika & Mutu Dokumen Laporan PKL',
-    deskripsi: 'Kerapian tata tulis EYD/PUEBI, kelengkapan bab & lampiran, kejelasan flowchart, logbook, dan data teknis lapangan.',
-    bobot: 20,
+    id: 'k1_agenda_disiplin',
+    nomor: 1,
+    nama: 'Disiplin (Buku Agenda PSG/PKL)',
+    deskripsi: 'Kepatuhan jam kerja di tempat PKL/DUDI, ketepatan waktu hadir, serta kedisiplinan pengisian catatan kehadiran dan jurnal harian.',
+    kategori: 'agenda',
+    kategoriNama: 'Aspek Buku Agenda PSG/PKL',
+    bobot: 10,
     nilaiMaksimal: 100,
   },
   {
-    id: 'k2',
-    nama: 'Penguasaan Materi & Kompetensi Kejuruan',
-    deskripsi: 'Kedalaman pemahaman pekerjaan teknis di DUDI, logika analisis sistem/mesin/aplikasi, pemahaman SOP industri.',
-    bobot: 35,
+    id: 'k2_agenda_kerjasama',
+    nomor: 2,
+    nama: 'Kerjasama (Buku Agenda PSG/PKL)',
+    deskripsi: 'Kemampuan berkoordinasi dalam tim kerja, hubungan interpersonal dengan rekan dan instruktur DUDI, serta kekompakan kerja.',
+    kategori: 'agenda',
+    kategoriNama: 'Aspek Buku Agenda PSG/PKL',
+    bobot: 10,
     nilaiMaksimal: 100,
   },
   {
-    id: 'k3',
-    nama: 'Presentasi & Sikap/Etika Sidang',
-    deskripsi: 'Kerapian seragam/jas almamater, ketepatan waktu tayang slide (15 menit), kejelasan intonasi dan artikulasi vokal.',
-    bobot: 20,
+    id: 'k3_agenda_inisiatif',
+    nomor: 3,
+    nama: 'Inisiatif (Buku Agenda PSG/PKL)',
+    deskripsi: 'Keaktifan dalam bertindak, tanggap terhadap kebutuhan pekerjaan tanpa harus selalu diperintah, dan kemampuan mencari ide solusi.',
+    kategori: 'agenda',
+    kategoriNama: 'Aspek Buku Agenda PSG/PKL',
+    bobot: 10,
     nilaiMaksimal: 100,
   },
   {
-    id: 'k4',
-    nama: 'Tanya Jawab & Pemecahan Masalah (Problem Solving)',
-    deskripsi: 'Kemampuan mempertahankan argumentasi teknis, respon kritis terhadap temuan kendala di DUDI dan solusinya.',
+    id: 'k4_agenda_tanggungjawab',
+    nomor: 4,
+    nama: 'Tanggung Jawab (Buku Agenda PSG/PKL)',
+    deskripsi: 'Kesungguhan menuntaskan tugas praktik hingga tuntas, kehati-hatian menggunakan alat/aset perusahaan, dan kepatuhan SOP.',
+    kategori: 'agenda',
+    kategoriNama: 'Aspek Buku Agenda PSG/PKL',
+    bobot: 10,
+    nilaiMaksimal: 100,
+  },
+  {
+    id: 'k5_agenda_kebersihan',
+    nomor: 5,
+    nama: 'Kebersihan (Buku Agenda PSG/PKL)',
+    deskripsi: 'Penerapan budaya industri 5R/5S (Ringkas, Rapi, Resik, Rawat, Rajin), kebersihan area kerja, keselamatan K3, dan kerapian buku agenda.',
+    kategori: 'agenda',
+    kategoriNama: 'Aspek Buku Agenda PSG/PKL',
+    bobot: 10,
+    nilaiMaksimal: 100,
+  },
+
+  // ==========================================
+  // KATEGORI 2: Aspek Ujian Sidang PKL (50%)
+  // ==========================================
+  {
+    id: 'k6_sidang_presentasi',
+    nomor: 6,
+    nama: 'Penyajian / Presentasi Laporan (Ujian Sidang)',
+    deskripsi: 'Sistematika penyampaian laporan, kejelasan vokal & bahasa, penguasaan media presentasi/slide, etika sikap, dan ketepatan waktu.',
+    kategori: 'sidang',
+    kategoriNama: 'Aspek Ujian Sidang PKL',
+    bobot: 25,
+    nilaiMaksimal: 100,
+  },
+  {
+    id: 'k7_sidang_tanyajawab',
+    nomor: 7,
+    nama: 'Tanya Jawab & Penguasaan Materi (Ujian Sidang)',
+    deskripsi: 'Ketepatan dan kedalaman menjawab pertanyaan dewan penguji, pemahaman proses teknis lapangan, argumentasi ilmiah, dan problem solving.',
+    kategori: 'sidang',
+    kategoriNama: 'Aspek Ujian Sidang PKL',
     bobot: 25,
     nilaiMaksimal: 100,
   },
 ];
+
+/**
+ * Menghitung subtotal untuk masing-masing kategori:
+ * - Aspek Buku Agenda (50%)
+ * - Aspek Ujian Sidang (50%)
+ */
+export function calculateCategoryBreakdown(
+  nilaiItems: NilaiKriteriaItem[],
+  kriteriaList: KriteriaNilai[] = DEFAULT_KRITERIA
+): {
+  subtotalAgenda: number;     // Rata-rata 5 Aspek Agenda (0 - 100)
+  weightedAgenda: number;     // Poin Terbobot Agenda (maks 50)
+  subtotalSidang: number;     // Rata-rata 2 Aspek Sidang (0 - 100)
+  weightedSidang: number;     // Poin Terbobot Sidang (maks 50)
+  totalNilai: number;         // Total Nilai Akhir (maks 100)
+} {
+  const agendaItems: number[] = [];
+  const sidangItems: number[] = [];
+
+  kriteriaList.forEach((k) => {
+    const item = nilaiItems.find((ni) => ni.kriteriaId === k.id);
+    const score = item ? Math.max(0, Math.min(100, item.skor || 0)) : 0;
+    if (k.kategori === 'agenda') {
+      agendaItems.push(score);
+    } else {
+      sidangItems.push(score);
+    }
+  });
+
+  const subtotalAgenda = agendaItems.length > 0
+    ? agendaItems.reduce((a, b) => a + b, 0) / agendaItems.length
+    : 0;
+
+  const subtotalSidang = sidangItems.length > 0
+    ? sidangItems.reduce((a, b) => a + b, 0) / sidangItems.length
+    : 0;
+
+  // Masing-masing berkontribusi 50%
+  const weightedAgenda = Math.round((subtotalAgenda * 0.5) * 100) / 100;
+  const weightedSidang = Math.round((subtotalSidang * 0.5) * 100) / 100;
+  const totalNilai = Math.round((weightedAgenda + weightedSidang) * 100) / 100;
+
+  return {
+    subtotalAgenda: Math.round(subtotalAgenda * 100) / 100,
+    weightedAgenda,
+    subtotalSidang: Math.round(subtotalSidang * 100) / 100,
+    weightedSidang,
+    totalNilai,
+  };
+}
 
 /**
  * Menghitung total nilai terbobot dari satu penguji
@@ -39,50 +209,54 @@ export function calculateExaminerTotal(
   kriteriaList: KriteriaNilai[] = DEFAULT_KRITERIA
 ): number {
   if (!nilaiItems || nilaiItems.length === 0) return 0;
-
-  const totalBobot = kriteriaList.reduce((acc, k) => acc + k.bobot, 0);
-  if (totalBobot <= 0) return 0;
-
-  let totalSkorBobot = 0;
-  for (const item of nilaiItems) {
-    const kriteria = kriteriaList.find((k) => k.id === item.kriteriaId);
-    if (kriteria) {
-      const validScore = Math.max(0, Math.min(100, item.skor || 0));
-      totalSkorBobot += (validScore * kriteria.bobot) / 100;
-    }
-  }
-
-  // Normalisasi jika total bobot tidak tepat 100
-  if (totalBobot !== 100) {
-    totalSkorBobot = (totalSkorBobot / totalBobot) * 100;
-  }
-
-  return Math.round(totalSkorBobot * 100) / 100;
+  const breakdown = calculateCategoryBreakdown(nilaiItems, kriteriaList);
+  return breakdown.totalNilai;
 }
 
 /**
- * Konversi nilai angka ke huruf standar akademik
+ * Konversi nilai angka ke huruf sesuai standar user:
+ * A: 85 - 100
+ * B: 70 - 84
+ * C: 60 - 69
+ * D: 0 - 59
  */
-export function calculateGradeLetter(score: number): 'A' | 'B' | 'C' | 'D' | 'E' {
+export function calculateGradeLetter(score: number): 'A' | 'B' | 'C' | 'D' {
   if (score >= 85) return 'A';
-  if (score >= 75) return 'B';
-  if (score >= 65) return 'C';
-  if (score >= 55) return 'D';
-  return 'E';
+  if (score >= 70) return 'B';
+  if (score >= 60) return 'C';
+  return 'D';
 }
 
 /**
- * Predikat deskriptif kelulusan
+ * Predikat deskriptif kelulusan:
+ * A: Amat Kompeten / Sangat Memuaskan
+ * B: Kompeten / Memuaskan
+ * C: Batas Minimal Lulus KKM
+ * D: Belum Kompeten / Remedial
  */
 export function calculatePredicate(score: number): string {
-  if (score >= 90) return 'Sangat Memuaskan (Dengan Pujian / A+)';
-  if (score >= 85) return 'Sangat Memuaskan (A)';
-  if (score >= 80) return 'Memuaskan (B+)';
-  if (score >= 75) return 'Baik / Memuaskan (B)';
-  if (score >= 70) return 'Cukup Baik (C+)';
-  if (score >= 65) return 'Cukup (C - Perlu Revisi)';
-  if (score >= 55) return 'Kurang (D - Tidak Disarankan Lulus)';
-  return 'Gagal / Tidak Lulus (E)';
+  if (score >= 85) return 'Amat Kompeten / Sangat Memuaskan';
+  if (score >= 70) return 'Kompeten / Memuaskan';
+  if (score >= 60) return 'Batas Minimal Lulus KKM';
+  return 'Belum Kompeten / Remedial';
+}
+
+/**
+ * Predikat lengkap dengan label singkat
+ */
+export function calculateFullPredicate(score: number): string {
+  if (score >= 85) return 'Baik Sekali (Amat Kompeten / Sangat Memuaskan)';
+  if (score >= 70) return 'Baik (Kompeten / Memuaskan)';
+  if (score >= 60) return 'Cukup (Batas Minimal Lulus KKM)';
+  return 'Kurang (Belum Kompeten / Remedial)';
+}
+
+/**
+ * Mendapatkan info range nilai detail
+ */
+export function getGradeRangeInfo(score: number): GradeRangeInfo {
+  const letter = calculateGradeLetter(score);
+  return GRADE_RANGES.find((r) => r.huruf === letter) || GRADE_RANGES[3];
 }
 
 /**
@@ -107,7 +281,7 @@ export function calculateFinalAggregate(
       totalPengujiWajib: requiredExaminersCount,
       nilaiPerPenguji: [],
       nilaiAkhirAngka: 0,
-      nilaiAkhirHuruf: 'E',
+      nilaiAkhirHuruf: 'D',
       predikat: 'Belum Dinilai',
       keputusanAkhir: 'BELUM DINILAI',
       isLengkap: false,
@@ -119,23 +293,20 @@ export function calculateFinalAggregate(
   const letter = calculateGradeLetter(averageScore);
   const predikat = calculatePredicate(averageScore);
 
-  // Periksa rekomendasi apakah ada yang menyarankan revisi atau mengulang
+  // Periksa rekomendasi apakah ada yang menyarankan mengulang
   const hasMengulang = mEvaluations.some(
     (e) => e.rekomendasiStatus === 'Mengulang Sidang'
   );
-  const hasRevisi = mEvaluations.some(
-    (e) => e.rekomendasiStatus === 'Lulus dengan Revisi'
-  );
 
-  let keputusanAkhir: 'LULUS DENGAN PUJIAN' | 'LULUS' | 'LULUS REVISI' | 'MENGULANG' | 'BELUM DINILAI' = 'LULUS';
-  if (averageScore < 65 || hasMengulang) {
-    keputusanAkhir = 'MENGULANG';
-  } else if (hasRevisi || averageScore < 75) {
-    keputusanAkhir = 'LULUS REVISI';
-  } else if (averageScore >= 88) {
-    keputusanAkhir = 'LULUS DENGAN PUJIAN';
+  let keputusanAkhir: 'LULUS (AMAT KOMPETEN)' | 'LULUS (KOMPETEN)' | 'LULUS (BATAS KKM)' | 'BELUM LULUS (REMEDIAL)' | 'BELUM DINILAI';
+  if (averageScore < 60 || hasMengulang) {
+    keputusanAkhir = 'BELUM LULUS (REMEDIAL)';
+  } else if (averageScore >= 85) {
+    keputusanAkhir = 'LULUS (AMAT KOMPETEN)';
+  } else if (averageScore >= 70) {
+    keputusanAkhir = 'LULUS (KOMPETEN)';
   } else {
-    keputusanAkhir = 'LULUS';
+    keputusanAkhir = 'LULUS (BATAS KKM)';
   }
 
   return {
@@ -146,6 +317,8 @@ export function calculateFinalAggregate(
       pengujiId: e.pengujiId,
       pengujiNama: e.pengujiNama,
       pengujiPeran: e.pengujiPeran,
+      subtotalAgenda: e.subtotalAgenda,
+      subtotalSidang: e.subtotalSidang,
       totalNilai: e.totalNilai,
       nilaiHuruf: e.nilaiHuruf,
       catatanRevisi: e.catatanRevisi,
@@ -220,8 +393,24 @@ CREATE TABLE IF NOT EXISTS public.penguji (
     nama VARCHAR(150) NOT NULL,
     peran VARCHAR(80) NOT NULL,
     avatar TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+    email VARCHAR(150),
+    password VARCHAR(100) DEFAULT 'penguji123',
+    telepon VARCHAR(50),
+    instansi_asal VARCHAR(150) DEFAULT 'SMK Negeri 1 Vokasi',
+    bidang_keahlian VARCHAR(150),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+
+-- Migrasi kolom tabel penguji jika tabel sudah pernah dibuat sebelumnya
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS email VARCHAR(150);
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS password VARCHAR(100) DEFAULT 'penguji123';
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS telepon VARCHAR(50);
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS instansi_asal VARCHAR(150) DEFAULT 'SMK Negeri 1 Vokasi';
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS bidang_keahlian VARCHAR(150);
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
 
 -- 3. Tabel Penilaian Sidang (Real-Time Submissions)
 CREATE TABLE IF NOT EXISTS public.penilaian_sidang (
@@ -231,6 +420,8 @@ CREATE TABLE IF NOT EXISTS public.penilaian_sidang (
     penguji_nama VARCHAR(150) NOT NULL,
     penguji_peran VARCHAR(80) NOT NULL,
     nilai_items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    subtotal_agenda NUMERIC(5,2) DEFAULT 0.00,
+    subtotal_sidang NUMERIC(5,2) DEFAULT 0.00,
     total_nilai NUMERIC(5,2) NOT NULL DEFAULT 0.00,
     nilai_huruf VARCHAR(2) NOT NULL DEFAULT 'E',
     catatan_revisi TEXT DEFAULT '',
@@ -240,6 +431,10 @@ CREATE TABLE IF NOT EXISTS public.penilaian_sidang (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     CONSTRAINT unique_mahasiswa_penguji UNIQUE (mahasiswa_id, penguji_id)
 );
+
+-- Tambah kolom subtotal agenda & sidang jika tabel penilaian sudah ada sebelumnya
+ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_agenda NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_sidang NUMERIC(5,2) DEFAULT 0.00;
 
 -- 4. Tabel Master Jurusan / Program Keahlian
 CREATE TABLE IF NOT EXISTS public.master_jurusan (

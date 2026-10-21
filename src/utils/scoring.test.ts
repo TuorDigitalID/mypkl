@@ -2,51 +2,100 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_KRITERIA,
+  calculateCategoryBreakdown,
   calculateExaminerTotal,
   calculateGradeLetter,
   calculatePredicate,
+  calculateFullPredicate,
   calculateFinalAggregate,
+  getGradeRangeInfo,
   validateScores,
   generateSupabaseSQLSchema,
 } from './scoring.ts';
 import type { NilaiKriteriaItem, PenilaianPenguji } from '../types/index.ts';
 
-test('calculateExaminerTotal calculates weighted sum correctly', () => {
-  // k1: 20%, k2: 35%, k3: 20%, k4: 25%
-  // Test case: 100 on all = 100
-  const itemsAll100: NilaiKriteriaItem[] = [
-    { kriteriaId: 'k1', skor: 100 },
-    { kriteriaId: 'k2', skor: 100 },
-    { kriteriaId: 'k3', skor: 100 },
-    { kriteriaId: 'k4', skor: 100 },
-  ];
-  assert.equal(calculateExaminerTotal(itemsAll100, DEFAULT_KRITERIA), 100);
+test('DEFAULT_KRITERIA contains 7 aspects matching user specification (5 Agenda + 2 Sidang)', () => {
+  assert.equal(DEFAULT_KRITERIA.length, 7);
+  const agendaCriteria = DEFAULT_KRITERIA.filter((k) => k.kategori === 'agenda');
+  const sidangCriteria = DEFAULT_KRITERIA.filter((k) => k.kategori === 'sidang');
 
-  // Test case mixed: k1(80)=16, k2(90)=31.5, k3(85)=17, k4(80)=20 => Total: 84.5
-  const itemsMixed: NilaiKriteriaItem[] = [
-    { kriteriaId: 'k1', skor: 80 },
-    { kriteriaId: 'k2', skor: 90 },
-    { kriteriaId: 'k3', skor: 85 },
-    { kriteriaId: 'k4', skor: 80 },
-  ];
-  assert.equal(calculateExaminerTotal(itemsMixed, DEFAULT_KRITERIA), 84.5);
+  assert.equal(agendaCriteria.length, 5);
+  assert.equal(sidangCriteria.length, 2);
+
+  // Check all 5 Agenda aspects
+  assert.ok(agendaCriteria.some((k) => k.nama.includes('Disiplin')));
+  assert.ok(agendaCriteria.some((k) => k.nama.includes('Kerjasama')));
+  assert.ok(agendaCriteria.some((k) => k.nama.includes('Inisiatif')));
+  assert.ok(agendaCriteria.some((k) => k.nama.includes('Tanggung Jawab')));
+  assert.ok(agendaCriteria.some((k) => k.nama.includes('Kebersihan')));
+
+  // Check 2 Sidang aspects
+  assert.ok(sidangCriteria.some((k) => k.nama.includes('Penyajian / Presentasi')));
+  assert.ok(sidangCriteria.some((k) => k.nama.includes('Tanya Jawab & Penguasaan')));
 });
 
-test('calculateGradeLetter maps scores to standard letters', () => {
-  assert.equal(calculateGradeLetter(92), 'A');
+test('calculateCategoryBreakdown computes 50% Agenda and 50% Sidang correctly', () => {
+  // If student scores 100 on all 5 Agenda items and 80 on both Sidang items:
+  // Agenda subtotal = 100, weighted (50%) = 50
+  // Sidang subtotal = 80, weighted (50%) = 40
+  // Total = 90
+  const items: NilaiKriteriaItem[] = [
+    { kriteriaId: 'k1_agenda_disiplin', skor: 100 },
+    { kriteriaId: 'k2_agenda_kerjasama', skor: 100 },
+    { kriteriaId: 'k3_agenda_inisiatif', skor: 100 },
+    { kriteriaId: 'k4_agenda_tanggungjawab', skor: 100 },
+    { kriteriaId: 'k5_agenda_kebersihan', skor: 100 },
+    { kriteriaId: 'k6_sidang_presentasi', skor: 80 },
+    { kriteriaId: 'k7_sidang_tanyajawab', skor: 80 },
+  ];
+
+  const breakdown = calculateCategoryBreakdown(items, DEFAULT_KRITERIA);
+  assert.equal(breakdown.subtotalAgenda, 100);
+  assert.equal(breakdown.weightedAgenda, 50);
+  assert.equal(breakdown.subtotalSidang, 80);
+  assert.equal(breakdown.weightedSidang, 40);
+  assert.equal(breakdown.totalNilai, 90);
+
+  const total = calculateExaminerTotal(items, DEFAULT_KRITERIA);
+  assert.equal(total, 90);
+});
+
+test('calculateGradeLetter and calculatePredicate adhere to standard KKM boundaries', () => {
+  // Range: 85 - 100 => A (Amat Kompeten / Sangat Memuaskan)
+  assert.equal(calculateGradeLetter(100), 'A');
   assert.equal(calculateGradeLetter(85), 'A');
+  assert.equal(calculatePredicate(85), 'Amat Kompeten / Sangat Memuaskan');
+  assert.ok(calculateFullPredicate(85).includes('Baik Sekali'));
+
+  // Range: 70 - 84 => B (Kompeten / Memuaskan)
   assert.equal(calculateGradeLetter(84.9), 'B');
-  assert.equal(calculateGradeLetter(75), 'B');
-  assert.equal(calculateGradeLetter(74.5), 'C');
-  assert.equal(calculateGradeLetter(65), 'C');
-  assert.equal(calculateGradeLetter(60), 'D');
-  assert.equal(calculateGradeLetter(45), 'E');
+  assert.equal(calculateGradeLetter(70), 'B');
+  assert.equal(calculatePredicate(75), 'Kompeten / Memuaskan');
+  assert.ok(calculateFullPredicate(70).includes('Baik'));
+
+  // Range: 60 - 69 => C (Batas Minimal Lulus KKM)
+  assert.equal(calculateGradeLetter(69.9), 'C');
+  assert.equal(calculateGradeLetter(60), 'C');
+  assert.equal(calculatePredicate(60), 'Batas Minimal Lulus KKM');
+  assert.ok(calculateFullPredicate(60).includes('Cukup'));
+
+  // Range: 0 - 59 => D (Belum Kompeten / Remedial)
+  assert.equal(calculateGradeLetter(59.9), 'D');
+  assert.equal(calculateGradeLetter(0), 'D');
+  assert.equal(calculatePredicate(50), 'Belum Kompeten / Remedial');
+  assert.ok(calculateFullPredicate(50).includes('Kurang'));
 });
 
-test('calculatePredicate provides clear status', () => {
-  assert.ok(calculatePredicate(95).includes('Sangat Memuaskan'));
-  assert.ok(calculatePredicate(78).includes('Baik'));
-  assert.ok(calculatePredicate(50).includes('Gagal'));
+test('getGradeRangeInfo returns correct metadata for each grade level', () => {
+  const infoA = getGradeRangeInfo(90);
+  assert.equal(infoA.huruf, 'A');
+  assert.equal(infoA.isLulus, true);
+  assert.equal(infoA.predikatSingkat, 'Baik Sekali');
+
+  const infoD = getGradeRangeInfo(45);
+  assert.equal(infoD.huruf, 'D');
+  assert.equal(infoD.isLulus, false);
+  assert.equal(infoD.predikatSingkat, 'Kurang');
 });
 
 test('calculateFinalAggregate calculates multi-examiner mean and decision', () => {
@@ -101,8 +150,7 @@ test('calculateFinalAggregate calculates multi-examiner mean and decision', () =
   // Average of 90, 88, 86 = 88
   assert.equal(recap.nilaiAkhirAngka, 88);
   assert.equal(recap.nilaiAkhirHuruf, 'A');
-  // Since one has 'Lulus dengan Revisi', decision is 'LULUS REVISI'
-  assert.equal(recap.keputusanAkhir, 'LULUS REVISI');
+  assert.equal(recap.keputusanAkhir, 'LULUS (AMAT KOMPETEN)');
 });
 
 test('calculateFinalAggregate returns BELUM DINILAI when no evaluations submitted', () => {
@@ -113,8 +161,8 @@ test('calculateFinalAggregate returns BELUM DINILAI when no evaluations submitte
 
 test('validateScores checks incomplete inputs and bounds', () => {
   const invalidItems: NilaiKriteriaItem[] = [
-    { kriteriaId: 'k1', skor: 85 },
-    { kriteriaId: 'k2', skor: 120 }, // out of bounds
+    { kriteriaId: 'k1_agenda_disiplin', skor: 85 },
+    { kriteriaId: 'k2_agenda_kerjasama', skor: 120 }, // out of bounds
   ];
   const result = validateScores(invalidItems, DEFAULT_KRITERIA);
   assert.equal(result.isValid, false);
@@ -125,6 +173,10 @@ test('generateSupabaseSQLSchema produces valid DDL script', () => {
   const sql = generateSupabaseSQLSchema();
   assert.ok(sql.includes('CREATE TABLE IF NOT EXISTS public.peserta_sidang'));
   assert.ok(sql.includes('CREATE TABLE IF NOT EXISTS public.penilaian_sidang'));
+  assert.ok(sql.includes('CREATE TABLE IF NOT EXISTS public.penguji'));
+  assert.ok(sql.includes('ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS email'));
+  assert.ok(sql.includes('ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_agenda'));
   assert.ok(sql.includes('CREATE TABLE IF NOT EXISTS public.master_siswa_pkl'));
   assert.ok(sql.includes('ALTER PUBLICATION supabase_realtime'));
 });
+

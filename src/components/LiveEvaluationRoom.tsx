@@ -16,7 +16,11 @@ import {
   Save, 
   ChevronRight,
   ExternalLink,
-  Users
+  Users,
+  Scale,
+  Presentation,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -29,9 +33,13 @@ import {
 import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 import { 
   DEFAULT_KRITERIA, 
+  GRADE_RANGES,
+  calculateCategoryBreakdown,
   calculateExaminerTotal, 
   calculateGradeLetter, 
   calculatePredicate, 
+  calculateFullPredicate,
+  getGradeRangeInfo,
   calculateFinalAggregate,
   validateScores 
 } from '../utils/scoring.ts';
@@ -83,24 +91,35 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
   >('Lulus');
   const [submitSuccess, setSubmitSuccess] = useState<boolean>(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [showGradeGuide, setShowGradeGuide] = useState<boolean>(false);
 
   // Synchronize form state when active student or examiner changes
   useEffect(() => {
+    const scoreMap: Record<string, number> = {};
+    // Pre-populate all 7 criteria with sensible default 80
+    kriteriaList.forEach((k) => {
+      scoreMap[k.id] = 80;
+    });
+
     if (existingEvaluation) {
-      const scoreMap: Record<string, number> = {};
       existingEvaluation.nilaiItems.forEach((item) => {
-        scoreMap[item.kriteriaId] = item.skor;
+        if (typeof item.skor === 'number' && !isNaN(item.skor)) {
+          scoreMap[item.kriteriaId] = item.skor;
+          // Legacy backwards-compatibility fallbacks
+          if (item.kriteriaId === 'k1') scoreMap['k1_agenda_disiplin'] = item.skor;
+          if (item.kriteriaId === 'k2') scoreMap['k2_agenda_kerjasama'] = item.skor;
+          if (item.kriteriaId === 'k3') scoreMap['k3_agenda_inisiatif'] = item.skor;
+          if (item.kriteriaId === 'k4') {
+            scoreMap['k4_agenda_tanggungjawab'] = item.skor;
+            scoreMap['k5_agenda_kebersihan'] = item.skor;
+          }
+        }
       });
       setScores(scoreMap);
       setCatatanRevisi(existingEvaluation.catatanRevisi || '');
       setRekomendasiStatus(existingEvaluation.rekomendasiStatus || 'Lulus');
     } else {
-      // Default initial baseline score
-      const defaultMap: Record<string, number> = {};
-      kriteriaList.forEach((k) => {
-        defaultMap[k.id] = 80; // Default sensible value
-      });
-      setScores(defaultMap);
+      setScores(scoreMap);
       setCatatanRevisi('');
       setRekomendasiStatus('Lulus');
     }
@@ -108,7 +127,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
     setSubmitSuccess(false);
   }, [activePeserta?.id, activePenguji.id, existingEvaluation, kriteriaList]);
 
-  // Real-time calculation of active examiner's total score
+  // Real-time calculation of active examiner's total score and 2-category breakdown
   const activeExaminerItems: NilaiKriteriaItem[] = useMemo(() => {
     return kriteriaList.map((k) => ({
       kriteriaId: k.id,
@@ -116,13 +135,14 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
     }));
   }, [scores, kriteriaList]);
 
-  const activeExaminerTotal = useMemo(() => {
-    return calculateExaminerTotal(activeExaminerItems, kriteriaList);
+  const examinerBreakdown = useMemo(() => {
+    return calculateCategoryBreakdown(activeExaminerItems, kriteriaList);
   }, [activeExaminerItems, kriteriaList]);
 
-  const activeExaminerGrade = useMemo(() => {
-    return calculateGradeLetter(activeExaminerTotal);
-  }, [activeExaminerTotal]);
+  const activeExaminerTotal = examinerBreakdown.totalNilai;
+  const activeExaminerGrade = useMemo(() => calculateGradeLetter(activeExaminerTotal), [activeExaminerTotal]);
+  const activeExaminerPredicate = useMemo(() => calculatePredicate(activeExaminerTotal), [activeExaminerTotal]);
+  const activeExaminerRange = useMemo(() => getGradeRangeInfo(activeExaminerTotal), [activeExaminerTotal]);
 
   // Timer State for presentation & Q&A
   const [timerSeconds, setTimerSeconds] = useState<number>(15 * 60); // 15 mins
@@ -181,7 +201,9 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
       pengujiNama: activePenguji.nama,
       pengujiPeran: activePenguji.peran,
       nilaiItems: activeExaminerItems,
-      totalNilai: activeExaminerTotal,
+      subtotalAgenda: examinerBreakdown.subtotalAgenda,
+      subtotalSidang: examinerBreakdown.subtotalSidang,
+      totalNilai: examinerBreakdown.totalNilai,
       nilaiHuruf: activeExaminerGrade,
       catatanRevisi,
       rekomendasiStatus,
@@ -192,45 +214,40 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
     await savePenilaian(payload);
     setSubmitSuccess(true);
 
-    // If this completes all 3 examiners with passing grade, trigger congratulatory confetti
+    // If this completes examiners with passing grade, trigger confetti
     if (
       !isDraft &&
       aggregateResult &&
       aggregateResult.totalPengujiMenilai >= 2 &&
-      rekomendasiStatus !== 'Mengulang Sidang'
+      rekomendasiStatus !== 'Mengulang Sidang' &&
+      activeExaminerTotal >= 60
     ) {
-      try {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
-      } catch {
-        // ignore
-      }
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.7 },
+        colors: ['#f97316', '#f59e0b', '#10b981', '#3b82f6'],
+      });
     }
-
-    setTimeout(() => {
-      setSubmitSuccess(false);
-    }, 4000);
   };
 
-  const handleChangeSidangStatus = async (
-    newStatus: 'menunggu' | 'berlangsung' | 'selesai' | 'ditunda'
-  ) => {
+  const handleChangeSidangStatus = async (status: 'menunggu' | 'berlangsung' | 'selesai' | 'ditunda') => {
     if (!activePeserta) return;
     const updated = {
       ...activePeserta,
-      status: newStatus,
+      status,
     };
     await savePesertaSidang(updated);
   };
 
+  // Group criteria into the 2 official categories
+  const agendaCriteria = useMemo(() => kriteriaList.filter((k) => k.kategori === 'agenda'), [kriteriaList]);
+  const sidangCriteria = useMemo(() => kriteriaList.filter((k) => k.kategori === 'sidang'), [kriteriaList]);
+
   if (!activePeserta) {
     return (
-      <div className="p-12 text-center text-slate-500">
-        <AlertCircle className="w-12 h-12 mx-auto mb-3 text-slate-400" />
-        <p className="text-lg font-medium">Belum ada peserta sidang terdaftar.</p>
+      <div className="p-8 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
+        <p>Belum ada data peserta sidang PKL yang terdaftar.</p>
       </div>
     );
   }
@@ -238,93 +255,70 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
   return (
     <div className="space-y-6">
       
-      {/* 1. TOP HEADER: ACTIVE CANDIDATE SELECTOR & LIVE TIMER */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+      {/* 1. STUDENT IDENTITY & TIMERS (STICKY COCKPIT) */}
+      <div className="bg-white rounded-3xl border border-orange-100 p-6 shadow-xs">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           
-          {/* Candidate Profile Details */}
-          <div className="flex-1">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
-                activePeserta.status === 'berlangsung'
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse'
-                  : activePeserta.status === 'selesai'
-                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                  : 'bg-amber-100 text-amber-800 border border-amber-200'
-              }`}>
-                ● Sidang {activePeserta.status}
-              </span>
-              <span className="text-xs font-mono font-medium px-2 py-0.5 bg-slate-100 rounded text-slate-600">
-                NIM: {activePeserta.nim}
-              </span>
-              <span className="text-xs font-medium text-slate-500">
-                {activePeserta.ruangan}
-              </span>
+          {/* Student Profile Info */}
+          <div className="flex items-start sm:items-center gap-4 min-w-0">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-600 text-white font-black text-xl flex items-center justify-center shadow-lg shadow-orange-500/20 ring-4 ring-orange-50 flex-shrink-0">
+              {activePeserta.nama.slice(0, 2).toUpperCase()}
             </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {activePeserta.nama}
-              </h1>
-              {/* Quick Candidate Switcher dropdown */}
-              <select
-                value={activePeserta.id}
-                onChange={(e) => setActivePesertaId(e.target.value)}
-                aria-label="Pilih Peserta Sidang"
-                className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500 outline-none w-full sm:w-auto"
-              >
-                {pesertaList.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nama} ({p.nim}) - {p.status}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <p className="text-sm font-semibold text-emerald-700 mt-1 flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 flex-shrink-0" />
-              <span>{activePeserta.perusahaan}</span>
-              <span className="text-slate-300 font-normal">|</span>
-              <span className="text-slate-600 font-medium">{activePeserta.prodi}</span>
-            </p>
-
-            <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-2.5">
-              <BookMarked className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Judul Laporan PKL
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+                  {activePeserta.nama}
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-orange-100 text-orange-900 border border-orange-200">
+                  NISN: {activePeserta.nim}
                 </span>
-                <p className="text-xs sm:text-sm font-medium text-slate-800 leading-snug">
-                  "{activePeserta.judulLaporan}"
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                  activePeserta.status === 'berlangsung'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse'
+                    : activePeserta.status === 'selesai'
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : 'bg-slate-100 text-slate-700 border-slate-200'
+                }`}>
+                  Status: {activePeserta.status.toUpperCase()}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 mt-2 text-xs text-slate-600">
+                <p className="flex items-center gap-1.5 truncate">
+                  <span className="font-semibold text-slate-400">Kelas/Prodi:</span>
+                  <span className="font-medium text-slate-800 truncate">{activePeserta.kelas} • {activePeserta.prodi}</span>
                 </p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] text-slate-500">
-                  <span>Pembimbing Lapangan: <strong className="text-slate-700">{activePeserta.pembimbingDudi}</strong></span>
-                  <span>Pembimbing Sekolah: <strong className="text-slate-700">{activePeserta.pembimbingSekolah}</strong></span>
-                </div>
+                <p className="flex items-center gap-1.5 truncate">
+                  <Building2 className="w-3.5 h-3.5 text-orange-600 flex-shrink-0" />
+                  <span className="font-medium text-slate-800 truncate">{activePeserta.perusahaan}</span>
+                </p>
+                <p className="col-span-1 sm:col-span-2 flex items-center gap-1.5 text-slate-700 mt-0.5 truncate">
+                  <BookMarked className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                  <span className="italic truncate">"{activePeserta.judulLaporan}"</span>
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Sidang Live Presentation Timer & Controls */}
-          <div className="flex flex-col sm:flex-row lg:flex-col items-center sm:items-end justify-between gap-3 p-4 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl text-white shadow-md">
-            <div className="flex items-center gap-3">
-              <div className="text-center">
-                <span className="text-[10px] font-mono tracking-widest text-slate-400 uppercase block">
-                  {timerMode === 'presentasi' ? 'Waktu Presentasi' : 'Waktu Tanya Jawab'}
+          {/* Sidang Timer & Status Actions */}
+          <div className="flex flex-col items-end gap-2.5 w-full lg:w-auto bg-slate-900 text-white p-4 rounded-2xl shadow-md border border-slate-800 flex-shrink-0">
+            <div className="flex items-center justify-between w-full lg:w-auto gap-4">
+              <div>
+                <span className="text-[10px] font-bold tracking-wider text-orange-400 uppercase block">
+                  Timer {timerMode === 'presentasi' ? 'Presentasi' : 'Tanya Jawab'}
                 </span>
-                <span className={`font-mono text-3xl sm:text-4xl font-extrabold tracking-tight ${
-                  timerSeconds < 120 ? 'text-red-400 animate-pulse' : 'text-emerald-400'
-                }`}>
+                <span className="font-mono text-2xl sm:text-3xl font-black text-white tracking-wider">
                   {formatTimer(timerSeconds)}
                 </span>
               </div>
-              <div className="flex flex-col gap-1">
+
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => setIsTimerRunning(!isTimerRunning)}
-                  className={`p-2 rounded-lg font-medium text-xs flex items-center justify-center transition-all ${
+                  className={`p-2 rounded-xl transition-all ${
                     isTimerRunning
-                      ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                      ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
+                      : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white'
                   }`}
                   title={isTimerRunning ? 'Jeda Timer' : 'Mulai Timer'}
                 >
@@ -335,102 +329,120 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
                     setIsTimerRunning(false);
                     setTimerSeconds(15 * 60);
                   }}
-                  className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white text-xs"
-                  title="Reset 15 Menit"
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                  title="Reset Timer 15 Menit"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* Quick Timer Presets & Session Status */}
-            <div className="flex items-center gap-1.5 w-full justify-between sm:justify-end text-xs">
-              <button
-                onClick={() => {
-                  setTimerMode('presentasi');
-                  setTimerSeconds(15 * 60);
-                  setIsTimerRunning(false);
-                }}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
-                  timerMode === 'presentasi'
-                    ? 'bg-emerald-600 text-white font-bold'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                Presentasi (15m)
-              </button>
-              <button
-                onClick={() => {
-                  setTimerMode('tanyajawab');
-                  setTimerSeconds(15 * 60);
-                  setIsTimerRunning(false);
-                }}
-                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
-                  timerMode === 'tanyajawab'
-                    ? 'bg-emerald-600 text-white font-bold'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                Tanya Jawab (15m)
-              </button>
-            </div>
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-800 w-full justify-between text-xs">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    setTimerMode('presentasi');
+                    setTimerSeconds(15 * 60);
+                    setIsTimerRunning(false);
+                  }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                    timerMode === 'presentasi' ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Presentasi
+                </button>
+                <button
+                  onClick={() => {
+                    setTimerMode('tanyajawab');
+                    setTimerSeconds(15 * 60);
+                    setIsTimerRunning(false);
+                  }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                    timerMode === 'tanyajawab' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Tanya Jawab
+                </button>
+              </div>
 
-            {/* Change Candidate Status Buttons */}
-            <div className="flex items-center gap-1.5 pt-2 border-t border-slate-700/80 w-full justify-end">
-              <span className="text-[10px] text-slate-400 mr-1">Status Sidang:</span>
-              <button
-                onClick={() => handleChangeSidangStatus('berlangsung')}
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
-                  activePeserta.status === 'berlangsung'
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                Mulai
-              </button>
-              <button
-                onClick={() => handleChangeSidangStatus('selesai')}
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
-                  activePeserta.status === 'selesai'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                Selesaikan
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleChangeSidangStatus('berlangsung')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    activePeserta.status === 'berlangsung' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Mulai
+                </button>
+                <button
+                  onClick={() => handleChangeSidangStatus('selesai')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    activePeserta.status === 'selesai' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Selesai
+                </button>
+              </div>
             </div>
           </div>
+
         </div>
       </div>
 
-      {/* 2. REAL-TIME MULTI-EXAMINER SCORE MATRIX (LIVE DASHBOARD) */}
-      <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 rounded-2xl p-5 text-white shadow-lg">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-4 border-b border-teal-800/60">
+      {/* 2. REAL-TIME MULTI-EXAMINER SCORE MATRIX */}
+      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 rounded-3xl p-6 text-white shadow-lg border border-slate-800">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-4 border-b border-slate-800">
           <div>
             <div className="flex items-center gap-2">
               <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span>
               </span>
-              <h2 className="text-lg font-bold tracking-tight text-white">
-                Dashboard Nilai Multi-Penguji (Real-Time Live Sync)
+              <h2 className="text-lg font-black tracking-tight text-white">
+                Dashboard Nilai Dewan Penguji (Real-Time Live Sync)
               </h2>
             </div>
-            <p className="text-xs text-teal-200/80 mt-0.5">
-              Nilai dari 3 dewan penguji disinkronisasi secara otomatis melalui Supabase Realtime channel.
+            <p className="text-xs text-orange-200/80 mt-0.5">
+              Nilai dihitung dari: Aspek Buku Agenda PSG/PKL (50%) + Aspek Ujian Sidang PKL (50%).
             </p>
           </div>
 
-          {/* Quick summary button for official Berita Acara */}
-          <button
-            onClick={() => onOpenBeritaAcara(activePeserta.id)}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 hover:text-white border border-teal-500/40 text-xs font-semibold transition-all"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Lihat Berita Acara Resmi</span>
-            <ExternalLink className="w-3 h-3 ml-0.5 opacity-70" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowGradeGuide(!showGradeGuide)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-orange-200 hover:text-white border border-white/10 text-xs font-bold transition-all cursor-pointer"
+            >
+              <Scale className="w-3.5 h-3.5 text-amber-400" />
+              <span>{showGradeGuide ? 'Tutup Skala KKM' : 'Lihat Standar KKM'}</span>
+            </button>
+
+            <button
+              onClick={() => onOpenBeritaAcara(activePeserta.id)}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Berita Acara Resmi</span>
+              <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
+            </button>
+          </div>
         </div>
+
+        {/* Collapsible Grade Guide Legend */}
+        {showGradeGuide && (
+          <div className="mt-4 p-4 rounded-2xl bg-slate-900/90 border border-orange-500/30 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs animate-in fade-in">
+            {GRADE_RANGES.map((r) => (
+              <div key={r.huruf} className={`p-3 rounded-xl border ${r.badgeBorder} ${r.badgeBg} text-slate-900`}>
+                <div className="flex items-center justify-between font-bold">
+                  <span>{r.predikatSingkat} ({r.huruf})</span>
+                  <span className="font-mono text-[11px]">{r.min}–{r.max}</span>
+                </div>
+                <p className="text-[11px] font-medium text-slate-700 mt-1 leading-tight">
+                  {r.keterangan}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* 3 Penguji Live Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
@@ -441,20 +453,23 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
             const isCurrentUser = penguji.id === activePenguji.id;
             const hasSubmitted = ev && !ev.isDraft;
 
+            const displayTotal = isCurrentUser ? activeExaminerTotal : (ev ? ev.totalNilai : 0);
+            const displayGrade = isCurrentUser ? activeExaminerGrade : (ev ? ev.nilaiHuruf : '-');
+
             return (
               <div
                 key={penguji.id}
-                className={`relative rounded-xl p-4 transition-all ${
+                className={`relative rounded-2xl p-4 transition-all ${
                   isCurrentUser
-                    ? 'bg-teal-900/40 border-2 border-emerald-400 shadow-md ring-2 ring-emerald-500/20'
-                    : 'bg-slate-800/70 border border-slate-700/80'
+                    ? 'bg-orange-950/40 border-2 border-orange-500 shadow-md ring-2 ring-orange-500/20'
+                    : 'bg-slate-900/70 border border-slate-800'
                 }`}
               >
                 {/* Header card */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
-                      isCurrentUser ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-300'
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shadow-xs ${
+                      isCurrentUser ? 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white' : 'bg-slate-800 text-slate-300'
                     }`}>
                       {penguji.peran.includes('1') ? 'P1' : penguji.peran.includes('2') ? 'P2' : 'P3'}
                     </div>
@@ -462,55 +477,60 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
                       <p className="text-xs font-bold text-white truncate max-w-[130px]">
                         {penguji.nama}
                       </p>
-                      <p className="text-[10px] text-teal-300 font-medium">
+                      <p className="text-[10px] text-orange-300 font-semibold">
                         {penguji.peran}
                       </p>
                     </div>
                   </div>
 
                   {isCurrentUser && (
-                    <span className="px-1.5 py-0.5 bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 text-[10px] font-bold rounded">
-                      Anda
+                    <span className="px-2 py-0.5 bg-orange-500 text-white text-[10px] font-black rounded-lg shadow-xs">
+                      Akun Anda
                     </span>
                   )}
                 </div>
 
                 {/* Score Status */}
-                <div className="bg-slate-950/60 rounded-lg p-3 border border-slate-800/80">
+                <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800/80">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-[11px] text-slate-400 uppercase tracking-wider">
-                      Skor Terbobot
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                      Total Terbobot (50:50)
                     </span>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                       hasSubmitted
-                        ? 'bg-emerald-500/20 text-emerald-300'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                         : isCurrentUser
-                        ? 'bg-teal-500/20 text-teal-300'
-                        : 'bg-amber-500/20 text-amber-300'
+                        ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                     }`}>
-                      {hasSubmitted ? 'Sudah Dikirim' : isCurrentUser ? 'Sedang Mengisi...' : 'Menunggu Nilai'}
+                      {hasSubmitted ? 'Terkirim' : isCurrentUser ? 'Draft Anda' : 'Menunggu'}
                     </span>
                   </div>
 
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="font-mono text-3xl font-extrabold text-white">
-                      {isCurrentUser
-                        ? activeExaminerTotal.toFixed(2)
-                        : ev
-                        ? ev.totalNilai.toFixed(2)
-                        : '--'}
+                    <span className="font-mono text-3xl font-black text-white">
+                      {isCurrentUser || ev ? displayTotal.toFixed(2) : '--'}
                     </span>
-                    <span className="font-bold text-lg text-emerald-400">
-                      {isCurrentUser
-                        ? `(${activeExaminerGrade})`
-                        : ev
-                        ? `(${ev.nilaiHuruf})`
-                        : ''}
+                    <span className={`font-black text-lg ${
+                      displayGrade === 'A' ? 'text-emerald-400' :
+                      displayGrade === 'B' ? 'text-blue-400' :
+                      displayGrade === 'C' ? 'text-amber-400' : 'text-red-400'
+                    }`}>
+                      {isCurrentUser || ev ? `Grade ${displayGrade}` : ''}
                     </span>
                   </div>
 
+                  {/* Category mini pills */}
+                  {(isCurrentUser || ev) && (
+                    <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                      <span>Agenda: {isCurrentUser ? examinerBreakdown.subtotalAgenda.toFixed(1) : (ev?.subtotalAgenda ?? '-')}</span>
+                      <span>•</span>
+                      <span>Sidang: {isCurrentUser ? examinerBreakdown.subtotalSidang.toFixed(1) : (ev?.subtotalSidang ?? '-')}</span>
+                    </div>
+                  )}
+
                   {/* Feedback preview */}
-                  <div className="mt-2 pt-2 border-t border-slate-800 text-[11px] text-slate-300 truncate">
+                  <div className="mt-1.5 text-[11px] text-slate-300 truncate">
                     <span className="text-slate-400 font-medium">Catatan: </span>
                     {isCurrentUser
                       ? catatanRevisi || '(Belum ada catatan)'
@@ -524,90 +544,104 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
 
         {/* Live Aggregate Composite Score Summary */}
         {aggregateResult && (
-          <div className="mt-4 p-4 bg-teal-900/30 border border-teal-700/50 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="mt-4 p-5 bg-gradient-to-r from-orange-950/50 via-slate-900 to-amber-950/40 border border-orange-500/40 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-inner">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-900 font-black text-xl shadow-lg">
-                <Award className="w-7 h-7 text-white" />
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-orange-500/30 flex-shrink-0">
+                <Award className="w-8 h-8" />
               </div>
               <div>
-                <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider block">
+                <span className="text-xs font-extrabold text-orange-300 uppercase tracking-wider block">
                   Nilai Akhir Rata-Rata Gabungan ({aggregateResult.totalPengujiMenilai} dari 3 Penguji)
                 </span>
-                <div className="flex items-baseline gap-3 mt-0.5">
-                  <span className="font-mono text-3xl font-extrabold text-white">
+                <div className="flex items-baseline gap-3 mt-1 flex-wrap">
+                  <span className="font-mono text-3xl sm:text-4xl font-black text-white">
                     {aggregateResult.nilaiAkhirAngka > 0 ? aggregateResult.nilaiAkhirAngka.toFixed(2) : '--'}
                   </span>
-                  <span className="text-xl font-bold text-emerald-400">
-                    Nilai Huruf: {aggregateResult.nilaiAkhirAngka > 0 ? aggregateResult.nilaiAkhirHuruf : '-'}
+                  <span className="text-xl font-black text-orange-400">
+                    Grade {aggregateResult.nilaiAkhirAngka > 0 ? aggregateResult.nilaiAkhirHuruf : '-'}
                   </span>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                  <span className={`text-xs px-3 py-1 rounded-full font-black border ${
+                    aggregateResult.nilaiAkhirAngka >= 85 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' :
+                    aggregateResult.nilaiAkhirAngka >= 70 ? 'bg-blue-500/20 text-blue-300 border-blue-400/40' :
+                    aggregateResult.nilaiAkhirAngka >= 60 ? 'bg-amber-500/20 text-amber-300 border-amber-400/40' :
+                    'bg-red-500/20 text-red-300 border-red-400/40'
+                  }`}>
                     {aggregateResult.keputusanAkhir}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="text-right text-xs text-teal-200">
-              <p className="font-semibold">{aggregateResult.predikat}</p>
-              <p className="text-[11px] text-slate-400">
+            <div className="text-right text-xs text-orange-200">
+              <p className="font-bold text-sm text-white">{aggregateResult.predikat}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
                 {aggregateResult.isLengkap
-                  ? '✅ Semua penguji telah menyerahkan nilai.'
-                  : '⏳ Menunggu sisa penguji memasukkan penilaian.'}
+                  ? '✅ Seluruh dewan penguji telah menyerahkan nilai.'
+                  : '⏳ Menunggu dewan penguji lainnya memasukkan nilai.'}
               </p>
             </div>
           </div>
         )}
       </div>
 
-      {/* 3. ACTIVE EXAMINER RUBRIC SCORING FORM */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+      {/* 3. ACTIVE EXAMINER RUBRIC SCORING FORM (GROUPED BY 2 OFFICIAL CATEGORIES) */}
+      <div className="bg-white rounded-3xl border border-orange-100 p-6 sm:p-7 shadow-xs">
         
         {/* Banner Indicating Current Evaluator */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-6 border-b border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 mb-6 border-b border-orange-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-              <UserCheck className="w-5 h-5 text-emerald-700" />
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-md shadow-orange-500/20 flex-shrink-0">
+              <UserCheck className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-slate-900">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-lg font-black text-slate-900">
                   Lembar Penilaian Sidang: {activePenguji.peran}
                 </h3>
-                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-orange-100 text-orange-900 border border-orange-200">
                   {activePenguji.nama}
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                Sesuaikan skor slider (0-100) per aspek rubrik penilaian. Nilai otomatis dihitung terbobot.
+              <p className="text-xs text-slate-500 mt-0.5">
+                Input skor per aspek (0–100). Bobot otomatis terhitung: 50% Buku Agenda & 50% Ujian Sidang.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Realtime breakdown header pill */}
+          <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 border border-orange-200 p-3.5 rounded-2xl flex items-center gap-4">
             <div className="text-right">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+              <span className="text-[10px] font-extrabold text-orange-800 uppercase tracking-wider block">
                 Total Nilai Anda
               </span>
-              <div className="flex items-baseline gap-1.5 justify-end">
-                <span className="font-mono text-2xl font-black text-slate-900">
+              <div className="flex items-baseline gap-2 justify-end">
+                <span className="font-mono text-2xl sm:text-3xl font-black text-slate-900">
                   {activeExaminerTotal.toFixed(2)}
                 </span>
-                <span className="font-bold text-emerald-600 text-base">
+                <span className={`font-black text-base ${activeExaminerRange.badgeText}`}>
                   ({activeExaminerGrade})
                 </span>
               </div>
+            </div>
+            <div className="border-l border-orange-200 pl-3 text-left">
+              <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-black border ${activeExaminerRange.badgeBg} ${activeExaminerRange.badgeText} ${activeExaminerRange.badgeBorder}`}>
+                {activeExaminerRange.predikatSingkat}
+              </span>
+              <p className="text-[10px] text-slate-500 font-medium truncate max-w-[150px] mt-0.5">
+                {activeExaminerPredicate}
+              </p>
             </div>
           </div>
         </div>
 
         {/* Validation Errors Notice */}
         {formErrors.length > 0 && (
-          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs">
+          <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs">
             <div className="flex items-center gap-2 font-bold mb-1">
               <AlertCircle className="w-4 h-4 text-red-600" />
-              <span>Harap lengkapi semua isian nilai:</span>
+              <span>Harap lengkapi isian nilai berikut:</span>
             </div>
-            <ul className="list-disc list-inside space-y-0.5 pl-2">
+            <ul className="list-disc list-inside space-y-0.5 pl-2 font-medium">
               {formErrors.map((err, idx) => (
                 <li key={idx}>{err}</li>
               ))}
@@ -617,143 +651,296 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
 
         {/* Success Alert */}
         {submitSuccess && (
-          <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs flex items-center gap-3 animate-in fade-in duration-200">
-            <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+          <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs flex items-center gap-3 animate-in fade-in duration-200">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
             <div>
-              <p className="font-bold">Nilai Sidang Berhasil Dikirim Secara Real-Time!</p>
-              <p className="text-[11px] text-emerald-700">
-                Nilai telah tersimpan dan disinkronkan ke seluruh dewan penguji dan rekapitulasi.
+              <p className="font-bold text-sm">Nilai Sidang PKL Berhasil Disimpan & Dikirim Real-Time!</p>
+              <p className="text-[11px] text-emerald-700 mt-0.5">
+                Nilai telah diperbarui dan langsung disinkronkan ke seluruh dewan penguji dan rekapitulasi.
               </p>
             </div>
           </div>
         )}
 
-        {/* Criteria Sliders List */}
-        <div className="space-y-6">
-          {kriteriaList.map((kriteria, index) => {
-            const currentVal = scores[kriteria.id] ?? 80;
-            const weightedPoints = ((currentVal * kriteria.bobot) / 100).toFixed(2);
-
-            return (
-              <div
-                key={kriteria.id}
-                className="p-4 sm:p-5 rounded-xl border border-slate-200 hover:border-emerald-300 transition-colors bg-slate-50/50"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
-                        {index + 1}
-                      </span>
-                      <h4 className="font-bold text-slate-900 text-sm sm:text-base">
-                        {kriteria.nama}
-                      </h4>
-                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-teal-100 text-teal-800">
-                        Bobot {kriteria.bobot}%
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1 pl-7">
-                      {kriteria.deskripsi}
-                    </p>
-                  </div>
-
-                  {/* Number input and weighted contribution */}
-                  <div className="flex items-center gap-3 self-end sm:self-start pl-7 sm:pl-0">
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-400 block">Poin Terbobot</span>
-                      <span className="text-xs font-mono font-bold text-emerald-700">
-                        +{weightedPoints} pts
-                      </span>
-                    </div>
-                    <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white shadow-xs">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={currentVal}
-                        onChange={(e) => handleScoreChange(kriteria.id, Number(e.target.value))}
-                        aria-label={`Skor angka untuk ${kriteria.nama}`}
-                        className="w-16 px-2 py-1.5 text-center font-mono font-bold text-slate-800 text-sm outline-none focus:bg-emerald-50"
-                      />
-                      <span className="px-2 text-xs font-semibold text-slate-400 bg-slate-100 border-l border-slate-200 py-2">
-                        /100
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Range Slider */}
-                <div className="mt-3 pl-0 sm:pl-7">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={currentVal}
-                    onChange={(e) => handleScoreChange(kriteria.id, Number(e.target.value))}
-                    aria-label={`Penggeser skor ${kriteria.nama}`}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600 focus:outline-none"
-                  />
-                  
-                  {/* Quick Preset Buttons */}
-                  <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
-                    <span>Kurang (50)</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-slate-500 font-medium mr-1">Nilai Cepat:</span>
-                      {[70, 75, 80, 85, 90, 95].map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => handleScoreChange(kriteria.id, preset)}
-                          className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
-                            currentVal === preset
-                              ? 'bg-emerald-600 text-white border-emerald-600 font-bold'
-                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          {preset}
-                        </button>
-                      ))}
-                    </div>
-                    <span>Sangat Baik (100)</span>
-                  </div>
-                </div>
+        {/* FORM SECTION 1: ASPEK BUKU AGENDA PSG/PKL (50%) */}
+        <div className="mb-8 p-5 sm:p-6 rounded-3xl bg-orange-50/30 border border-orange-200/90 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-orange-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-black text-sm shadow-xs">
+                A
               </div>
-            );
-          })}
+              <div>
+                <h4 className="font-black text-base text-slate-900">
+                  Aspek Buku Agenda PSG/PKL
+                </h4>
+                <p className="text-xs text-orange-800 font-semibold">
+                  5 Aspek Penilaian • Total Kontribusi: 50% Nilai Akhir
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto font-mono text-xs">
+              <div className="px-3 py-1.5 rounded-xl bg-white border border-orange-200 text-right shadow-2xs">
+                <span className="text-[10px] text-slate-500 block font-sans">Rata-rata 5 Aspek</span>
+                <span className="font-bold text-slate-900">{examinerBreakdown.subtotalAgenda.toFixed(2)} / 100</span>
+              </div>
+              <div className="px-3 py-1.5 rounded-xl bg-orange-600 text-white font-bold text-right shadow-xs">
+                <span className="text-[10px] text-orange-200 block font-sans">Poin Terbobot (50%)</span>
+                <span>+{examinerBreakdown.weightedAgenda.toFixed(2)} pts</span>
+              </div>
+            </div>
+          </div>
+
+          {/* The 5 Criteria Sliders */}
+          <div className="space-y-4">
+            {agendaCriteria.map((kriteria) => {
+              const currentVal = scores[kriteria.id] ?? 80;
+              const weightedPts = ((currentVal * kriteria.bobot) / 100).toFixed(2);
+
+              return (
+                <div
+                  key={kriteria.id}
+                  className="p-4 sm:p-5 rounded-2xl border border-orange-100 hover:border-orange-300 transition-colors bg-white shadow-2xs"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-orange-100 text-orange-800 font-black text-xs flex items-center justify-center flex-shrink-0">
+                          {kriteria.nomor}
+                        </span>
+                        <h5 className="font-bold text-slate-900 text-sm">
+                          {kriteria.nama}
+                        </h5>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-orange-100 text-orange-900">
+                          Bobot {kriteria.bobot}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 pl-8 leading-relaxed">
+                        {kriteria.deskripsi}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 self-end sm:self-start pl-8 sm:pl-0">
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block font-sans">Poin Nilai</span>
+                        <span className="text-xs font-mono font-bold text-orange-700">
+                          +{weightedPts} pts
+                        </span>
+                      </div>
+                      <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-2xs">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={currentVal}
+                          onChange={(e) => handleScoreChange(kriteria.id, Number(e.target.value))}
+                          aria-label={`Skor angka untuk ${kriteria.nama}`}
+                          className="w-16 px-2 py-1.5 text-center font-mono font-bold text-slate-800 text-sm outline-none focus:bg-orange-50"
+                        />
+                        <span className="px-2 text-xs font-semibold text-slate-400 bg-slate-100 border-l border-slate-200 py-1.5">
+                          /100
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Range Slider */}
+                  <div className="mt-3 pl-0 sm:pl-8">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={currentVal}
+                      onChange={(e) => handleScoreChange(kriteria.id, Number(e.target.value))}
+                      aria-label={`Penggeser skor ${kriteria.nama}`}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                    />
+
+                    {/* Quick Preset Buttons */}
+                    <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
+                      <span className="text-red-600 font-medium">0</span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-slate-500 font-medium mr-1">Pilihan Cepat:</span>
+                        {[60, 70, 75, 80, 85, 90, 95, 100].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => handleScoreChange(kriteria.id, preset)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
+                              currentVal === preset
+                                ? 'bg-orange-600 text-white border-orange-600'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-orange-50'
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-emerald-600 font-bold">100</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Rekomendasi Status Kelulusan */}
+        {/* FORM SECTION 2: ASPEK UJIAN SIDANG PKL (50%) */}
+        <div className="mb-8 p-5 sm:p-6 rounded-3xl bg-amber-50/30 border border-amber-200/90 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-600 text-white flex items-center justify-center font-black text-sm shadow-xs">
+                B
+              </div>
+              <div>
+                <h4 className="font-black text-base text-slate-900">
+                  Aspek Ujian Sidang PKL
+                </h4>
+                <p className="text-xs text-amber-800 font-semibold">
+                  2 Aspek Penilaian • Total Kontribusi: 50% Nilai Akhir
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto font-mono text-xs">
+              <div className="px-3 py-1.5 rounded-xl bg-white border border-amber-200 text-right shadow-2xs">
+                <span className="text-[10px] text-slate-500 block font-sans">Rata-rata 2 Aspek</span>
+                <span className="font-bold text-slate-900">{examinerBreakdown.subtotalSidang.toFixed(2)} / 100</span>
+              </div>
+              <div className="px-3 py-1.5 rounded-xl bg-amber-600 text-white font-bold text-right shadow-xs">
+                <span className="text-[10px] text-amber-200 block font-sans">Poin Terbobot (50%)</span>
+                <span>+{examinerBreakdown.weightedSidang.toFixed(2)} pts</span>
+              </div>
+            </div>
+          </div>
+
+          {/* The 2 Criteria Sliders */}
+          <div className="space-y-4">
+            {sidangCriteria.map((kriteria) => {
+              const currentVal = scores[kriteria.id] ?? 80;
+              const weightedPts = ((currentVal * kriteria.bobot) / 100).toFixed(2);
+
+              return (
+                <div
+                  key={kriteria.id}
+                  className="p-4 sm:p-5 rounded-2xl border border-amber-100 hover:border-amber-300 transition-colors bg-white shadow-2xs"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center flex-shrink-0">
+                          {kriteria.nomor}
+                        </span>
+                        <h5 className="font-bold text-slate-900 text-sm">
+                          {kriteria.nama}
+                        </h5>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-900">
+                          Bobot {kriteria.bobot}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 pl-8 leading-relaxed">
+                        {kriteria.deskripsi}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 self-end sm:self-start pl-8 sm:pl-0">
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block font-sans">Poin Nilai</span>
+                        <span className="text-xs font-mono font-bold text-amber-700">
+                          +{weightedPts} pts
+                        </span>
+                      </div>
+                      <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-2xs">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={currentVal}
+                          onChange={(e) => handleScoreChange(kriteria.id, Number(e.target.value))}
+                          aria-label={`Skor angka untuk ${kriteria.nama}`}
+                          className="w-16 px-2 py-1.5 text-center font-mono font-bold text-slate-800 text-sm outline-none focus:bg-amber-50"
+                        />
+                        <span className="px-2 text-xs font-semibold text-slate-400 bg-slate-100 border-l border-slate-200 py-1.5">
+                          /100
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Range Slider */}
+                  <div className="mt-3 pl-0 sm:pl-8">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={currentVal}
+                      onChange={(e) => handleScoreChange(kriteria.id, Number(e.target.value))}
+                      aria-label={`Penggeser skor ${kriteria.nama}`}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
+                    />
+
+                    {/* Quick Preset Buttons */}
+                    <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
+                      <span className="text-red-600 font-medium">0</span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-slate-500 font-medium mr-1">Pilihan Cepat:</span>
+                        {[60, 70, 75, 80, 85, 90, 95, 100].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => handleScoreChange(kriteria.id, preset)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
+                              currentVal === preset
+                                ? 'bg-amber-600 text-white border-amber-600'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-amber-50'
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-emerald-600 font-bold">100</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Rekomendasi Status Kelulusan Berdasarkan KKM */}
         <div className="mt-8 pt-6 border-t border-slate-200">
-          <label className="text-sm font-bold text-slate-900 block mb-2">
-            Rekomendasi Hasil Sidang PKL
+          <label className="text-sm font-black text-slate-900 block mb-2">
+            Rekomendasi Keputusan Dewan Penguji
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
               {
                 id: 'Lulus',
-                title: 'Lulus Murni',
-                desc: 'Tanpa revisi laporan atau perbaikan minor',
-                color: 'border-emerald-400 bg-emerald-50/50 text-emerald-900',
+                title: 'Lulus Murni (Kompeten)',
+                desc: 'Mencapai batas KKM (>= 60) tanpa kendala berat',
+                color: 'border-emerald-400 bg-emerald-50/60 text-emerald-950',
               },
               {
                 id: 'Lulus dengan Revisi',
                 title: 'Lulus dengan Revisi',
-                desc: 'Wajib perbaikan laporan dalam 7 hari kerja',
-                color: 'border-amber-400 bg-amber-50/50 text-amber-900',
+                desc: 'Wajib perbaikan laporan dan agenda dalam 7 hari kerja',
+                color: 'border-amber-400 bg-amber-50/60 text-amber-950',
               },
               {
                 id: 'Mengulang Sidang',
-                title: 'Mengulang Sidang PKL',
-                desc: 'Materi tidak memenuhi standar minimal',
-                color: 'border-red-400 bg-red-50/50 text-red-900',
+                title: 'Belum Kompeten / Remedial',
+                desc: 'Nilai di bawah KKM (< 60), wajib ujian sidang ulang',
+                color: 'border-red-400 bg-red-50/60 text-red-950',
               },
             ].map((option) => (
               <label
                 key={option.id}
-                className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                   rekomendasiStatus === option.id
-                    ? `${option.color} ring-2 ring-emerald-500/20 font-semibold shadow-xs`
+                    ? `${option.color} ring-2 ring-orange-500/20 font-semibold shadow-xs`
                     : 'border-slate-200 hover:border-slate-300 bg-white'
                 }`}
               >
@@ -765,7 +952,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
                     value={option.id}
                     checked={rekomendasiStatus === option.id}
                     onChange={(e) => setRekomendasiStatus(e.target.value as any)}
-                    className="accent-emerald-600"
+                    className="accent-orange-600"
                   />
                 </div>
                 <span className="text-xs text-slate-500 font-normal">{option.desc}</span>
@@ -778,30 +965,30 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
         <div className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <label className="text-sm font-bold text-slate-900">
-              Catatan Revisi & Masukan Penguji (Akan tercetak di Berita Acara)
+              Catatan Revisi & Masukan Penguji (Tercetak di Lembar Berita Acara)
             </label>
             <div className="flex flex-wrap gap-1 text-[11px]">
               <span className="text-slate-400 font-medium">Template Cepat:</span>
               <button
                 type="button"
-                onClick={() => handleQuickAddFeedback('Perbaiki tata tulis EYD dan daftar pustaka format APA.')}
-                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                onClick={() => handleQuickAddFeedback('Lengkapi paraf pembimbing DUDI dan dokumentasi foto di Buku Agenda PSG/PKL.')}
+                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-orange-50 text-slate-700"
               >
-                + EYD/Pustaka
+                + Agenda & Foto
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickAddFeedback('Lengkapi lembar pengesahan dan logbook bermeterai.')}
-                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                onClick={() => handleQuickAddFeedback('Perbaiki tata tulis format EYD dan perjelas diagram alur teknis pada Bab 3.')}
+                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-orange-50 text-slate-700"
               >
-                + Pengesahan
+                + Format Laporan
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickAddFeedback('Perjelas diagram flowchart arsitektur teknis pada Bab 3.')}
-                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                onClick={() => handleQuickAddFeedback('Pertahankan pemahaman alur kerja DUDI dan penguasaan materi yang sangat baik.')}
+                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-orange-50 text-slate-700"
               >
-                + Flowchart Bab 3
+                + Apresiasi Sidang
               </button>
             </div>
           </div>
@@ -809,18 +996,18 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
             rows={3}
             value={catatanRevisi}
             onChange={(e) => setCatatanRevisi(e.target.value)}
-            placeholder="Tuliskan catatan perbaikan teknis atau pujian atas performa sidang mahasiswa..."
+            placeholder="Tuliskan catatan perbaikan atau rekomendasi penguatan kompetensi siswa..."
             aria-label="Catatan revisi penguji"
-            className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm outline-none"
+            className="w-full p-3 rounded-2xl border border-slate-300 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm outline-none"
           />
         </div>
 
         {/* Submit Actions */}
         <div className="mt-6 pt-5 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-xs text-slate-500 flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-emerald-600" />
+            <Sparkles className="w-4 h-4 text-orange-600" />
             <span>
-              Nilai yang dikirim akan langsung terlihat oleh Penguji 1, Penguji 2, dan Penguji 3 secara live.
+              Nilai yang disimpan akan langsung disinkronkan ke seluruh dewan penguji dan rekapitulasi.
             </span>
           </div>
 
@@ -828,7 +1015,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
             <button
               type="button"
               onClick={() => handleSubmitNilai(true)}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
             >
               <Save className="w-4 h-4" />
               <span>Simpan Draft</span>
@@ -836,7 +1023,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
             <button
               type="button"
               onClick={() => handleSubmitNilai(false)}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all hover:scale-[1.01] active:scale-[0.99]"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:via-orange-600 hover:to-amber-700 text-white font-bold text-sm shadow-md shadow-orange-500/25 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
             >
               <Send className="w-4 h-4" />
               <span>Kirim Nilai Sidang Real-Time</span>

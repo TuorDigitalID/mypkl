@@ -133,8 +133,8 @@ export const PusatUploadModal: React.FC<PusatUploadModalProps> = ({
                   Excel & CSV
                 </span>
               </div>
-              <p className="text-xs text-orange-100/95 mt-1 max-w-xl">
-                Unggah dan perbarui data master PKL langsung tanpa submenu. Pilih kategori modul di bawah ini atau unduh format template resmi.
+              <p className="text-xs sm:text-sm text-orange-100/95 mt-1 max-w-xl">
+                Pusat impor dan perbarui data master PKL terpadu. Pilih modul di bawah ini atau unduh format template resmi Excel/CSV.
               </p>
             </div>
           </div>

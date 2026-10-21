@@ -7,39 +7,53 @@ import { MasterJurusanTable } from './components/MasterJurusanTable.tsx';
 import { MasterInstansiTable } from './components/MasterInstansiTable.tsx';
 import { MasterGuruTable } from './components/MasterGuruTable.tsx';
 import { PlottingSiswaTable } from './components/PlottingSiswaTable.tsx';
+import { MasterPengujiTable } from './components/MasterPengujiTable.tsx';
 import { PesertaList } from './components/PesertaList.tsx';
 import { RekapitulasiView } from './components/RekapitulasiView.tsx';
 import { RubrikGuide } from './components/RubrikGuide.tsx';
 import { SupabaseModal } from './components/SupabaseModal.tsx';
 import { BeritaAcaraModal } from './components/BeritaAcaraModal.tsx';
 import { PusatUploadModal } from './components/PusatUploadModal.tsx';
+import { LoginModal } from './components/LoginModal.tsx';
 import { 
   MahasiswaSidang, 
   Penguji, 
   PenilaianPenguji, 
-  SupabaseConfig,
-  MasterSiswaPKL,
-  MasterJurusan,
-  MasterInstansi,
-  MasterGuruPembimbing,
-  PlottingSiswaPKL
+  SupabaseConfig, 
+  MasterSiswaPKL, 
+  MasterJurusan, 
+  MasterInstansi, 
+  MasterGuruPembimbing, 
+  PlottingSiswaPKL,
+  AuthUser
 } from './types/index.ts';
 import { DAFTAR_PENGUJI } from './data/penguji.ts';
 import { 
   getPesertaSidangList, 
   getPenilaianList, 
-  getMasterSiswaList,
-  getMasterJurusanList,
-  getMasterInstansiList,
-  getMasterGuruList,
-  getPlottingList,
+  getMasterSiswaList, 
+  getMasterJurusanList, 
+  getMasterInstansiList, 
+  getMasterGuruList, 
+  getPlottingList, 
+  getPengujiList,
+  savePenguji,
+  deletePenguji,
+  resetPengujiToDefault,
+  getCurrentAuthUser,
+  setCurrentAuthUser,
+  logoutUser,
   getSupabaseConfig, 
   subscribeToRealtimeUpdates 
 } from './lib/supabase.ts';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'live' | 'master' | 'jurusan' | 'instansi' | 'guru' | 'plotting' | 'peserta' | 'rekap' | 'rubrik'>('plotting');
+  const [activeTab, setActiveTab] = useState<'live' | 'master' | 'jurusan' | 'instansi' | 'guru' | 'plotting' | 'peserta' | 'rekap' | 'rubrik' | 'penguji'>('plotting');
+  const [pengujiList, setPengujiList] = useState<Penguji[]>(DAFTAR_PENGUJI);
   const [activePenguji, setActivePenguji] = useState<Penguji>(DAFTAR_PENGUJI[0]);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(getCurrentAuthUser());
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
   const [pesertaList, setPesertaList] = useState<MahasiswaSidang[]>([]);
   const [penilaianList, setPenilaianList] = useState<PenilaianPenguji[]>([]);
   const [masterSiswaList, setMasterSiswaList] = useState<MasterSiswaPKL[]>([]);
@@ -53,7 +67,7 @@ export default function App() {
   const [filterPlottingInstansi, setFilterPlottingInstansi] = useState<string>('semua');
   const [filterInstansiSearch, setFilterInstansiSearch] = useState<string>('');
   
-  // Direct upload triggers without nested submenus
+  // Direct upload triggers
   const [autoOpenUploadSiswa, setAutoOpenUploadSiswa] = useState(false);
   const [autoOpenUploadInstansi, setAutoOpenUploadInstansi] = useState(false);
   const [autoOpenUploadGuru, setAutoOpenUploadGuru] = useState(false);
@@ -70,7 +84,7 @@ export default function App() {
   // Load initial data
   const loadData = useCallback(async () => {
     try {
-      const [peserta, nilai, master, jurusan, instansi, guru, plotting] = await Promise.all([
+      const [peserta, nilai, master, jurusan, instansi, guru, plotting, pengujiData] = await Promise.all([
         getPesertaSidangList(),
         getPenilaianList(),
         getMasterSiswaList(),
@@ -78,6 +92,7 @@ export default function App() {
         getMasterInstansiList(),
         getMasterGuruList(),
         getPlottingList(),
+        getPengujiList(),
       ]);
       setPesertaList(peserta);
       setPenilaianList(nilai);
@@ -86,6 +101,12 @@ export default function App() {
       setMasterInstansiList(instansi);
       setMasterGuruList(guru);
       setPlottingList(plotting);
+      if (pengujiData && pengujiData.length > 0) {
+        setPengujiList(pengujiData);
+        if (!pengujiData.some((p) => p.id === activePenguji.id)) {
+          setActivePenguji(pengujiData[0]);
+        }
+      }
       if (peserta.length > 0 && !peserta.some((p) => p.id === activePesertaId)) {
         setActivePesertaId(peserta[0].id);
       }
@@ -94,7 +115,7 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [activePesertaId]);
+  }, [activePesertaId, activePenguji.id]);
 
   useEffect(() => {
     loadData();
@@ -125,6 +146,21 @@ export default function App() {
           }
           return [event.payload, ...prev];
         });
+      } else if (event.type === 'PENGUJI_UPDATED' && event.payload) {
+        setPengujiList((prev) => {
+          const updated = Array.isArray(event.payload) ? event.payload : [event.payload];
+          const next = [...prev];
+          updated.forEach((item) => {
+            const idx = next.findIndex((p) => p.id === item.id);
+            if (idx >= 0) next[idx] = item;
+            else next.push(item);
+          });
+          return next;
+        });
+      } else if (event.type === 'PENGUJI_DELETED' && event.payload) {
+        setPengujiList((prev) => prev.filter((p) => p.id !== event.payload.id));
+      } else if (event.type === 'AUTH_CHANGED') {
+        setCurrentUser(event.payload);
       } else if (event.type === 'MASTER_SISWA_UPDATED' && event.payload) {
         setMasterSiswaList((prev) => {
           const index = prev.findIndex(
@@ -149,58 +185,38 @@ export default function App() {
             next[index] = event.payload;
             return next;
           }
-          return [...prev, event.payload];
+          return [event.payload, ...prev];
         });
-      } else if (event.type === 'MASTER_JURUSAN_DELETED' && event.payload) {
-        setMasterJurusanList((prev) => prev.filter((j) => j.id !== event.payload.id));
       } else if (event.type === 'MASTER_INSTANSI_UPDATED' && event.payload) {
         setMasterInstansiList((prev) => {
-          const index = prev.findIndex(
-            (i) => i.id === event.payload.id || i.nama.toLowerCase().trim() === event.payload.nama.toLowerCase().trim()
-          );
+          const index = prev.findIndex((i) => i.id === event.payload.id);
           if (index >= 0) {
             const next = [...prev];
             next[index] = event.payload;
             return next;
           }
-          return [...prev, event.payload];
+          return [event.payload, ...prev];
         });
-      } else if (event.type === 'MASTER_INSTANSI_DELETED' && event.payload) {
-        setMasterInstansiList((prev) => prev.filter((i) => i.id !== event.payload.id));
       } else if (event.type === 'MASTER_GURU_UPDATED' && event.payload) {
         setMasterGuruList((prev) => {
-          const index = prev.findIndex(
-            (g) => g.id === event.payload.id || g.nip.replace(/\s+/g, '') === event.payload.nip.replace(/\s+/g, '')
-          );
+          const index = prev.findIndex((g) => g.id === event.payload.id);
           if (index >= 0) {
             const next = [...prev];
             next[index] = event.payload;
             return next;
           }
-          return [...prev, event.payload];
+          return [event.payload, ...prev];
         });
-      } else if (event.type === 'MASTER_GURU_DELETED' && event.payload) {
-        setMasterGuruList((prev) => prev.filter((g) => g.id !== event.payload.id));
-      } else if (event.type === 'PLOTTING_SISWA_UPDATED') {
-        if (Array.isArray(event.payload)) {
-          setPlottingList(event.payload);
-        } else if (event.payload) {
-          setPlottingList((prev) => {
-            const index = prev.findIndex(
-              (p) =>
-                p.id === event.payload.id ||
-                (p.nisn && p.nisn.replace(/\s+/g, '') === (event.payload.nisn || '').replace(/\s+/g, ''))
-            );
-            if (index >= 0) {
-              const next = [...prev];
-              next[index] = event.payload;
-              return next;
-            }
-            return [event.payload, ...prev];
-          });
-        }
-      } else if (event.type === 'PLOTTING_SISWA_DELETED' && event.payload) {
-        setPlottingList((prev) => prev.filter((p) => p.id !== event.payload.id));
+      } else if (event.type === 'PLOTTING_UPDATED' && event.payload) {
+        setPlottingList((prev) => {
+          const index = prev.findIndex((p) => p.id === event.payload.id);
+          if (index >= 0) {
+            const next = [...prev];
+            next[index] = event.payload;
+            return next;
+          }
+          return [event.payload, ...prev];
+        });
       }
     });
 
@@ -209,19 +225,64 @@ export default function App() {
     };
   }, [loadData]);
 
-  const handleSelectPesertaForSidang = (id: string) => {
-    setActivePesertaId(id);
+  const handleSelectPesertaForSidang = (pesertaId: string) => {
+    setActivePesertaId(pesertaId);
     setActiveTab('live');
   };
 
-  const handleOpenBeritaAcara = (id: string) => {
-    setBeritaAcaraMahasiswaId(id);
+  const handleOpenBeritaAcara = (mahasiswaId: string) => {
+    setBeritaAcaraMahasiswaId(mahasiswaId);
+  };
+
+  // Examiner CRUD Handlers
+  const handleSavePenguji = async (p: Penguji) => {
+    const updated = await savePenguji(p);
+    setPengujiList(updated);
+    if (activePenguji.id === p.id) {
+      setActivePenguji(p);
+    }
+  };
+
+  const handleDeletePenguji = async (id: string) => {
+    const res = await deletePenguji(id);
+    if (!res.success) {
+      alert(res.message);
+      return;
+    }
+    setPengujiList(res.list);
+    if (activePenguji.id === id && res.list.length > 0) {
+      setActivePenguji(res.list[0]);
+    }
+  };
+
+  const handleResetPenguji = async () => {
+    if (confirm('Kembalikan susunan penguji sidang ke data bawaan?')) {
+      const reset = await resetPengujiToDefault();
+      setPengujiList(reset);
+      setActivePenguji(reset[0]);
+    }
+  };
+
+  const handleLoginSuccess = (user: AuthUser, penguji?: Penguji) => {
+    setCurrentUser(user);
+    if (penguji) {
+      setActivePenguji(penguji);
+    } else if (user.role === 'penguji') {
+      const matched = pengujiList.find((p) => p.id === user.pengujiId || p.nip === user.usernameOrNip);
+      if (matched) setActivePenguji(matched);
+    }
+  };
+
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+    setIsLoginModalOpen(true);
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-800 selection:bg-orange-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row antialiased font-sans text-slate-800">
       
-      {/* Left Sidebar with Direct Upload Buttons (No Submenu Confusion) */}
+      {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -230,13 +291,16 @@ export default function App() {
         activePenguji={activePenguji}
         setActivePenguji={setActivePenguji}
         supabaseConfig={supabaseConfig}
-        onOpenSupabaseModal={() => setIsMobileSidebarOpen(false)}
+        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
         siswaCount={masterSiswaList.length}
         jurusanCount={masterJurusanList.length}
         instansiCount={masterInstansiList.length}
         guruCount={masterGuruList.length}
         plottingCount={plottingList.length}
         pesertaCount={pesertaList.length}
+        pengujiCount={pengujiList.length}
+        currentUser={currentUser}
+        onOpenLoginModal={() => setIsLoginModalOpen(true)}
         onOpenUploadSiswa={() => {
           setActiveTab('master');
           setAutoOpenUploadSiswa(true);
@@ -259,22 +323,27 @@ export default function App() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         
-        {/* Sleek Topbar Header with Luxury Orange Gradient */}
+        {/* Sleek Topbar Header with Luxury Terracotta Gradient */}
         <Header
           activeTab={activeTab}
           onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           activePenguji={activePenguji}
           setActivePenguji={setActivePenguji}
+          pengujiList={pengujiList}
+          currentUser={currentUser}
           supabaseConfig={supabaseConfig}
           onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
           onOpenPusatUpload={() => setIsPusatUploadOpen(true)}
+          onOpenLoginModal={() => setIsLoginModalOpen(true)}
+          onNavigateToPenguji={() => setActiveTab('penguji')}
+          onLogout={handleLogout}
         />
 
         {/* Viewport Content */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-500">
-              <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+              <div className="w-10 h-10 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mb-3"></div>
               <p className="text-sm font-semibold text-orange-950">Memuat Data Sidang PKL Real-Time...</p>
             </div>
           ) : (
@@ -287,6 +356,20 @@ export default function App() {
                   activePenguji={activePenguji}
                   penilaianList={penilaianList}
                   onOpenBeritaAcara={handleOpenBeritaAcara}
+                />
+              )}
+
+              {activeTab === 'penguji' && (
+                <MasterPengujiTable
+                  pengujiList={pengujiList}
+                  penilaianList={penilaianList}
+                  activePenguji={activePenguji}
+                  currentUser={currentUser}
+                  onSetActivePenguji={setActivePenguji}
+                  onSavePenguji={handleSavePenguji}
+                  onDeletePenguji={handleDeletePenguji}
+                  onResetDefault={handleResetPenguji}
+                  onOpenLoginModal={() => setIsLoginModalOpen(true)}
                 />
               )}
 
@@ -412,27 +495,34 @@ export default function App() {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-orange-100 bg-white py-4 mt-auto">
+        <footer className="border-t border-slate-200/90 bg-white py-4 mt-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
-            <p>© {new Date().getFullYear()} My PKL — Aplikasi Penilaian Sidang Praktik Kerja Lapangan Real-Time.</p>
+            <p>© {new Date().getFullYear()} My PKL Vokasi — Aplikasi Penilaian Sidang Praktik Kerja Lapangan Real-Time.</p>
             <div className="flex items-center gap-4">
               <button
+                onClick={() => setActiveTab('penguji')}
+                className="hover:text-orange-600 font-bold text-slate-700 transition-colors cursor-pointer"
+              >
+                Manajemen Penguji
+              </button>
+              <span>•</span>
+              <button
                 onClick={() => setIsPusatUploadOpen(true)}
-                className="hover:text-orange-600 font-bold text-orange-950 transition-colors"
+                className="hover:text-orange-600 font-bold text-orange-950 transition-colors cursor-pointer"
               >
                 Pusat Upload & Template
               </button>
               <span>•</span>
               <button
                 onClick={() => setIsSupabaseModalOpen(true)}
-                className="hover:text-orange-600 font-semibold transition-colors"
+                className="hover:text-orange-600 font-semibold transition-colors cursor-pointer"
               >
-                Setup Supabase & Schema SQL
+                Setup Supabase
               </button>
               <span>•</span>
               <button
                 onClick={() => setActiveTab('rubrik')}
-                className="hover:text-orange-600 font-semibold transition-colors"
+                className="hover:text-orange-600 font-semibold transition-colors cursor-pointer"
               >
                 Pedoman Rubrik
               </button>
@@ -441,6 +531,15 @@ export default function App() {
         </footer>
 
       </div>
+
+      {/* Keren & Modern Login Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        pengujiList={pengujiList}
+        currentUser={currentUser}
+        onLoginSuccess={handleLoginSuccess}
+      />
 
       {/* Pusat Upload & Impor Data Modal (Hub) */}
       <PusatUploadModal

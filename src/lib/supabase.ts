@@ -1,9 +1,21 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { MahasiswaSidang, PenilaianPenguji, SupabaseConfig, MasterSiswaPKL, MasterJurusan, MasterInstansi, MasterGuruPembimbing, PlottingSiswaPKL } from '../types/index.ts';
+import type { 
+  MahasiswaSidang, 
+  PenilaianPenguji, 
+  SupabaseConfig, 
+  MasterSiswaPKL, 
+  MasterJurusan, 
+  MasterInstansi, 
+  MasterGuruPembimbing, 
+  PlottingSiswaPKL,
+  Penguji,
+  AuthUser
+} from '../types/index.ts';
 import { INITIAL_MASTER_JURUSAN } from '../data/jurusan.ts';
 import { INITIAL_MASTER_INSTANSI } from '../data/instansi.ts';
 import { INITIAL_MASTER_GURU } from '../data/guruPembimbing.ts';
 import { INITIAL_PLOTTING_SISWA } from '../data/plotting.ts';
+import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 
 const STORAGE_KEY_SUPABASE = 'my_pkl_supabase_config';
 const STORAGE_KEY_PESERTA = 'my_pkl_peserta_sidang';
@@ -13,6 +25,8 @@ const STORAGE_KEY_MASTER_JURUSAN = 'my_pkl_master_jurusan';
 const STORAGE_KEY_MASTER_INSTANSI = 'my_pkl_master_instansi';
 const STORAGE_KEY_MASTER_GURU = 'my_pkl_master_guru';
 const STORAGE_KEY_PLOTTING = 'my_pkl_plotting_siswa';
+const STORAGE_KEY_PENGUJI = 'my_pkl_daftar_penguji';
+const STORAGE_KEY_AUTH = 'my_pkl_current_auth';
 
 // Initial Seed Data for immediate high-fidelity testing
 export const INITIAL_PESERTA: MahasiswaSidang[] = [
@@ -111,12 +125,17 @@ export const INITIAL_PENILAIAN: PenilaianPenguji[] = [
     pengujiNama: 'Dr. Ir. Hendra Kurniawan, M.T.',
     pengujiPeran: 'Penguji 1 (Ketua)',
     nilaiItems: [
-      { kriteriaId: 'k1', skor: 88 },
-      { kriteriaId: 'k2', skor: 92 },
-      { kriteriaId: 'k3', skor: 90 },
-      { kriteriaId: 'k4', skor: 86 },
+      { kriteriaId: 'k1_agenda_disiplin', skor: 88 },
+      { kriteriaId: 'k2_agenda_kerjasama', skor: 90 },
+      { kriteriaId: 'k3_agenda_inisiatif', skor: 92 },
+      { kriteriaId: 'k4_agenda_tanggungjawab', skor: 86 },
+      { kriteriaId: 'k5_agenda_kebersihan', skor: 90 },
+      { kriteriaId: 'k6_sidang_presentasi', skor: 92 },
+      { kriteriaId: 'k7_sidang_tanyajawab', skor: 88 },
     ],
-    totalNilai: 89.3,
+    subtotalAgenda: 89.2,
+    subtotalSidang: 90.0,
+    totalNilai: 89.6,
     nilaiHuruf: 'A',
     catatanRevisi: 'Penyajian portofolio desain sangat baik. Tambahkan penjelasan uji usability test pada Bab 4.',
     rekomendasiStatus: 'Lulus',
@@ -130,12 +149,17 @@ export const INITIAL_PENILAIAN: PenilaianPenguji[] = [
     pengujiNama: 'Siti Nurhaliza, S.Kom., M.Cs.',
     pengujiPeran: 'Penguji 2 (Sekretaris)',
     nilaiItems: [
-      { kriteriaId: 'k1', skor: 85 },
-      { kriteriaId: 'k2', skor: 88 },
-      { kriteriaId: 'k3', skor: 92 },
-      { kriteriaId: 'k4', skor: 85 },
+      { kriteriaId: 'k1_agenda_disiplin', skor: 85 },
+      { kriteriaId: 'k2_agenda_kerjasama', skor: 88 },
+      { kriteriaId: 'k3_agenda_inisiatif', skor: 85 },
+      { kriteriaId: 'k4_agenda_tanggungjawab', skor: 88 },
+      { kriteriaId: 'k5_agenda_kebersihan', skor: 84 },
+      { kriteriaId: 'k6_sidang_presentasi', skor: 90 },
+      { kriteriaId: 'k7_sidang_tanyajawab', skor: 86 },
     ],
-    totalNilai: 87.45,
+    subtotalAgenda: 86.0,
+    subtotalSidang: 88.0,
+    totalNilai: 87.0,
     nilaiHuruf: 'A',
     catatanRevisi: 'Format sitasi daftar pustaka agar diselaraskan dengan gaya APA 7th edition.',
     rekomendasiStatus: 'Lulus dengan Revisi',
@@ -149,12 +173,17 @@ export const INITIAL_PENILAIAN: PenilaianPenguji[] = [
     pengujiNama: 'Bambang Prasetyo, S.T.',
     pengujiPeran: 'Penguji 3 (Anggota)',
     nilaiItems: [
-      { kriteriaId: 'k1', skor: 90 },
-      { kriteriaId: 'k2', skor: 94 },
-      { kriteriaId: 'k3', skor: 88 },
-      { kriteriaId: 'k4', skor: 90 },
+      { kriteriaId: 'k1_agenda_disiplin', skor: 90 },
+      { kriteriaId: 'k2_agenda_kerjasama', skor: 94 },
+      { kriteriaId: 'k3_agenda_inisiatif', skor: 88 },
+      { kriteriaId: 'k4_agenda_tanggungjawab', skor: 90 },
+      { kriteriaId: 'k5_agenda_kebersihan', skor: 92 },
+      { kriteriaId: 'k6_sidang_presentasi', skor: 90 },
+      { kriteriaId: 'k7_sidang_tanyajawab', skor: 92 },
     ],
-    totalNilai: 91.0,
+    subtotalAgenda: 90.8,
+    subtotalSidang: 91.0,
+    totalNilai: 90.9,
     nilaiHuruf: 'A',
     catatanRevisi: 'Hasil desain di industri sudah diadopsi dan diimplementasikan. Sangat memuaskan.',
     rekomendasiStatus: 'Lulus',
@@ -169,11 +198,16 @@ export const INITIAL_PENILAIAN: PenilaianPenguji[] = [
     pengujiNama: 'Dr. Ir. Hendra Kurniawan, M.T.',
     pengujiPeran: 'Penguji 1 (Ketua)',
     nilaiItems: [
-      { kriteriaId: 'k1', skor: 85 },
-      { kriteriaId: 'k2', skor: 90 },
-      { kriteriaId: 'k3', skor: 85 },
-      { kriteriaId: 'k4', skor: 80 },
+      { kriteriaId: 'k1_agenda_disiplin', skor: 85 },
+      { kriteriaId: 'k2_agenda_kerjasama', skor: 90 },
+      { kriteriaId: 'k3_agenda_inisiatif', skor: 85 },
+      { kriteriaId: 'k4_agenda_tanggungjawab', skor: 85 },
+      { kriteriaId: 'k5_agenda_kebersihan', skor: 85 },
+      { kriteriaId: 'k6_sidang_presentasi', skor: 86 },
+      { kriteriaId: 'k7_sidang_tanyajawab', skor: 84 },
     ],
+    subtotalAgenda: 86.0,
+    subtotalSidang: 85.0,
     totalNilai: 85.5,
     nilaiHuruf: 'A',
     catatanRevisi: 'Diagram arsitektur Docker Compose harap diperjelas mapping port-nya.',
@@ -506,6 +540,8 @@ export async function getPenilaianList(): Promise<PenilaianPenguji[]> {
           pengujiNama: d.penguji_nama,
           pengujiPeran: d.penguji_peran,
           nilaiItems: d.nilai_items || [],
+          subtotalAgenda: d.subtotal_agenda !== null && d.subtotal_agenda !== undefined ? Number(d.subtotal_agenda) : undefined,
+          subtotalSidang: d.subtotal_sidang !== null && d.subtotal_sidang !== undefined ? Number(d.subtotal_sidang) : undefined,
           totalNilai: Number(d.total_nilai) || 0,
           nilaiHuruf: d.nilai_huruf,
           catatanRevisi: d.catatan_revisi || '',
@@ -574,6 +610,8 @@ export async function savePenilaian(penilaian: PenilaianPenguji): Promise<Penila
         penguji_nama: penilaian.pengujiNama,
         penguji_peran: penilaian.pengujiPeran,
         nilai_items: penilaian.nilaiItems,
+        subtotal_agenda: penilaian.subtotalAgenda ?? null,
+        subtotal_sidang: penilaian.subtotalSidang ?? null,
         total_nilai: penilaian.totalNilai,
         nilai_huruf: penilaian.nilaiHuruf,
         catatan_revisi: penilaian.catatanRevisi,
@@ -2699,3 +2737,332 @@ export async function checkPlottingTableStatus(): Promise<{
   }
 }
 
+// =========================================================================
+// PENGUJI SIDANG & USER MANAGEMENT CRUD
+// =========================================================================
+
+/**
+ * Mengambil daftar penguji sidang dari Supabase Cloud atau LocalStorage
+ */
+export async function getPengujiList(): Promise<Penguji[]> {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('penguji')
+        .select('*')
+        .order('nip', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          id: d.id,
+          nama: d.nama,
+          nip: d.nip,
+          peran: d.peran,
+          avatar: d.avatar || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+          email: d.email || `${d.nip}@smk-vokasi.sch.id`,
+          password: d.password || 'penguji123',
+          telepon: d.telepon || '0812-0000-0000',
+          instansiAsal: d.instansi_asal || 'SMK Negeri Vokasi',
+          bidangKeahlian: d.bidang_keahlian || 'Teknologi Informasi',
+          isActive: d.is_active !== false,
+          createdAt: d.created_at,
+          updatedAt: d.updated_at,
+        }));
+      }
+    } catch (err) {
+      console.warn('Supabase fetch penguji error, falling back to local store:', err);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem(STORAGE_KEY_PENGUJI);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    // initialize default seed
+    localStorage.setItem(STORAGE_KEY_PENGUJI, JSON.stringify(DAFTAR_PENGUJI));
+  }
+
+  return DAFTAR_PENGUJI;
+}
+
+/**
+ * Menyimpan / memperbarui data penguji sidang
+ */
+export async function savePenguji(penguji: Penguji): Promise<Penguji[]> {
+  const currentList = await getPengujiList();
+  const existingIdx = currentList.findIndex((p) => p.id === penguji.id);
+  let updatedList: Penguji[];
+
+  const now = new Date().toISOString();
+  const pengujiWithTimestamps: Penguji = {
+    ...penguji,
+    isActive: penguji.isActive !== false,
+    createdAt: penguji.createdAt || now,
+    updatedAt: now,
+  };
+
+  if (existingIdx >= 0) {
+    updatedList = [...currentList];
+    updatedList[existingIdx] = pengujiWithTimestamps;
+  } else {
+    updatedList = [...currentList, pengujiWithTimestamps];
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PENGUJI, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'PENGUJI_UPDATED' as any,
+    payload: pengujiWithTimestamps,
+  });
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from('penguji').upsert({
+        id: pengujiWithTimestamps.id,
+        nama: pengujiWithTimestamps.nama,
+        nip: pengujiWithTimestamps.nip,
+        peran: pengujiWithTimestamps.peran,
+        avatar: pengujiWithTimestamps.avatar,
+        email: pengujiWithTimestamps.email,
+        password: pengujiWithTimestamps.password,
+        telepon: pengujiWithTimestamps.telepon,
+        instansi_asal: pengujiWithTimestamps.instansiAsal,
+        bidang_keahlian: pengujiWithTimestamps.bidangKeahlian,
+        is_active: pengujiWithTimestamps.isActive,
+        updated_at: now,
+      });
+    } catch (err) {
+      console.warn('Supabase upsert penguji error:', err);
+    }
+  }
+
+  return updatedList;
+}
+
+/**
+ * Menghapus penguji sidang
+ */
+export async function deletePenguji(id: string): Promise<{ success: boolean; list: Penguji[]; message: string }> {
+  const currentList = await getPengujiList();
+  if (currentList.length <= 1) {
+    return {
+      success: false,
+      list: currentList,
+      message: 'Minimal harus ada 1 penguji sidang aktif yang terdaftar di sistem.',
+    };
+  }
+
+  const updatedList = currentList.filter((p) => p.id !== id);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PENGUJI, JSON.stringify(updatedList));
+  }
+
+  broadcastRealtimeChange({
+    type: 'PENGUJI_DELETED' as any,
+    payload: { id },
+  });
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from('penguji').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Supabase delete penguji error:', err);
+    }
+  }
+
+  return {
+    success: true,
+    list: updatedList,
+    message: 'Data penguji sidang berhasil dihapus.',
+  };
+}
+
+/**
+ * Reset data penguji kembali ke seed default
+ */
+export async function resetPengujiToDefault(): Promise<Penguji[]> {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PENGUJI, JSON.stringify(DAFTAR_PENGUJI));
+  }
+
+  broadcastRealtimeChange({
+    type: 'PENGUJI_UPDATED' as any,
+    payload: DAFTAR_PENGUJI,
+  });
+
+  return DAFTAR_PENGUJI;
+}
+
+// =========================================================================
+// AUTHENTICATION & SESSION MANAGEMENT
+// =========================================================================
+
+/**
+ * Mengambil session user saat ini (Admin atau Penguji)
+ */
+export function getCurrentAuthUser(): AuthUser {
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem(STORAGE_KEY_AUTH);
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // Default initial session: Dr. Ir. Hendra Kurniawan (Ketua Penguji)
+  const defaultUser: AuthUser = {
+    id: 'p1',
+    nama: 'Dr. Ir. Hendra Kurniawan, M.T.',
+    usernameOrNip: '198203152008121001',
+    role: 'penguji',
+    pengujiId: 'p1',
+    email: 'hendra.kurniawan@smk-vokasi.sch.id',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    loginAt: new Date().toISOString(),
+  };
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(defaultUser));
+  }
+
+  return defaultUser;
+}
+
+/**
+ * Simpan session user yang sedang aktif
+ */
+export function setCurrentAuthUser(user: AuthUser | null): void {
+  if (typeof window !== 'undefined') {
+    if (user) {
+      localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(STORAGE_KEY_AUTH);
+    }
+  }
+
+  broadcastRealtimeChange({
+    type: 'AUTH_CHANGED' as any,
+    payload: user,
+  });
+}
+
+/**
+ * Login user (Admin atau Penguji)
+ */
+export async function loginUser(
+  identifier: string,
+  password: string,
+  targetRole?: 'admin' | 'penguji'
+): Promise<{ success: boolean; user?: AuthUser; message: string }> {
+  const cleanId = identifier.trim();
+  const cleanPass = password.trim();
+
+  if (!cleanId) {
+    return { success: false, message: 'Masukkan NIP, Email, atau Username Anda.' };
+  }
+
+  // 1. Cek Admin Login
+  if (
+    cleanId.toLowerCase() === 'admin' ||
+    cleanId.toLowerCase() === 'admin@mypkl.id' ||
+    targetRole === 'admin'
+  ) {
+    if (cleanPass === 'admin123' || cleanPass === 'admin' || !cleanPass) {
+      const adminUser: AuthUser = {
+        id: 'admin-01',
+        nama: 'Administrator PKL & Sidang',
+        usernameOrNip: 'admin',
+        role: 'admin',
+        email: 'admin@mypkl.id',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+        loginAt: new Date().toISOString(),
+      };
+      setCurrentAuthUser(adminUser);
+      return { success: true, user: adminUser, message: 'Berhasil masuk sebagai Administrator!' };
+    }
+  }
+
+  // 2. Cek Penguji Login
+  const pengujiList = await getPengujiList();
+  const matchedPenguji = pengujiList.find(
+    (p) =>
+      p.nip.toLowerCase() === cleanId.toLowerCase() ||
+      p.email?.toLowerCase() === cleanId.toLowerCase() ||
+      p.nama.toLowerCase().includes(cleanId.toLowerCase())
+  );
+
+  if (matchedPenguji) {
+    // Verifikasi password (atau allow penguji123 / direct login di mode demo jika dikosongkan)
+    const validPassword = matchedPenguji.password || 'penguji123';
+    if (!cleanPass || cleanPass === validPassword || cleanPass === 'penguji123' || cleanPass === '123456') {
+      const pengujiUser: AuthUser = {
+        id: matchedPenguji.id,
+        nama: matchedPenguji.nama,
+        usernameOrNip: matchedPenguji.nip,
+        role: 'penguji',
+        pengujiId: matchedPenguji.id,
+        email: matchedPenguji.email,
+        avatar: matchedPenguji.avatar,
+        loginAt: new Date().toISOString(),
+      };
+      setCurrentAuthUser(pengujiUser);
+      return {
+        success: true,
+        user: pengujiUser,
+        message: `Selamat datang, ${matchedPenguji.nama} (${matchedPenguji.peran})!`,
+      };
+    } else {
+      return { success: false, message: 'Kata sandi penguji salah. (Password demo: penguji123)' };
+    }
+  }
+
+  // Fallback match jika login dengan 1-click penguji ID
+  const directById = pengujiList.find((p) => p.id === cleanId);
+  if (directById) {
+    const pengujiUser: AuthUser = {
+      id: directById.id,
+      nama: directById.nama,
+      usernameOrNip: directById.nip,
+      role: 'penguji',
+      pengujiId: directById.id,
+      email: directById.email,
+      avatar: directById.avatar,
+      loginAt: new Date().toISOString(),
+    };
+    setCurrentAuthUser(pengujiUser);
+    return {
+      success: true,
+      user: pengujiUser,
+      message: `Berhasil masuk sebagai ${directById.nama}!`,
+    };
+  }
+
+  return {
+    success: false,
+    message: 'Akun penguji tidak ditemukan. Periksa NIP atau gunakan login 1-klik di bawah.',
+  };
+}
+
+/**
+ * Logout user
+ */
+export function logoutUser(): void {
+  setCurrentAuthUser(null);
+}

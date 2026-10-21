@@ -20,15 +20,37 @@ export interface Penguji {
   id: string;
   nama: string;
   nip: string;
-  peran: 'Penguji 1 (Ketua)' | 'Penguji 2 (Sekretaris)' | 'Penguji 3 (Anggota)';
+  peran: string; // e.g. 'Penguji 1 (Ketua)', 'Penguji 2 (Sekretaris)', 'Penguji 3 (Anggota)', 'Penguji DUDI'
   avatar: string;
+  email?: string;
+  password?: string;
+  telepon?: string;
+  instansiAsal?: string;
+  bidangKeahlian?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AuthUser {
+  id: string;
+  nama: string;
+  usernameOrNip: string;
+  role: 'admin' | 'penguji';
+  pengujiId?: string;
+  email?: string;
+  avatar?: string;
+  loginAt: string;
 }
 
 export interface KriteriaNilai {
   id: string;
+  nomor?: number;
   nama: string;
   deskripsi: string;
-  bobot: number; // Percentage e.g. 25
+  kategori?: 'agenda' | 'sidang';
+  kategoriNama?: string;
+  bobot: number; // Persentase bobot e.g. 10 atau 25
   nilaiMaksimal: number; // 100
 }
 
@@ -44,7 +66,9 @@ export interface PenilaianPenguji {
   pengujiNama: string;
   pengujiPeran: string;
   nilaiItems: NilaiKriteriaItem[];
-  totalNilai: number; // 0 - 100
+  subtotalAgenda?: number; // Skor rata-rata Buku Agenda (0-100)
+  subtotalSidang?: number; // Skor rata-rata Ujian Sidang (0-100)
+  totalNilai: number; // 0 - 100 (50% Agenda + 50% Sidang)
   nilaiHuruf: 'A' | 'B' | 'C' | 'D' | 'E';
   catatanRevisi: string;
   rekomendasiStatus: 'Lulus' | 'Lulus dengan Revisi' | 'Mengulang Sidang';
@@ -60,6 +84,8 @@ export interface HasilRekapitulasi {
     pengujiId: string;
     pengujiNama: string;
     pengujiPeran: string;
+    subtotalAgenda?: number;
+    subtotalSidang?: number;
     totalNilai: number;
     nilaiHuruf: string;
     catatanRevisi: string;
@@ -69,7 +95,7 @@ export interface HasilRekapitulasi {
   nilaiAkhirAngka: number;
   nilaiAkhirHuruf: 'A' | 'B' | 'C' | 'D' | 'E';
   predikat: string;
-  keputusanAkhir: 'LULUS DENGAN PUJIAN' | 'LULUS' | 'LULUS REVISI' | 'MENGULANG' | 'BELUM DINILAI';
+  keputusanAkhir: 'LULUS (AMAT KOMPETEN)' | 'LULUS (KOMPETEN)' | 'LULUS (BATAS KKM)' | 'BELUM LULUS (REMEDIAL)' | 'BELUM DINILAI';
   isLengkap: boolean;
 }
 
