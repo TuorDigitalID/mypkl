@@ -92,7 +92,14 @@ export interface HasilRekapitulasi {
     rekomendasiStatus: string;
     updatedAt: string;
   }[];
-  nilaiAkhirAngka: number;
+  // Rincian Formula 2 Penguji (50% Sidang [P1+P2] + 50% Jurnal PKL)
+  nilaiJurnalPkl: number;       // Rata-rata 5 Aspek Buku Agenda (0 - 100)
+  poinJurnalPkl50: number;      // Poin Terbobot Jurnal PKL (maks 50)
+  nilaiSidangP1: number;        // Nilai Sidang Penguji 1 (0 - 100)
+  nilaiSidangP2: number;        // Nilai Sidang Penguji 2 (0 - 100)
+  nilaiSidangGabungan: number;  // Rata-rata Nilai Sidang (P1 + P2)/2 (0 - 100)
+  poinSidang50: number;         // Poin Terbobot Sidang (maks 50)
+  nilaiAkhirAngka: number;      // Nilai Akhir (100%): poinJurnalPkl50 + poinSidang50
   nilaiAkhirHuruf: 'A' | 'B' | 'C' | 'D' | 'E';
   predikat: string;
   keputusanAkhir: 'LULUS (AMAT KOMPETEN)' | 'LULUS (KOMPETEN)' | 'LULUS (BATAS KKM)' | 'BELUM LULUS (REMEDIAL)' | 'BELUM DINILAI';

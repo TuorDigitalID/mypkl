@@ -69,10 +69,10 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
     return pesertaList.find((p) => p.id === activePesertaId) || pesertaList[0];
   }, [pesertaList, activePesertaId]);
 
-  // Aggregate stats for this student across all 3 examiners
+  // Aggregate stats for this student across 2 room examiners
   const aggregateResult = useMemo(() => {
     if (!activePeserta) return null;
-    return calculateFinalAggregate(activePeserta.id, penilaianList, 3);
+    return calculateFinalAggregate(activePeserta.id, penilaianList, 2);
   }, [activePeserta, penilaianList]);
 
   // Find existing evaluation for current active examiner
@@ -403,7 +403,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
               </h2>
             </div>
             <p className="text-xs text-orange-200/80 mt-0.5">
-              Nilai dihitung dari: Aspek Buku Agenda PSG/PKL (50%) + Aspek Ujian Sidang PKL (50%).
+              Skema 2 Penguji Ruangan: Nilai Sidang (Penguji 1 + Penguji 2)/2 (50%) + Nilai Jurnal PKL (50%) = 100% Nilai Akhir.
             </p>
           </div>
 
@@ -444,9 +444,9 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
           </div>
         )}
 
-        {/* 3 Penguji Live Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          {DAFTAR_PENGUJI.map((penguji) => {
+        {/* 2 Penguji Ruangan Live Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          {DAFTAR_PENGUJI.slice(0, 2).map((penguji) => {
             const ev = penilaianList.find(
               (p) => p.mahasiswaId === activePeserta.id && p.pengujiId === penguji.id
             );
@@ -551,7 +551,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
               </div>
               <div>
                 <span className="text-xs font-extrabold text-orange-300 uppercase tracking-wider block">
-                  Nilai Akhir Rata-Rata Gabungan ({aggregateResult.totalPengujiMenilai} dari 3 Penguji)
+                  Nilai Akhir Rata-Rata Gabungan ({aggregateResult.totalPengujiMenilai} dari 2 Penguji)
                 </span>
                 <div className="flex items-baseline gap-3 mt-1 flex-wrap">
                   <span className="font-mono text-3xl sm:text-4xl font-black text-white">

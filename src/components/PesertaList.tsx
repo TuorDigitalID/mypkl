@@ -171,7 +171,7 @@ export const PesertaList: React.FC<PesertaListProps> = ({
       {/* Student Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredList.map((peserta) => {
-          const aggregate = calculateFinalAggregate(peserta.id, penilaianList, 3);
+          const aggregate = calculateFinalAggregate(peserta.id, penilaianList, 2);
           const isOngoing = peserta.status === 'berlangsung';
           const isDone = peserta.status === 'selesai';
 
@@ -244,14 +244,14 @@ export const PesertaList: React.FC<PesertaListProps> = ({
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className={`w-2 h-2 rounded-full ${
-                      aggregate.totalPengujiMenilai >= 3
+                      aggregate.totalPengujiMenilai >= 2
                         ? 'bg-emerald-500'
                         : aggregate.totalPengujiMenilai > 0
                         ? 'bg-amber-500'
                         : 'bg-slate-300'
                     }`} />
                     <span className="text-xs font-semibold text-slate-700">
-                      {aggregate.totalPengujiMenilai} dari 3 Penguji
+                      {aggregate.totalPengujiMenilai} dari 2 Penguji
                     </span>
                   </div>
                   {aggregate.nilaiAkhirAngka > 0 && (

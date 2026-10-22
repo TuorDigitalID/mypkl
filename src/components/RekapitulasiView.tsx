@@ -7,11 +7,9 @@ import {
   Clock, 
   Award, 
   Users, 
-  ChevronRight,
   Printer
 } from 'lucide-react';
 import { MahasiswaSidang, PenilaianPenguji } from '../types/index.ts';
-import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 import { calculateFinalAggregate } from '../utils/scoring.ts';
 
 interface RekapitulasiViewProps {
@@ -25,16 +23,15 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
   pesertaList,
   penilaianList,
   onOpenBeritaAcara,
-  onSelectPesertaForSidang,
 }) => {
-  // Compute overall statistics
+  // Compute overall statistics with 2 examiners per room
   const totalPeserta = pesertaList.length;
   const selesaiCount = pesertaList.filter((p) => p.status === 'selesai').length;
   const berlangsungCount = pesertaList.filter((p) => p.status === 'berlangsung').length;
 
   const validScores: number[] = [];
   pesertaList.forEach((p) => {
-    const agg = calculateFinalAggregate(p.id, penilaianList, 3);
+    const agg = calculateFinalAggregate(p.id, penilaianList, 2);
     if (agg.nilaiAkhirAngka > 0) {
       validScores.push(agg.nilaiAkhirAngka);
     }
@@ -45,7 +42,7 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
       ? (validScores.reduce((a, b) => a + b, 0) / validScores.length).toFixed(2)
       : '0.00';
 
-  // Export to CSV function
+  // Export to CSV function matching the 2-examiner 50:50 formula
   const handleExportCSV = () => {
     const headers = [
       'No',
@@ -53,20 +50,20 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
       'Nama Mahasiswa',
       'Program Studi',
       'Tempat PKL',
-      'Penguji 1',
-      'Penguji 2',
-      'Penguji 3',
-      'Nilai Akhir Angka',
+      'Nilai Jurnal PKL (Skor 0-100)',
+      'Poin Jurnal PKL (Bobot 50%)',
+      'Nilai Sidang Penguji 1',
+      'Nilai Sidang Penguji 2',
+      'Nilai Sidang Gabungan (P1+P2)/2',
+      'Poin Sidang (Bobot 50%)',
+      'Nilai Akhir Angka (100%)',
       'Nilai Huruf',
       'Predikat',
       'Keputusan Sidang',
     ];
 
     const rows = pesertaList.map((p, index) => {
-      const agg = calculateFinalAggregate(p.id, penilaianList, 3);
-      const p1 = agg.nilaiPerPenguji.find((n) => n.pengujiId === 'p1')?.totalNilai ?? '-';
-      const p2 = agg.nilaiPerPenguji.find((n) => n.pengujiId === 'p2')?.totalNilai ?? '-';
-      const p3 = agg.nilaiPerPenguji.find((n) => n.pengujiId === 'p3')?.totalNilai ?? '-';
+      const agg = calculateFinalAggregate(p.id, penilaianList, 2);
 
       return [
         index + 1,
@@ -74,10 +71,13 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
         `"${p.nama}"`,
         `"${p.prodi}"`,
         `"${p.perusahaan}"`,
-        p1,
-        p2,
-        p3,
-        agg.nilaiAkhirAngka > 0 ? agg.nilaiAkhirAngka : '-',
+        agg.nilaiJurnalPkl > 0 ? agg.nilaiJurnalPkl.toFixed(1) : '-',
+        agg.poinJurnalPkl50 > 0 ? agg.poinJurnalPkl50.toFixed(1) : '-',
+        agg.nilaiSidangP1 > 0 ? agg.nilaiSidangP1.toFixed(1) : '-',
+        agg.nilaiSidangP2 > 0 ? agg.nilaiSidangP2.toFixed(1) : '-',
+        agg.nilaiSidangGabungan > 0 ? agg.nilaiSidangGabungan.toFixed(1) : '-',
+        agg.poinSidang50 > 0 ? agg.poinSidang50.toFixed(1) : '-',
+        agg.nilaiAkhirAngka > 0 ? agg.nilaiAkhirAngka.toFixed(2) : '-',
         agg.nilaiAkhirHuruf,
         `"${agg.predikat}"`,
         `"${agg.keputusanAkhir}"`,
@@ -88,7 +88,7 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Rekap_Nilai_Sidang_PKL_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Rekap_Nilai_Sidang_PKL_2Penguji_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -102,17 +102,17 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-            <span>Rekapitulasi Nilai Sidang PKL</span>
+            <span>Rekapitulasi Nilai Sidang PKL (2 Penguji per Ruangan)</span>
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Daftar komprehensif nilai kumulatif 3 dewan penguji beserta status keputusan kelulusan.
+            Formula Resmi: Nilai Sidang (Penguji 1 + Penguji 2)/2 berkontribusi <strong>50%</strong> + Nilai Jurnal PKL (5 Aspek Agenda) berkontribusi <strong>50%</strong> = <strong>100% Nilai Akhir</strong>.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span className="hidden sm:inline">Cetak Rekap</span>
@@ -120,7 +120,7 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
 
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
           >
             <Download className="w-4 h-4" />
             <span>Ekspor CSV / Excel</span>
@@ -178,7 +178,7 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
           </div>
           <div>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-              Rata-Rata Nilai
+              Rata-Rata Nilai Akhir
             </span>
             <span className="text-xl font-extrabold text-emerald-700 font-mono">
               {meanScore}
@@ -193,27 +193,25 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4">No</th>
+                <th className="py-3 px-3">No</th>
                 <th className="py-3 px-4">Peserta & NIM</th>
                 <th className="py-3 px-4">Tempat PKL (DUDI)</th>
-                <th className="py-3 px-3 text-center">Penguji 1 (Ketua)</th>
-                <th className="py-3 px-3 text-center">Penguji 2 (Sekr)</th>
-                <th className="py-3 px-3 text-center">Penguji 3 (Angg)</th>
-                <th className="py-3 px-4 text-center">Nilai Rata-Rata</th>
+                <th className="py-3 px-3 text-center bg-amber-50/50">Jurnal PKL (50%)</th>
+                <th className="py-3 px-3 text-center">Sidang P1 (Ketua)</th>
+                <th className="py-3 px-3 text-center">Sidang P2 (Sekr)</th>
+                <th className="py-3 px-3 text-center bg-orange-50/50">Rata-Rata Sidang (50%)</th>
+                <th className="py-3 px-4 text-center bg-emerald-50/50">Nilai Akhir (100%)</th>
                 <th className="py-3 px-4 text-center">Keputusan</th>
                 <th className="py-3 px-4 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {pesertaList.map((peserta, index) => {
-                const agg = calculateFinalAggregate(peserta.id, penilaianList, 3);
-                const scoreP1 = agg.nilaiPerPenguji.find((n) => n.pengujiId === 'p1');
-                const scoreP2 = agg.nilaiPerPenguji.find((n) => n.pengujiId === 'p2');
-                const scoreP3 = agg.nilaiPerPenguji.find((n) => n.pengujiId === 'p3');
+                const agg = calculateFinalAggregate(peserta.id, penilaianList, 2);
 
                 return (
                   <tr key={peserta.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-medium text-slate-400">
+                    <td className="py-3.5 px-3 font-mono font-medium text-slate-400">
                       {index + 1}
                     </td>
 
@@ -227,50 +225,64 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
                       <p className="text-slate-400 text-[11px] truncate max-w-xs">{peserta.judulLaporan}</p>
                     </td>
 
-                    {/* Penguji 1 Score */}
-                    <td className="py-3.5 px-3 text-center">
-                      {scoreP1 ? (
+                    {/* Nilai Jurnal PKL (50%) */}
+                    <td className="py-3.5 px-3 text-center bg-amber-50/20">
+                      {agg.nilaiJurnalPkl > 0 ? (
                         <div className="font-mono">
-                          <span className="font-bold text-slate-800">{scoreP1.totalNilai.toFixed(1)}</span>
-                          <span className="text-[10px] text-emerald-600 font-bold ml-1">({scoreP1.nilaiHuruf})</span>
+                          <span className="font-bold text-slate-900">{agg.nilaiJurnalPkl.toFixed(1)}</span>
+                          <span className="text-[10px] text-amber-700 font-bold block">
+                            (Poin: {agg.poinJurnalPkl50.toFixed(1)})
+                          </span>
                         </div>
                       ) : (
                         <span className="text-slate-300 font-mono">-</span>
                       )}
                     </td>
 
-                    {/* Penguji 2 Score */}
+                    {/* Penguji 1 Sidang */}
                     <td className="py-3.5 px-3 text-center">
-                      {scoreP2 ? (
+                      {agg.nilaiSidangP1 > 0 ? (
                         <div className="font-mono">
-                          <span className="font-bold text-slate-800">{scoreP2.totalNilai.toFixed(1)}</span>
-                          <span className="text-[10px] text-emerald-600 font-bold ml-1">({scoreP2.nilaiHuruf})</span>
+                          <span className="font-bold text-slate-800">{agg.nilaiSidangP1.toFixed(1)}</span>
                         </div>
                       ) : (
                         <span className="text-slate-300 font-mono">-</span>
                       )}
                     </td>
 
-                    {/* Penguji 3 Score */}
+                    {/* Penguji 2 Sidang */}
                     <td className="py-3.5 px-3 text-center">
-                      {scoreP3 ? (
+                      {agg.nilaiSidangP2 > 0 ? (
                         <div className="font-mono">
-                          <span className="font-bold text-slate-800">{scoreP3.totalNilai.toFixed(1)}</span>
-                          <span className="text-[10px] text-emerald-600 font-bold ml-1">({scoreP3.nilaiHuruf})</span>
+                          <span className="font-bold text-slate-800">{agg.nilaiSidangP2.toFixed(1)}</span>
                         </div>
                       ) : (
                         <span className="text-slate-300 font-mono">-</span>
                       )}
                     </td>
 
-                    {/* Final Average Score */}
-                    <td className="py-3.5 px-4 text-center">
+                    {/* Nilai Sidang Gabungan (50%) */}
+                    <td className="py-3.5 px-3 text-center bg-orange-50/20">
+                      {agg.nilaiSidangGabungan > 0 ? (
+                        <div className="font-mono">
+                          <span className="font-bold text-slate-900">{agg.nilaiSidangGabungan.toFixed(1)}</span>
+                          <span className="text-[10px] text-orange-700 font-bold block">
+                            (Poin: {agg.poinSidang50.toFixed(1)})
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-300 font-mono">-</span>
+                      )}
+                    </td>
+
+                    {/* Final 100% Score */}
+                    <td className="py-3.5 px-4 text-center bg-emerald-50/20">
                       {agg.nilaiAkhirAngka > 0 ? (
                         <div>
-                          <span className="font-mono font-extrabold text-sm text-slate-900">
+                          <span className="font-mono font-black text-sm text-slate-900">
                             {agg.nilaiAkhirAngka.toFixed(2)}
                           </span>
-                          <span className="ml-1.5 font-bold text-xs text-emerald-600">
+                          <span className="ml-1.5 font-bold text-xs text-emerald-700">
                             [{agg.nilaiAkhirHuruf}]
                           </span>
                         </div>
@@ -301,7 +313,7 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => onOpenBeritaAcara(peserta.id)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
                           title="Cetak Berita Acara Sidang"
                         >
                           <FileText className="w-3.5 h-3.5 text-emerald-600" />

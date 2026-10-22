@@ -98,16 +98,18 @@ test('getGradeRangeInfo returns correct metadata for each grade level', () => {
   assert.equal(infoD.predikatSingkat, 'Kurang');
 });
 
-test('calculateFinalAggregate calculates multi-examiner mean and decision', () => {
+test('calculateFinalAggregate calculates 2-examiner 50% Sidang + 50% Jurnal PKL formula', () => {
   const evaluations: PenilaianPenguji[] = [
     {
       id: 'p1',
       mahasiswaId: 'm1',
-      pengujiId: 'd1',
-      pengujiNama: 'Dr. Hendra',
+      pengujiId: 'p1',
+      pengujiNama: 'Dr. Ir. Hendra Kurniawan, M.T.',
       pengujiPeran: 'Penguji 1 (Ketua)',
       nilaiItems: [],
-      totalNilai: 90,
+      subtotalAgenda: 90,
+      subtotalSidang: 80,
+      totalNilai: 85,
       nilaiHuruf: 'A',
       catatanRevisi: 'Bagus',
       rekomendasiStatus: 'Lulus',
@@ -117,45 +119,47 @@ test('calculateFinalAggregate calculates multi-examiner mean and decision', () =
     {
       id: 'p2',
       mahasiswaId: 'm1',
-      pengujiId: 'd2',
-      pengujiNama: 'Siti Nurhaliza',
+      pengujiId: 'p2',
+      pengujiNama: 'Siti Nurhaliza, S.Kom., M.Cs.',
       pengujiPeran: 'Penguji 2 (Sekretaris)',
       nilaiItems: [],
-      totalNilai: 88,
+      subtotalAgenda: 90,
+      subtotalSidang: 84,
+      totalNilai: 87,
       nilaiHuruf: 'A',
-      catatanRevisi: 'Rapikan diagram',
-      rekomendasiStatus: 'Lulus dengan Revisi',
+      catatanRevisi: 'Rapikan diagram alur',
+      rekomendasiStatus: 'Lulus',
       isDraft: false,
       updatedAt: '2026-10-18T10:05:00Z',
     },
-    {
-      id: 'p3',
-      mahasiswaId: 'm1',
-      pengujiId: 'd3',
-      pengujiNama: 'Bambang',
-      pengujiPeran: 'Penguji 3 (Anggota)',
-      nilaiItems: [],
-      totalNilai: 86,
-      nilaiHuruf: 'A',
-      catatanRevisi: 'Oke',
-      rekomendasiStatus: 'Lulus',
-      isDraft: false,
-      updatedAt: '2026-10-18T10:08:00Z',
-    },
   ];
 
-  const recap = calculateFinalAggregate('m1', evaluations, 3);
-  assert.equal(recap.totalPengujiMenilai, 3);
+  // Default required examiners count is 2
+  const recap = calculateFinalAggregate('m1', evaluations, 2);
+  assert.equal(recap.totalPengujiMenilai, 2);
+  assert.equal(recap.totalPengujiWajib, 2);
   assert.equal(recap.isLengkap, true);
-  // Average of 90, 88, 86 = 88
-  assert.equal(recap.nilaiAkhirAngka, 88);
+
+  // Nilai Jurnal PKL: average of 90 & 90 = 90
+  assert.equal(recap.nilaiJurnalPkl, 90);
+  assert.equal(recap.poinJurnalPkl50, 45); // 90 * 0.5
+
+  // Nilai Sidang: P1=80, P2=84 => Rata-rata (80+84)/2 = 82
+  assert.equal(recap.nilaiSidangP1, 80);
+  assert.equal(recap.nilaiSidangP2, 84);
+  assert.equal(recap.nilaiSidangGabungan, 82);
+  assert.equal(recap.poinSidang50, 41); // 82 * 0.5
+
+  // Nilai Akhir (100%) = 45 + 41 = 86
+  assert.equal(recap.nilaiAkhirAngka, 86);
   assert.equal(recap.nilaiAkhirHuruf, 'A');
   assert.equal(recap.keputusanAkhir, 'LULUS (AMAT KOMPETEN)');
 });
 
 test('calculateFinalAggregate returns BELUM DINILAI when no evaluations submitted', () => {
-  const recap = calculateFinalAggregate('m_empty', [], 3);
+  const recap = calculateFinalAggregate('m_empty', [], 2);
   assert.equal(recap.totalPengujiMenilai, 0);
+  assert.equal(recap.totalPengujiWajib, 2);
   assert.equal(recap.keputusanAkhir, 'BELUM DINILAI');
 });
 

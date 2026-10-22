@@ -260,12 +260,17 @@ export function getGradeRangeInfo(score: number): GradeRangeInfo {
 }
 
 /**
- * Menghitung rekapitulasi gabungan dari seluruh penguji untuk mahasiswa tertentu
+ * Menghitung rekapitulasi gabungan 2 dewan penguji per ruangan:
+ * - Nilai Sidang = (Nilai Sidang Penguji 1 + Nilai Sidang Penguji 2) / 2
+ * - Poin Sidang (50%) = Nilai Sidang * 0.50
+ * - Nilai Jurnal PKL (5 Aspek Buku Agenda) = Rata-rata Subtotal Agenda
+ * - Poin Jurnal PKL (50%) = Nilai Jurnal PKL * 0.50
+ * - Nilai Akhir (100%) = Poin Jurnal PKL (50%) + Poin Sidang (50%)
  */
 export function calculateFinalAggregate(
   mahasiswaId: string,
   evaluations: PenilaianPenguji[],
-  requiredExaminersCount: number = 3
+  requiredExaminersCount: number = 2
 ): HasilRekapitulasi {
   const mEvaluations = evaluations.filter(
     (e) => e.mahasiswaId === mahasiswaId && !e.isDraft
@@ -280,6 +285,12 @@ export function calculateFinalAggregate(
       totalPengujiMenilai: 0,
       totalPengujiWajib: requiredExaminersCount,
       nilaiPerPenguji: [],
+      nilaiJurnalPkl: 0,
+      poinJurnalPkl50: 0,
+      nilaiSidangP1: 0,
+      nilaiSidangP2: 0,
+      nilaiSidangGabungan: 0,
+      poinSidang50: 0,
       nilaiAkhirAngka: 0,
       nilaiAkhirHuruf: 'D',
       predikat: 'Belum Dinilai',
@@ -288,10 +299,67 @@ export function calculateFinalAggregate(
     };
   }
 
-  const sumTotal = mEvaluations.reduce((sum, item) => sum + item.totalNilai, 0);
-  const averageScore = Math.round((sumTotal / totalPengujiMenilai) * 100) / 100;
-  const letter = calculateGradeLetter(averageScore);
-  const predikat = calculatePredicate(averageScore);
+  // Tentukan Penguji 1 (Ketua) dan Penguji 2 (Sekretaris / Penguji 2)
+  const evalP1 = mEvaluations.find(
+    (e) => e.pengujiId === 'p1' || e.pengujiPeran.includes('1') || e.pengujiPeran.toLowerCase().includes('ketua')
+  ) || mEvaluations[0];
+
+  const evalP2 = mEvaluations.find(
+    (e) =>
+      (e.pengujiId === 'p2' ||
+        e.pengujiPeran.includes('2') ||
+        e.pengujiPeran.toLowerCase().includes('sekr') ||
+        e.pengujiPeran.toLowerCase().includes('anggota')) &&
+      e.pengujiId !== evalP1?.pengujiId
+  ) || (mEvaluations.length > 1 ? mEvaluations[1] : undefined);
+
+  // Nilai Sidang per penguji (2 Aspek Sidang)
+  const nilaiSidangP1 = evalP1
+    ? (typeof evalP1.subtotalSidang === 'number' && !isNaN(evalP1.subtotalSidang)
+        ? evalP1.subtotalSidang
+        : evalP1.totalNilai)
+    : 0;
+
+  const nilaiSidangP2 = evalP2
+    ? (typeof evalP2.subtotalSidang === 'number' && !isNaN(evalP2.subtotalSidang)
+        ? evalP2.subtotalSidang
+        : evalP2.totalNilai)
+    : 0;
+
+  // Nilai Sidang Gabungan: Rata-rata dari nilai sidang dewan penguji ruangan
+  let nilaiSidangGabungan = 0;
+  if (evalP1 && evalP2) {
+    nilaiSidangGabungan = Math.round(((nilaiSidangP1 + nilaiSidangP2) / 2) * 100) / 100;
+  } else if (evalP1) {
+    nilaiSidangGabungan = nilaiSidangP1;
+  } else if (evalP2) {
+    nilaiSidangGabungan = nilaiSidangP2;
+  }
+
+  // Poin Terbobot Sidang (50%)
+  const poinSidang50 = Math.round((nilaiSidangGabungan * 0.5) * 100) / 100;
+
+  // Nilai Jurnal PKL (5 Aspek Agenda: Disiplin, Kerjasama, Inisiatif, Tanggung Jawab, Kebersihan)
+  const agendaScores = mEvaluations
+    .map((e) => e.subtotalAgenda)
+    .filter((v): v is number => typeof v === 'number' && !isNaN(v));
+
+  let nilaiJurnalPkl = 0;
+  if (agendaScores.length > 0) {
+    nilaiJurnalPkl = Math.round((agendaScores.reduce((a, b) => a + b, 0) / agendaScores.length) * 100) / 100;
+  } else {
+    // Fallback jika tidak ada breakdown khusus agenda
+    const sumTotal = mEvaluations.reduce((sum, item) => sum + item.totalNilai, 0);
+    nilaiJurnalPkl = Math.round((sumTotal / totalPengujiMenilai) * 100) / 100;
+  }
+
+  // Poin Terbobot Jurnal PKL (50%)
+  const poinJurnalPkl50 = Math.round((nilaiJurnalPkl * 0.5) * 100) / 100;
+
+  // Nilai Akhir (100%) = Poin Jurnal PKL (50%) + Poin Sidang (50%)
+  const nilaiAkhirAngka = Math.round((poinJurnalPkl50 + poinSidang50) * 100) / 100;
+  const letter = calculateGradeLetter(nilaiAkhirAngka);
+  const predikat = calculatePredicate(nilaiAkhirAngka);
 
   // Periksa rekomendasi apakah ada yang menyarankan mengulang
   const hasMengulang = mEvaluations.some(
@@ -299,11 +367,11 @@ export function calculateFinalAggregate(
   );
 
   let keputusanAkhir: 'LULUS (AMAT KOMPETEN)' | 'LULUS (KOMPETEN)' | 'LULUS (BATAS KKM)' | 'BELUM LULUS (REMEDIAL)' | 'BELUM DINILAI';
-  if (averageScore < 60 || hasMengulang) {
+  if (nilaiAkhirAngka < 60 || hasMengulang) {
     keputusanAkhir = 'BELUM LULUS (REMEDIAL)';
-  } else if (averageScore >= 85) {
+  } else if (nilaiAkhirAngka >= 85) {
     keputusanAkhir = 'LULUS (AMAT KOMPETEN)';
-  } else if (averageScore >= 70) {
+  } else if (nilaiAkhirAngka >= 70) {
     keputusanAkhir = 'LULUS (KOMPETEN)';
   } else {
     keputusanAkhir = 'LULUS (BATAS KKM)';
@@ -325,7 +393,13 @@ export function calculateFinalAggregate(
       rekomendasiStatus: e.rekomendasiStatus,
       updatedAt: e.updatedAt,
     })),
-    nilaiAkhirAngka: averageScore,
+    nilaiJurnalPkl,
+    poinJurnalPkl50,
+    nilaiSidangP1,
+    nilaiSidangP2,
+    nilaiSidangGabungan,
+    poinSidang50,
+    nilaiAkhirAngka,
     nilaiAkhirHuruf: letter,
     predikat,
     keputusanAkhir,
@@ -435,6 +509,38 @@ CREATE TABLE IF NOT EXISTS public.penilaian_sidang (
 -- Tambah kolom subtotal agenda & sidang jika tabel penilaian sudah ada sebelumnya
 ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_agenda NUMERIC(5,2) DEFAULT 0.00;
 ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_sidang NUMERIC(5,2) DEFAULT 0.00;
+
+-- View Rekapitulasi Sidang PKL 2 Penguji (50% Sidang [P1+P2] + 50% Jurnal PKL = 100%)
+CREATE OR REPLACE VIEW public.v_rekapitulasi_sidang_2penguji AS
+SELECT 
+    ps.id AS mahasiswa_id,
+    ps.nim,
+    ps.nama AS nama_mahasiswa,
+    ps.prodi,
+    ps.kelas,
+    ps.perusahaan,
+    ps.judul_laporan,
+    ps.ruangan,
+    ps.status,
+    -- Nilai Jurnal PKL (Rata-rata 5 Aspek Agenda Buku PKL)
+    ROUND(COALESCE(AVG(pn.subtotal_agenda), 0), 2) AS nilai_jurnal_pkl,
+    ROUND(COALESCE(AVG(pn.subtotal_agenda), 0) * 0.50, 2) AS poin_jurnal_pkl_50,
+    -- Nilai Sidang Penguji 1 & 2 (Gunakan ::text agar aman jika kolom penguji_id bertipe UUID)
+    COALESCE(MAX(CASE WHEN pn.penguji_id::text = 'p1' OR pn.penguji_peran ILIKE '%1%' OR pn.penguji_peran ILIKE '%ketua%' THEN pn.subtotal_sidang END), 0) AS nilai_sidang_p1,
+    COALESCE(MAX(CASE WHEN pn.penguji_id::text = 'p2' OR pn.penguji_peran ILIKE '%2%' OR pn.penguji_peran ILIKE '%sekr%' THEN pn.subtotal_sidang END), 0) AS nilai_sidang_p2,
+    -- Nilai Sidang Gabungan (P1 + P2) / 2
+    ROUND(COALESCE(AVG(pn.subtotal_sidang), 0), 2) AS nilai_sidang_gabungan,
+    ROUND(COALESCE(AVG(pn.subtotal_sidang), 0) * 0.50, 2) AS poin_sidang_50,
+    -- Nilai Akhir (100%) = 50% Jurnal PKL + 50% Sidang
+    ROUND(
+        (COALESCE(AVG(pn.subtotal_agenda), 0) * 0.50) + 
+        (COALESCE(AVG(pn.subtotal_sidang), 0) * 0.50), 
+        2
+    ) AS nilai_akhir_angka,
+    COUNT(pn.id) AS total_penguji_menilai
+FROM public.peserta_sidang ps
+LEFT JOIN public.penilaian_sidang pn ON ps.id = pn.mahasiswa_id AND pn.is_draft = false
+GROUP BY ps.id, ps.nim, ps.nama, ps.prodi, ps.kelas, ps.perusahaan, ps.judul_laporan, ps.ruangan, ps.status;
 
 -- 4. Tabel Master Jurusan / Program Keahlian
 CREATE TABLE IF NOT EXISTS public.master_jurusan (
@@ -929,6 +1035,57 @@ CREATE POLICY "Public Read Access Master Guru" ON public.master_guru_pembimbing 
 
 DROP POLICY IF EXISTS "Public Write Access Master Guru" ON public.master_guru_pembimbing;
 CREATE POLICY "Public Write Access Master Guru" ON public.master_guru_pembimbing FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+`;
+}
+
+/**
+ * Menghasilkan skrip SQL khusus untuk skema 2 Penguji (50% Sidang + 50% Jurnal PKL)
+ * Dapat disalin langsung ke SQL Editor Supabase untuk memperbarui database.
+ */
+export function generateSidang2PengujiSQLScript(): string {
+  return `-- ====================================================================
+-- SKRIP SQL UPDATE: SKEMA 2 PENGUJI SIDANG & FORMULA 50% SIDANG + 50% JURNAL PKL
+-- Salin dan jalankan perintah ini di Supabase SQL Editor
+-- ====================================================================
+
+-- 1. Pastikan kolom subtotal_agenda dan subtotal_sidang ada pada tabel penilaian
+ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_agenda NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_sidang NUMERIC(5,2) DEFAULT 0.00;
+
+-- 2. Buat View Rekapitulasi Sidang 2 Penguji (50% Sidang [P1+P2] + 50% Jurnal PKL = 100%)
+CREATE OR REPLACE VIEW public.v_rekapitulasi_sidang_2penguji AS
+SELECT 
+    ps.id AS mahasiswa_id,
+    ps.nim,
+    ps.nama AS nama_mahasiswa,
+    ps.prodi,
+    ps.kelas,
+    ps.perusahaan,
+    ps.judul_laporan,
+    ps.ruangan,
+    ps.status,
+    -- Nilai Jurnal PKL (Rata-rata 5 Aspek Agenda Buku PKL)
+    ROUND(COALESCE(AVG(pn.subtotal_agenda), 0), 2) AS nilai_jurnal_pkl,
+    ROUND(COALESCE(AVG(pn.subtotal_agenda), 0) * 0.50, 2) AS poin_jurnal_pkl_50,
+    -- Nilai Sidang Penguji 1 & 2 (Gunakan ::text agar aman jika kolom penguji_id bertipe UUID)
+    COALESCE(MAX(CASE WHEN pn.penguji_id::text = 'p1' OR pn.penguji_peran ILIKE '%1%' OR pn.penguji_peran ILIKE '%ketua%' THEN pn.subtotal_sidang END), 0) AS nilai_sidang_p1,
+    COALESCE(MAX(CASE WHEN pn.penguji_id::text = 'p2' OR pn.penguji_peran ILIKE '%2%' OR pn.penguji_peran ILIKE '%sekr%' THEN pn.subtotal_sidang END), 0) AS nilai_sidang_p2,
+    -- Nilai Sidang Gabungan (P1 + P2) / 2
+    ROUND(COALESCE(AVG(pn.subtotal_sidang), 0), 2) AS nilai_sidang_gabungan,
+    ROUND(COALESCE(AVG(pn.subtotal_sidang), 0) * 0.50, 2) AS poin_sidang_50,
+    -- Nilai Akhir (100%) = 50% Jurnal PKL + 50% Sidang
+    ROUND(
+        (COALESCE(AVG(pn.subtotal_agenda), 0) * 0.50) + 
+        (COALESCE(AVG(pn.subtotal_sidang), 0) * 0.50), 
+        2
+    ) AS nilai_akhir_angka,
+    COUNT(pn.id) AS total_penguji_menilai
+FROM public.peserta_sidang ps
+LEFT JOIN public.penilaian_sidang pn ON ps.id = pn.mahasiswa_id AND pn.is_draft = false
+GROUP BY ps.id, ps.nim, ps.nama, ps.prodi, ps.kelas, ps.perusahaan, ps.judul_laporan, ps.ruangan, ps.status;
+
+-- 3. Berikan Hak Akses ke View untuk Pengguna Supabase
+GRANT SELECT ON public.v_rekapitulasi_sidang_2penguji TO anon, authenticated;
 `;
 }
 
