@@ -114,6 +114,48 @@ export const INITIAL_PESERTA: MahasiswaSidang[] = [
     ruangan: 'Ruang Sidang Utama A-201',
     status: 'menunggu',
   },
+  {
+    id: 'm7',
+    nim: '220101089',
+    nama: 'Dewi Lestari Anggraeni',
+    prodi: 'Desain Komunikasi Visual & Multimedia',
+    kelas: 'DKV-3A',
+    perusahaan: 'PT Telekomunikasi Indonesia (Telkom Regional)',
+    judulLaporan: 'Desain UI/UX Design System & Grafis Promosi Produk Telkom IndiHome Enterprise',
+    pembimbingDudi: 'Bambang Prasetyo, S.T.',
+    pembimbingSekolah: 'Dr. Ir. Hendra Kurniawan, M.T.',
+    jadwalSidang: '2026-10-19T08:30:00',
+    ruangan: 'Ruang Sidang Utama A-201',
+    status: 'menunggu',
+  },
+  {
+    id: 'm8',
+    nim: '220101072',
+    nama: 'Fajar Nugraha',
+    prodi: 'Sistem Informasi Industri',
+    kelas: 'SI-3B',
+    perusahaan: 'PT Bank Central Asia Tbk (BCA) - Digital Lab',
+    judulLaporan: 'Pengembangan Dashboard Fraud Analytics Real-Time Menggunakan Apache Kafka & Streamlit',
+    pembimbingDudi: 'Hendra Wijaya, M.Kom.',
+    pembimbingSekolah: 'Siti Nurhaliza, S.Kom., M.Cs.',
+    jadwalSidang: '2026-10-19T09:30:00',
+    ruangan: 'Ruang Sidang Utama A-201',
+    status: 'menunggu',
+  },
+  {
+    id: 'm9',
+    nim: '220101034',
+    nama: 'Bagus Tri Wicaksono',
+    prodi: 'Teknik Komputer & Jaringan',
+    kelas: 'TKJ-3A',
+    perusahaan: 'Dinas Komunikasi & Informatika (Diskominfo)',
+    judulLaporan: 'Implementasi Bandwidth Management & Monitoring Router Core Menggunakan Zabbix & Telegram Bot',
+    pembimbingDudi: 'Agus Setiawan, S.Kom.',
+    pembimbingSekolah: 'Dr. Ir. Hendra Kurniawan, M.T.',
+    jadwalSidang: '2026-10-19T10:30:00',
+    ruangan: 'Ruang Sidang Utama A-201',
+    status: 'menunggu',
+  },
 ];
 
 export const INITIAL_PENILAIAN: PenilaianPenguji[] = [
@@ -515,6 +557,62 @@ export async function savePesertaSidang(peserta: MahasiswaSidang): Promise<Mahas
     } catch (err) {
       console.warn('Supabase upsert error:', err);
     }
+  }
+
+  return updatedList;
+}
+
+/**
+ * Sinkronisasi Antrean Peserta Sidang dari Tabel Plotting Siswa per Perusahaan
+ */
+export async function syncPesertaFromPlotting(plottingList: PlottingSiswaPKL[]): Promise<MahasiswaSidang[]> {
+  const currentList = await getPesertaSidangList();
+  const validPlots = plottingList.filter((p) => p.instansiNama && p.instansiNama.trim() !== '');
+  
+  let hasChanges = false;
+  const updatedList = [...currentList];
+
+  for (const plot of validPlots) {
+    const existingIdx = updatedList.findIndex(
+      (p) => (p.nim && p.nim === plot.nisn) || p.nama.toLowerCase().trim() === plot.namaSiswa.toLowerCase().trim()
+    );
+
+    if (existingIdx >= 0) {
+      if (updatedList[existingIdx].perusahaan !== plot.instansiNama) {
+        updatedList[existingIdx] = {
+          ...updatedList[existingIdx],
+          perusahaan: plot.instansiNama,
+          pembimbingDudi: plot.pembimbingInstansi || updatedList[existingIdx].pembimbingDudi,
+          pembimbingSekolah: plot.guruNama || updatedList[existingIdx].pembimbingSekolah,
+        };
+        hasChanges = true;
+      }
+    } else {
+      const newPeserta: MahasiswaSidang = {
+        id: `m-plot-${plot.id || plot.nisn || Date.now()}`,
+        nim: plot.nisn || `NIM-${Math.floor(100000 + Math.random() * 900000)}`,
+        nama: plot.namaSiswa,
+        prodi: plot.jurusan || 'Teknik Informatika (RPL)',
+        kelas: plot.kelas || 'XII RPL',
+        perusahaan: plot.instansiNama,
+        judulLaporan: `Laporan Praktik Kerja Lapangan di ${plot.instansiNama}`,
+        pembimbingDudi: plot.pembimbingInstansi || 'Pembimbing Lapangan DUDI',
+        pembimbingSekolah: plot.guruNama || 'Dr. Ir. Hendra Kurniawan, M.T.',
+        jadwalSidang: '2026-10-19T08:30:00',
+        ruangan: 'Ruang Sidang Utama A-201',
+        status: 'menunggu',
+      };
+      updatedList.push(newPeserta);
+      hasChanges = true;
+    }
+  }
+
+  if (hasChanges && typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PESERTA, JSON.stringify(updatedList));
+    broadcastRealtimeChange({
+      type: 'PESERTA_UPDATED',
+      payload: updatedList[0],
+    });
   }
 
   return updatedList;
@@ -2913,36 +3011,54 @@ export async function resetPengujiToDefault(): Promise<Penguji[]> {
 
 /**
  * Mengambil session user saat ini (Admin atau Penguji)
+ * Mengembalikan null jika pengguna belum login sehingga dialihkan ke layar login utama
  */
-export function getCurrentAuthUser(): AuthUser {
+export function getCurrentAuthUser(): AuthUser | null {
   if (typeof window !== 'undefined') {
     const raw = localStorage.getItem(STORAGE_KEY_AUTH);
     if (raw) {
       try {
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.role) {
+          return parsed;
+        }
       } catch {
         // ignore
       }
     }
   }
+  return null;
+}
 
-  // Default initial session: Dr. Ir. Hendra Kurniawan (Ketua Penguji)
-  const defaultUser: AuthUser = {
-    id: 'p1',
-    nama: 'Dr. Ir. Hendra Kurniawan, M.T.',
-    usernameOrNip: '198203152008121001',
-    role: 'penguji',
-    pengujiId: 'p1',
-    email: 'hendra.kurniawan@smk-vokasi.sch.id',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    loginAt: new Date().toISOString(),
+/**
+ * Mengimpor Guru Pembimbing menjadi Penguji Sidang
+ */
+export async function importGuruAsPenguji(
+  guru: MasterGuruPembimbing,
+  peran: string = 'Penguji 2 (Sekretaris)'
+): Promise<Penguji[]> {
+  const currentList = await getPengujiList();
+  const cleanNip = guru.nip.replace(/\s+/g, '');
+
+  const existingIdx = currentList.findIndex(
+    (p) => p.nip.replace(/\s+/g, '') === cleanNip || p.id === guru.id
+  );
+
+  const pengujiData: Penguji = {
+    id: existingIdx >= 0 ? currentList[existingIdx].id : (isValidUUID(guru.id) ? guru.id : `p-${Date.now()}`),
+    nip: guru.nip,
+    nama: guru.nama,
+    peran: peran,
+    avatar: guru.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    email: guru.emailLogin,
+    password: guru.passwordLogin || 'penguji123',
+    telepon: guru.telepon || '0812-0000-0000',
+    instansiAsal: 'SMK Negeri 1 Vokasi',
+    bidangKeahlian: guru.bidangStudi || 'Produktif & Kejuruan',
+    isActive: true,
   };
 
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(defaultUser));
-  }
-
-  return defaultUser;
+  return await savePenguji(pengujiData);
 }
 
 /**

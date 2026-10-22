@@ -180,8 +180,8 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Right Controls: Quick Upload Hub, Supabase Status, Login & User Switcher */}
         <div className="flex items-center gap-2 sm:gap-3">
           
-          {/* Quick Upload Button */}
-          {onOpenPusatUpload && (
+          {/* Quick Upload Button (Admin Only) */}
+          {isAdmin && onOpenPusatUpload && (
             <button
               onClick={onOpenPusatUpload}
               title="Buka Pusat Upload Data & Download Template Excel"
@@ -193,36 +193,45 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Supabase Connection Pill */}
-          <button
-            onClick={onOpenSupabaseModal}
-            title="Konfigurasi Database Supabase & Salin Schema SQL"
-            className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all cursor-pointer ${
-              supabaseConfig.isConnected
-                ? 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
-                : 'bg-amber-50 text-amber-950 border-amber-300 hover:bg-amber-100'
-            }`}
-          >
-            <Database className={`w-4 h-4 ${supabaseConfig.isConnected ? 'text-emerald-700' : 'text-amber-700'}`} />
-            <span className="font-mono font-bold">
-              {supabaseConfig.isConnected ? 'Supabase: Terhubung' : 'Supabase: Siap Setup'}
-            </span>
-            {supabaseConfig.isConnected ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-            ) : (
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse"></span>
-            )}
-          </button>
+          {/* Supabase Connection Pill (Admin Only) */}
+          {isAdmin && (
+            <button
+              onClick={onOpenSupabaseModal}
+              title="Konfigurasi Database Supabase & Salin Schema SQL"
+              className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all cursor-pointer ${
+                supabaseConfig.isConnected
+                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100'
+                  : 'bg-amber-50 text-amber-950 border-amber-300 hover:bg-amber-100'
+              }`}
+            >
+              <Database className={`w-4 h-4 ${supabaseConfig.isConnected ? 'text-emerald-700' : 'text-amber-700'}`} />
+              <span className="font-mono font-bold">
+                {supabaseConfig.isConnected ? 'Supabase: Terhubung' : 'Supabase: Siap Setup'}
+              </span>
+              {supabaseConfig.isConnected ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+              ) : (
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse"></span>
+              )}
+            </button>
+          )}
 
-          {/* Cool Login / Switch Account Button */}
+          {/* Examiner Notice Badge in Header */}
+          {!isAdmin && (
+            <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-bold shadow-2xs">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
+              <span>Akses Penguji: Input Nilai Sidang</span>
+            </div>
+          )}
+
+          {/* Direct Logout Button */}
           <button
-            onClick={onOpenLoginModal}
-            title="Buka Menu Login & Ganti Akun Penguji"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white hover:bg-orange-50 text-slate-800 hover:text-orange-950 border border-slate-200 hover:border-orange-300 shadow-2xs transition-all cursor-pointer"
+            onClick={onLogout}
+            title="Keluar dari akun (Logout)"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-slate-200 hover:border-rose-300 shadow-2xs transition-all cursor-pointer"
           >
-            <KeyRound className="w-4 h-4 text-orange-600" />
-            <span className="hidden lg:inline">Menu Login</span>
-            <span className="lg:hidden">Masuk</span>
+            <LogOut className="w-4 h-4 text-rose-600" />
+            <span className="hidden sm:inline">Keluar</span>
           </button>
 
           {/* User Profile & Examiner Switcher with Luxury Badge */}
@@ -273,14 +282,16 @@ export const Header: React.FC<HeaderProps> = ({
                 </p>
               </div>
 
-              {/* Action: Open Examiner Management */}
-              <button
-                onClick={onNavigateToPenguji}
-                className="w-full text-left p-2 rounded-xl text-xs sm:text-sm flex items-center gap-2.5 font-bold text-slate-700 hover:text-orange-950 hover:bg-orange-50 transition-colors cursor-pointer"
-              >
-                <Settings className="w-4 h-4 text-orange-600" />
-                <span>Kelola User Penguji Sidang</span>
-              </button>
+              {/* Action: Open Examiner Management (Admin Only) */}
+              {isAdmin && (
+                <button
+                  onClick={onNavigateToPenguji}
+                  className="w-full text-left p-2 rounded-xl text-xs sm:text-sm flex items-center gap-2.5 font-bold text-slate-700 hover:text-orange-950 hover:bg-orange-50 transition-colors cursor-pointer"
+                >
+                  <Settings className="w-4 h-4 text-orange-600" />
+                  <span>Kelola User Penguji Sidang</span>
+                </button>
+              )}
 
               {/* Action: Open Login Modal */}
               <button

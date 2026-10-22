@@ -17,7 +17,9 @@ import {
   FolderTree, 
   Compass,
   UploadCloud,
-  ArrowUpRight
+  ArrowUpRight,
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 import { Penguji, SupabaseConfig, AuthUser } from '../types/index.ts';
 
@@ -44,6 +46,7 @@ interface SidebarProps {
   onOpenUploadGuru?: () => void;
   onOpenUploadPlotting?: () => void;
   onOpenPusatUpload?: () => void;
+  onLogout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -68,7 +71,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenUploadGuru,
   onOpenUploadPlotting,
   onOpenPusatUpload,
+  onLogout,
 }) => {
+  const isAdmin = currentUser?.role === 'admin';
+
   // Collapsible state for Master Data group, Sidang group, and Upload submenu
   const [isSidangGroupOpen, setIsSidangGroupOpen] = useState(true);
   const [isMasterGroupOpen, setIsMasterGroupOpen] = useState(true);
@@ -175,45 +181,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Navigation Content (Scrollable with Clear Typography) */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5 text-sm">
 
-          {/* SECTION: PUSAT UPLOAD EXCEL / CSV (SUB-MENU ACCORDION: COLLAPSED BY DEFAULT, APPEARS ON CLICK) */}
-          <div className="space-y-1">
-            <button
-              onClick={() => setIsUploadGroupOpen(!isUploadGroupOpen)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer group border ${
-                isUploadGroupOpen
-                  ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-orange-300 shadow-2xs font-bold ring-1 ring-orange-200'
-                  : 'bg-white hover:bg-orange-50/50 text-slate-800 hover:text-orange-950 border-slate-200/90 hover:border-orange-300 shadow-2xs'
-              }`}
-              title="Klik untuk membuka/menutup sub menu Pusat Upload Excel & CSV"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+          {/* Role Access Notice for Examiners */}
+          {!isAdmin && (
+            <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl text-xs space-y-1.5 shadow-2xs">
+              <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                <ShieldCheck className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                <span>Hak Akses Penguji Sidang</span>
+              </div>
+              <p className="text-[11px] text-amber-900/90 leading-relaxed">
+                Akun Anda dikhususkan untuk <strong>menginput nilai kegiatan sidang</strong> & antrean siswa. Pengaturan master dikunci untuk administrator.
+              </p>
+            </div>
+          )}
+
+          {/* SECTION: PUSAT UPLOAD EXCEL / CSV (ADMIN ONLY) */}
+          {isAdmin && (
+            <div className="space-y-1">
+              <button
+                onClick={() => setIsUploadGroupOpen(!isUploadGroupOpen)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer group border ${
                   isUploadGroupOpen
-                    ? 'bg-gradient-to-tr from-amber-600 to-orange-600 text-white shadow-xs shadow-orange-600/25'
-                    : 'bg-orange-100 text-orange-800 group-hover:bg-orange-600 group-hover:text-white'
-                }`}>
-                  <UploadCloud className="w-4 h-4" />
+                    ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-orange-300 shadow-2xs font-bold ring-1 ring-orange-200'
+                    : 'bg-white hover:bg-orange-50/50 text-slate-800 hover:text-orange-950 border-slate-200/90 hover:border-orange-300 shadow-2xs'
+                }`}
+                title="Klik untuk membuka/menutup sub menu Pusat Upload Excel & CSV"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                    isUploadGroupOpen
+                      ? 'bg-gradient-to-tr from-amber-600 to-orange-600 text-white shadow-xs shadow-orange-600/25'
+                      : 'bg-orange-100 text-orange-800 group-hover:bg-orange-600 group-hover:text-white'
+                  }`}>
+                    <UploadCloud className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <span className="block leading-tight text-sm font-bold text-slate-900 group-hover:text-orange-950">
+                      Pusat Upload (Excel/CSV)
+                    </span>
+                    <span className="block text-xs text-slate-600 font-medium leading-none mt-0.5">
+                      Impor Data Siswa, Guru & DUDI
+                    </span>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <span className="block leading-tight text-sm font-bold text-slate-900 group-hover:text-orange-950">
-                    Pusat Upload (Excel/CSV)
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-orange-100 text-orange-900 border border-orange-200">
+                    4 Opsi
                   </span>
-                  <span className="block text-xs text-slate-600 font-medium leading-none mt-0.5">
-                    Impor Data Siswa, Guru & DUDI
-                  </span>
+                  {isUploadGroupOpen ? (
+                    <ChevronDown className="w-4 h-4 text-orange-700 transition-transform duration-200" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-800 transition-transform duration-200" />
+                  )}
                 </div>
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-orange-100 text-orange-900 border border-orange-200">
-                  4 Opsi
-                </span>
-                {isUploadGroupOpen ? (
-                  <ChevronDown className="w-4 h-4 text-orange-700 transition-transform duration-200" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-slate-800 transition-transform duration-200" />
-                )}
-              </div>
-            </button>
+              </button>
 
             {/* Sub-menu Dropdown Items (ONLY APPEARS ON CLICK) */}
             {isUploadGroupOpen && (
@@ -292,6 +312,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
           </div>
+        )}
           
           {/* GROUP 1: SIDANG & EVALUASI */}
           <div className="space-y-1">
@@ -354,150 +375,152 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
           </div>
 
-          {/* GROUP 2: DATA MASTER */}
-          <div className="space-y-1">
-            <button
-              onClick={() => setIsMasterGroupOpen(!isMasterGroupOpen)}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-bold text-slate-600 uppercase tracking-wider hover:text-slate-900 rounded-md transition-colors"
-            >
-              <span className="flex items-center gap-1.5">
-                <FolderTree className="w-4 h-4 text-slate-500" />
-                <span>Manajemen Master</span>
-                {isMasterActive && (
-                  <span className="w-2 h-2 rounded-full bg-orange-600"></span>
+          {/* GROUP 2: DATA MASTER (ADMIN ONLY) */}
+          {isAdmin && (
+            <div className="space-y-1">
+              <button
+                onClick={() => setIsMasterGroupOpen(!isMasterGroupOpen)}
+                className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-bold text-slate-600 uppercase tracking-wider hover:text-slate-900 rounded-md transition-colors"
+              >
+                <span className="flex items-center gap-1.5">
+                  <FolderTree className="w-4 h-4 text-slate-500" />
+                  <span>Manajemen Master</span>
+                  {isMasterActive && (
+                    <span className="w-2 h-2 rounded-full bg-orange-600"></span>
+                  )}
+                </span>
+                {isMasterGroupOpen ? (
+                  <ChevronDown className="w-4 h-4 text-slate-500" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
                 )}
-              </span>
-              {isMasterGroupOpen ? (
-                <ChevronDown className="w-4 h-4 text-slate-500" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </button>
+
+              {isMasterGroupOpen && (
+                <div className="space-y-1 pt-0.5">
+                  {/* 1. Plotting Siswa PKL */}
+                  <button
+                    onClick={() => handleSelectTab('plotting')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
+                      activeTab === 'plotting'
+                        ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
+                        : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Compass className={`w-4 h-4 ${activeTab === 'plotting' ? 'text-orange-700' : 'text-slate-500'}`} />
+                      <span>Plotting Siswa PKL</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      activeTab === 'plotting' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}>
+                      {plottingCount}
+                    </span>
+                  </button>
+
+                  {/* 2. Master Guru Pembimbing */}
+                  <button
+                    onClick={() => handleSelectTab('guru')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
+                      activeTab === 'guru'
+                        ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
+                        : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <GraduationCap className={`w-4 h-4 ${activeTab === 'guru' ? 'text-orange-700' : 'text-slate-500'}`} />
+                      <span>Master Guru Pembimbing</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      activeTab === 'guru' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}>
+                      {guruCount}
+                    </span>
+                  </button>
+
+                  {/* 3. Master Instansi / Perusahaan */}
+                  <button
+                    onClick={() => handleSelectTab('instansi')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
+                      activeTab === 'instansi'
+                        ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
+                        : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Building2 className={`w-4 h-4 ${activeTab === 'instansi' ? 'text-orange-700' : 'text-slate-500'}`} />
+                      <span>Master Instansi (DUDI)</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      activeTab === 'instansi' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}>
+                      {instansiCount}
+                    </span>
+                  </button>
+
+                  {/* 4. Master Siswa PKL */}
+                  <button
+                    onClick={() => handleSelectTab('master')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
+                      activeTab === 'master'
+                        ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
+                        : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Users className={`w-4 h-4 ${activeTab === 'master' ? 'text-orange-700' : 'text-slate-500'}`} />
+                      <span>Master Siswa PKL</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      activeTab === 'master' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}>
+                      {siswaCount}
+                    </span>
+                  </button>
+
+                  {/* 5. Master Jurusan */}
+                  <button
+                    onClick={() => handleSelectTab('jurusan')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
+                      activeTab === 'jurusan'
+                        ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
+                        : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Layers className={`w-4 h-4 ${activeTab === 'jurusan' ? 'text-orange-700' : 'text-slate-500'}`} />
+                      <span>Master Jurusan</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      activeTab === 'jurusan' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}>
+                      {jurusanCount}
+                    </span>
+                  </button>
+
+                  {/* 6. Master Penguji Sidang (User Management) */}
+                  <button
+                    onClick={() => handleSelectTab('penguji')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
+                      activeTab === 'penguji'
+                        ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
+                        : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <GraduationCap className={`w-4 h-4 ${activeTab === 'penguji' ? 'text-orange-700' : 'text-slate-500'}`} />
+                      <span>Master Penguji Sidang</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      activeTab === 'penguji' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}>
+                      {pengujiCount}
+                    </span>
+                  </button>
+                </div>
               )}
-            </button>
-
-            {isMasterGroupOpen && (
-              <div className="space-y-1 pt-0.5">
-                {/* 1. Plotting Siswa PKL */}
-                <button
-                  onClick={() => handleSelectTab('plotting')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                    activeTab === 'plotting'
-                      ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
-                      : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Compass className={`w-4 h-4 ${activeTab === 'plotting' ? 'text-orange-700' : 'text-slate-500'}`} />
-                    <span>Plotting Siswa PKL</span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                    activeTab === 'plotting' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}>
-                    {plottingCount}
-                  </span>
-                </button>
-
-                {/* 2. Master Guru Pembimbing */}
-                <button
-                  onClick={() => handleSelectTab('guru')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                    activeTab === 'guru'
-                      ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
-                      : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <GraduationCap className={`w-4 h-4 ${activeTab === 'guru' ? 'text-orange-700' : 'text-slate-500'}`} />
-                    <span>Master Guru Pembimbing</span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                    activeTab === 'guru' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}>
-                    {guruCount}
-                  </span>
-                </button>
-
-                {/* 3. Master Instansi / Perusahaan */}
-                <button
-                  onClick={() => handleSelectTab('instansi')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                    activeTab === 'instansi'
-                      ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
-                      : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Building2 className={`w-4 h-4 ${activeTab === 'instansi' ? 'text-orange-700' : 'text-slate-500'}`} />
-                    <span>Master Instansi (DUDI)</span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                    activeTab === 'instansi' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}>
-                    {instansiCount}
-                  </span>
-                </button>
-
-                {/* 4. Master Siswa PKL */}
-                <button
-                  onClick={() => handleSelectTab('master')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                    activeTab === 'master'
-                      ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
-                      : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Users className={`w-4 h-4 ${activeTab === 'master' ? 'text-orange-700' : 'text-slate-500'}`} />
-                    <span>Master Siswa PKL</span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                    activeTab === 'master' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}>
-                    {siswaCount}
-                  </span>
-                </button>
-
-                {/* 5. Master Jurusan */}
-                <button
-                  onClick={() => handleSelectTab('jurusan')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                    activeTab === 'jurusan'
-                      ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
-                      : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Layers className={`w-4 h-4 ${activeTab === 'jurusan' ? 'text-orange-700' : 'text-slate-500'}`} />
-                    <span>Master Jurusan</span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                    activeTab === 'jurusan' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}>
-                    {jurusanCount}
-                  </span>
-                </button>
-
-                {/* 6. Master Penguji Sidang (User Management) */}
-                <button
-                  onClick={() => handleSelectTab('penguji')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
-                    activeTab === 'penguji'
-                      ? 'bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50/30 text-orange-950 border-l-4 border-orange-600 font-bold shadow-2xs'
-                      : 'text-slate-700 hover:bg-orange-50/60 hover:text-orange-950'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <GraduationCap className={`w-4 h-4 ${activeTab === 'penguji' ? 'text-orange-700' : 'text-slate-500'}`} />
-                    <span>Master Penguji Sidang</span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                    activeTab === 'penguji' ? 'bg-orange-100 text-orange-900 border border-orange-300' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}>
-                    {pengujiCount}
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* GROUP 3: LAPORAN & STANDAR NILAI */}
           <div className="space-y-1">
@@ -553,39 +576,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
           </div>
 
-          {/* GROUP 4: DATABASE & PENGATURAN */}
-          <div className="space-y-1 pt-2">
-            <div className="px-2.5 py-1 text-xs font-bold text-slate-600 uppercase tracking-wider">
-              Integrasi Cloud
-            </div>
-
-            <button
-              onClick={() => {
-                onOpenSupabaseModal();
-                onClose();
-              }}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold border transition-all cursor-pointer ${
-                supabaseConfig.isConnected
-                  ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
-                  : 'bg-amber-50/80 border-amber-300 text-amber-950 hover:bg-amber-100'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Database className={`w-4 h-4 ${supabaseConfig.isConnected ? 'text-emerald-700' : 'text-amber-700'}`} />
-                <div className="text-left leading-tight">
-                  <p className="font-bold text-xs sm:text-sm">Database Supabase</p>
-                  <p className="text-xs opacity-90">
-                    {supabaseConfig.isConnected ? 'Server Cloud Terhubung' : 'Siap Setup Schema SQL'}
-                  </p>
-                </div>
+          {/* GROUP 4: DATABASE & PENGATURAN (ADMIN ONLY) */}
+          {isAdmin && (
+            <div className="space-y-1 pt-2">
+              <div className="px-2.5 py-1 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                Integrasi Cloud
               </div>
-              {supabaseConfig.isConnected ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 flex-shrink-0" />
-              ) : (
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse flex-shrink-0"></span>
-              )}
-            </button>
-          </div>
+
+              <button
+                onClick={() => {
+                  onOpenSupabaseModal();
+                  onClose();
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold border transition-all cursor-pointer ${
+                  supabaseConfig.isConnected
+                    ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
+                    : 'bg-amber-50/80 border-amber-300 text-amber-950 hover:bg-amber-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Database className={`w-4 h-4 ${supabaseConfig.isConnected ? 'text-emerald-700' : 'text-amber-700'}`} />
+                  <div className="text-left leading-tight">
+                    <p className="font-bold text-xs sm:text-sm">Database Supabase</p>
+                    <p className="text-xs opacity-90">
+                      {supabaseConfig.isConnected ? 'Server Cloud Terhubung' : 'Siap Setup Schema SQL'}
+                    </p>
+                  </div>
+                </div>
+                {supabaseConfig.isConnected ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                ) : (
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse flex-shrink-0"></span>
+                )}
+              </button>
+            </div>
+          )}
 
         </div>
 
@@ -623,6 +648,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Logout Button */}
+            {onLogout && (
+              <button
+                type="button"
+                onClick={() => {
+                  onLogout();
+                  onClose();
+                }}
+                className="w-full mt-2.5 py-1.5 px-3 rounded-lg border border-rose-200 bg-rose-50/80 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                <span>Keluar dari Akun (Logout)</span>
+              </button>
+            )}
           </div>
         </div>
       </aside>

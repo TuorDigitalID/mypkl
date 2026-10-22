@@ -25,13 +25,14 @@ import {
   AlertTriangle,
   Briefcase
 } from 'lucide-react';
-import { Penguji, PenilaianPenguji, AuthUser } from '../types/index.ts';
+import { Penguji, PenilaianPenguji, AuthUser, MasterGuruPembimbing } from '../types/index.ts';
 
 interface MasterPengujiTableProps {
   pengujiList: Penguji[];
   penilaianList: PenilaianPenguji[];
   activePenguji: Penguji;
   currentUser: AuthUser | null;
+  guruList?: MasterGuruPembimbing[];
   onSetActivePenguji: (p: Penguji) => void;
   onSavePenguji: (p: Penguji) => Promise<void>;
   onDeletePenguji: (id: string) => Promise<void>;
@@ -53,6 +54,7 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
   penilaianList,
   activePenguji,
   currentUser,
+  guruList = [],
   onSetActivePenguji,
   onSavePenguji,
   onDeletePenguji,
@@ -63,6 +65,10 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
   const [filterPeran, setFilterPeran] = useState<string>('semua');
   const [filterStatus, setFilterStatus] = useState<string>('semua');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  // Modal State for Assigning from Guru Pembimbing
+  const [isAssignGuruModalOpen, setIsAssignGuruModalOpen] = useState(false);
+  const [guruSearchQuery, setGuruSearchQuery] = useState('');
 
   // Modal State for Add / Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -212,6 +218,46 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
     }
   };
 
+  // Autofill form from selected MasterGuruPembimbing
+  const handleSelectGuruToFill = (guru: MasterGuruPembimbing) => {
+    setNama(guru.nama);
+    setNip(guru.nip);
+    setTelepon(guru.telepon || '');
+    setEmail(guru.emailLogin || '');
+    setPassword(guru.passwordLogin || 'penguji123');
+    setBidangKeahlian(guru.bidangStudi || 'Produktif & Kejuruan');
+    if (guru.avatar) setAvatar(guru.avatar);
+  };
+
+  // Direct 1-Click Assignment of Guru as Examiner with specified role
+  const handleAssignGuruDirectly = async (guru: MasterGuruPembimbing, peranSidang: string) => {
+    try {
+      setIsSubmitting(true);
+      const cleanNip = guru.nip.replace(/\s+/g, '');
+      const existing = pengujiList.find(
+        (p) => p.nip.replace(/\s+/g, '') === cleanNip
+      );
+      const pengujiToSave: Penguji = {
+        id: existing ? existing.id : `p-${Date.now()}`,
+        nip: guru.nip,
+        nama: guru.nama,
+        peran: peranSidang,
+        email: guru.emailLogin,
+        password: guru.passwordLogin || 'penguji123',
+        telepon: guru.telepon || '0812-0000-0000',
+        instansiAsal: 'SMK Negeri 1 Vokasi',
+        bidangKeahlian: guru.bidangStudi || 'Produktif & Kejuruan',
+        avatar: guru.avatar || AVATAR_PRESETS[0],
+        isActive: true,
+      };
+      await onSavePenguji(pengujiToSave);
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menugaskan guru sebagai penguji.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDeleteConfirm = async (id: string) => {
     try {
       await onDeletePenguji(id);
@@ -275,6 +321,22 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
 
           {/* Quick Actions */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* User Request 1: Ambil dari Tabel Guru Pembimbing */}
+            {guruList && guruList.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsAssignGuruModalOpen(true)}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 shadow-2xs transition-all cursor-pointer"
+                title="Tugaskan Guru Pembimbing menjadi Penguji Sidang"
+              >
+                <GraduationCap className="w-4 h-4 text-amber-700" />
+                <span>Ambil dari Guru Pembimbing</span>
+                <span className="px-1.5 py-0.2 rounded-md bg-amber-200 text-amber-900 text-[11px] font-black">
+                  {guruList.length} Guru
+                </span>
+              </button>
+            )}
+
             <button
               onClick={handleOpenAddModal}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-700 hover:via-orange-700 hover:to-amber-800 shadow-md shadow-orange-600/20 transition-all cursor-pointer"
@@ -719,6 +781,41 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
                 </div>
               )}
 
+              {/* Quick Pick from Master Guru Pembimbing */}
+              {guruList && guruList.length > 0 && !editingPenguji && (
+                <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                      <GraduationCap className="w-4 h-4 text-amber-700" />
+                      <span>Ambil Data dari Guru Pembimbing Sekolah:</span>
+                    </label>
+                    <span className="text-[11px] text-amber-800 font-bold">Otomatis Isi Form</span>
+                  </div>
+                  <select
+                    onChange={(e) => {
+                      const selectedNip = e.target.value;
+                      if (!selectedNip) return;
+                      const g = guruList.find((item) => item.nip === selectedNip);
+                      if (g) {
+                        handleSelectGuruToFill(g);
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full px-3 py-2 rounded-xl border border-amber-300 text-xs font-semibold bg-white text-slate-800 outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+                  >
+                    <option value="">-- Pilih Guru Pembimbing untuk Diambil Datanya --</option>
+                    {guruList.map((g) => (
+                      <option key={g.id || g.nip} value={g.nip}>
+                        {g.nama} (NIP: {g.nip}) - {g.bidangStudi || 'Guru Produktif'}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-amber-800/90 leading-tight">
+                    Memilih guru akan mengisi NIP, Nama, Telepon, Email, Password, dan Bidang Keahlian secara otomatis.
+                  </p>
+                </div>
+              )}
+
               {/* Nama Lengkap & Gelar */}
               <div className="space-y-1">
                 <label className="font-bold text-slate-800 block">
@@ -946,6 +1043,193 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
                 className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors cursor-pointer shadow-md shadow-rose-600/20"
               >
                 Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: TUGASKAN GURU PEMBIMBING SEBAGAI PENGUJI SIDANG */}
+      {isAssignGuruModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/65 backdrop-blur-xs overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAssignGuruModalOpen(false);
+          }}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden my-4 max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-5 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
+                  <GraduationCap className="w-5 h-5 text-amber-200" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-lg text-white">
+                    Tugaskan Guru Pembimbing Menjadi Penguji Sidang
+                  </h3>
+                  <p className="text-xs text-orange-100/90">
+                    Pilih guru pembimbing untuk langsung didaftarkan ke dewan penguji sidang tanpa input manual.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAssignGuruModalOpen(false)}
+                className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/20 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={guruSearchQuery}
+                  onChange={(e) => setGuruSearchQuery(e.target.value)}
+                  placeholder="Cari nama guru, NIP, atau bidang studi..."
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none"
+                />
+              </div>
+              <span className="text-xs font-bold text-slate-500">
+                {guruList.length} Guru
+              </span>
+            </div>
+
+            {/* List of Teachers */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3">
+              {guruList.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 space-y-2">
+                  <GraduationCap className="w-10 h-10 text-slate-400 mx-auto" />
+                  <p className="font-bold text-sm text-slate-700">Belum Ada Data Master Guru Pembimbing</p>
+                  <p className="text-xs text-slate-500">
+                    Silakan tambahkan data guru pembimbing terlebih dahulu melalui menu <strong>Master Guru Pembimbing</strong> atau Pusat Upload.
+                  </p>
+                </div>
+              ) : (
+                guruList
+                  .filter((g) => {
+                    const q = guruSearchQuery.toLowerCase().trim();
+                    return (
+                      !q ||
+                      g.nama.toLowerCase().includes(q) ||
+                      g.nip.toLowerCase().includes(q) ||
+                      (g.bidangStudi && g.bidangStudi.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((guru) => {
+                    const cleanNip = guru.nip.replace(/\s+/g, '');
+                    const existingPenguji = pengujiList.find(
+                      (p) => p.nip.replace(/\s+/g, '') === cleanNip
+                    );
+
+                    return (
+                      <div
+                        key={guru.id || guru.nip}
+                        className={`p-3.5 rounded-2xl border transition-all ${
+                          existingPenguji
+                            ? 'bg-orange-50/40 border-orange-200'
+                            : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={guru.avatar || AVATAR_PRESETS[0]}
+                              alt={guru.nama}
+                              className="w-10 h-10 rounded-full object-cover border border-slate-200 flex-shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-sm text-slate-900 truncate">
+                                  {guru.nama}
+                                </h4>
+                                {existingPenguji ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex-shrink-0">
+                                    Aktif: {existingPenguji.peran}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 flex-shrink-0">
+                                    Belum Ditugaskan
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-500 font-mono mt-0.5">
+                                NIP: {guru.nip} &bull; {guru.bidangStudi || 'Produktif'}
+                              </p>
+                              {guru.telepon && (
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  WhatsApp: {guru.telepon}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick Assign Buttons */}
+                          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => handleAssignGuruDirectly(guru, 'Penguji 1 (Ketua)')}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                existingPenguji?.peran.includes('1') || existingPenguji?.peran.toLowerCase().includes('ketua')
+                                  ? 'bg-orange-600 text-white shadow-2xs'
+                                  : 'bg-orange-50 hover:bg-orange-100 text-orange-900 border border-orange-200'
+                              }`}
+                              title="Tugaskan sebagai Penguji 1 (Ketua)"
+                            >
+                              + P1 (Ketua)
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => handleAssignGuruDirectly(guru, 'Penguji 2 (Sekretaris)')}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                existingPenguji?.peran.includes('2') || existingPenguji?.peran.toLowerCase().includes('sekr')
+                                  ? 'bg-amber-600 text-white shadow-2xs'
+                                  : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200'
+                              }`}
+                              title="Tugaskan sebagai Penguji 2 (Sekretaris)"
+                            >
+                              + P2 (Sekr)
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => handleAssignGuruDirectly(guru, 'Penguji 3 (Anggota)')}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                existingPenguji?.peran.includes('3') || existingPenguji?.peran.toLowerCase().includes('anggota')
+                                  ? 'bg-slate-700 text-white shadow-2xs'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                              }`}
+                              title="Tugaskan sebagai Penguji 3 (Anggota)"
+                            >
+                              + P3 (Anggota)
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
+              <span>Guru yang ditugaskan otomatis tersinkronisasi ke database penguji.</span>
+              <button
+                type="button"
+                onClick={() => setIsAssignGuruModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-900 cursor-pointer"
+              >
+                Selesai
               </button>
             </div>
           </div>

@@ -12,7 +12,11 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { SupabaseConfig } from '../types/index.ts';
-import { generateSupabaseSQLSchema } from '../utils/scoring.ts';
+import { 
+  generateSupabaseSQLSchema, 
+  generateSidang2PengujiSQLScript, 
+  generatePlottingSQLScript 
+} from '../utils/scoring.ts';
 import { saveSupabaseConfig, testSupabaseConnection } from '../lib/supabase.ts';
 
 interface SupabaseModalProps {
@@ -29,6 +33,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   onConfigUpdated,
 }) => {
   const [activeTab, setActiveTab] = useState<'credentials' | 'sql'>('credentials');
+  const [selectedScript, setSelectedScript] = useState<'update2penguji' | 'plotting' | 'full'>('update2penguji');
   const [url, setUrl] = useState(config.url || '');
   const [anonKey, setAnonKey] = useState(config.anonKey || '');
   const [testResult, setTestResult] = useState<{
@@ -49,7 +54,12 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
   if (!isOpen) return null;
 
-  const sqlSchema = generateSupabaseSQLSchema();
+  const currentSQLText = 
+    selectedScript === 'update2penguji'
+      ? generateSidang2PengujiSQLScript()
+      : selectedScript === 'plotting'
+      ? generatePlottingSQLScript()
+      : generateSupabaseSQLSchema();
 
   const handleTestAndSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +88,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
   const handleCopySQL = async () => {
     try {
-      await navigator.clipboard.writeText(sqlSchema);
+      await navigator.clipboard.writeText(currentSQLText);
       setCopiedSQL(true);
       setTimeout(() => setCopiedSQL(false), 2500);
     } catch {
@@ -299,13 +309,50 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
         {/* Tab 2: SQL Migration Schema */}
         {activeTab === 'sql' && (
           <div className="mt-4 space-y-3">
+            {/* Script Variant Selector */}
+            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-lg text-xs">
+              <button
+                type="button"
+                onClick={() => setSelectedScript('update2penguji')}
+                className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                  selectedScript === 'update2penguji'
+                    ? 'bg-orange-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                ⚡ Update 2 Penguji & Fix 22P02
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedScript('plotting')}
+                className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                  selectedScript === 'plotting'
+                    ? 'bg-orange-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📋 Tabel Plotting Siswa
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedScript('full')}
+                className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                  selectedScript === 'full'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📦 Full Database Schema
+              </button>
+            </div>
+
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-600 font-medium">
                 Jalankan script ini di <strong>Supabase Dashboard &gt; SQL Editor &gt; New Query</strong>:
               </span>
               <button
                 onClick={handleCopySQL}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shadow-xs"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition-colors shadow-xs"
               >
                 {copiedSQL ? (
                   <>
@@ -315,7 +362,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Salin Semua SQL</span>
+                    <span>Salin SQL Terpilih</span>
                   </>
                 )}
               </button>
@@ -323,18 +370,39 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
             <div className="relative">
               <pre className="max-h-80 overflow-y-auto p-3.5 bg-slate-900 text-slate-100 rounded-xl font-mono text-[11px] leading-relaxed select-all">
-                {sqlSchema}
+                {currentSQLText}
               </pre>
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-1">
-              <p className="font-bold text-slate-800">Skrip ini otomatis membuat:</p>
-              <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-600">
-                <li>Tabel <code>peserta_sidang</code> untuk data identitas, jadwal, dan status mahasiswa</li>
-                <li>Tabel <code>penguji</code> untuk identitas dewan penguji (Ketua, Sekretaris, Anggota)</li>
-                <li>Tabel <code>penilaian_sidang</code> dengan sub-kriteria JSONB & trigger real-time</li>
-                <li>Konfigurasi <code>ALTER PUBLICATION supabase_realtime</code> untuk penyiaran data instan</li>
-              </ul>
+              {selectedScript === 'update2penguji' && (
+                <>
+                  <p className="font-bold text-slate-800">Skrip Update 2 Penguji ini melakukan:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-600">
+                    <li>Menambahkan kolom <code>subtotal_agenda</code> dan <code>subtotal_sidang</code> pada tabel <code>penilaian_sidang</code>.</li>
+                    <li>Memperbaiki error PostgreSQL <code>22P02</code> dengan type-cast <code>::text</code> pada <code>penguji_id</code>.</li>
+                    <li>Memperbarui view <code>v_rekapitulasi_sidang_2penguji</code> dengan rumus 50% Sidang (P1+P2)/2 + 50% Jurnal PKL.</li>
+                  </ul>
+                </>
+              )}
+              {selectedScript === 'plotting' && (
+                <>
+                  <p className="font-bold text-slate-800">Skrip Tabel Plotting ini melakukan:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-600">
+                    <li>Membuat tabel <code>plotting_siswa_pkl</code> untuk antrean sidang per perusahaan.</li>
+                    <li>Mengaktifkan sinkronisasi real-time dan hak akses RLS Supabase.</li>
+                  </ul>
+                </>
+              )}
+              {selectedScript === 'full' && (
+                <>
+                  <p className="font-bold text-slate-800">Skrip Schema Penuh ini otomatis membuat:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-600">
+                    <li>Seluruh tabel master, plotting, peserta sidang, penguji, dan penilaian sidang.</li>
+                    <li>Konfigurasi <code>ALTER PUBLICATION supabase_realtime</code> untuk seluruh tabel.</li>
+                  </ul>
+                </>
+              )}
             </div>
           </div>
         )}

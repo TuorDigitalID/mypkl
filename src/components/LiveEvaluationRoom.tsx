@@ -20,7 +20,10 @@ import {
   Scale,
   Presentation,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Filter,
+  Layers,
+  Briefcase
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -28,7 +31,8 @@ import {
   Penguji, 
   PenilaianPenguji, 
   KriteriaNilai, 
-  NilaiKriteriaItem 
+  NilaiKriteriaItem,
+  PlottingSiswaPKL
 } from '../types/index.ts';
 import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 import { 
@@ -50,9 +54,11 @@ interface LiveEvaluationRoomProps {
   activePesertaId: string;
   setActivePesertaId: (id: string) => void;
   activePenguji: Penguji;
+  onSelectPenguji?: (penguji: Penguji) => void;
   penilaianList: PenilaianPenguji[];
   onOpenBeritaAcara: (mahasiswaId: string) => void;
   kriteriaList?: KriteriaNilai[];
+  plottingList?: PlottingSiswaPKL[];
 }
 
 export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
@@ -60,9 +66,11 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
   activePesertaId,
   setActivePesertaId,
   activePenguji,
+  onSelectPenguji,
   penilaianList,
   onOpenBeritaAcara,
   kriteriaList = DEFAULT_KRITERIA,
+  plottingList = [],
 }) => {
   // Current active student
   const activePeserta = useMemo(() => {
@@ -92,6 +100,81 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
   const [submitSuccess, setSubmitSuccess] = useState<boolean>(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [showGradeGuide, setShowGradeGuide] = useState<boolean>(false);
+
+  // Grouping Siswa per Perusahaan (Antrean Sidang Berbasis Perusahaan dari Plotting & Peserta)
+  const companyGroups = useMemo(() => {
+    const map = new Map<string, {
+      nama: string;
+      alamat?: string;
+      pembimbingDudi?: string;
+      guruNama?: string;
+      ruangan?: string;
+      jadwal?: string;
+      siswa: MahasiswaSidang[];
+    }>();
+
+    pesertaList.forEach((p) => {
+      const companyName = p.perusahaan || 'Lainnya / Mandiri';
+      if (!map.has(companyName)) {
+        const plot = plottingList.find((pl) => pl.instansiNama === companyName);
+        map.set(companyName, {
+          nama: companyName,
+          alamat: plot?.alamatInstansi || 'Lokasi DUDI Terdaftar',
+          pembimbingDudi: p.pembimbingDudi || plot?.pembimbingInstansi || 'Pembimbing Lapangan DUDI',
+          guruNama: p.pembimbingSekolah || plot?.guruNama || 'Dr. Ir. Hendra Kurniawan, M.T.',
+          ruangan: p.ruangan,
+          jadwal: p.jadwalSidang,
+          siswa: [],
+        });
+      }
+      map.get(companyName)!.siswa.push(p);
+    });
+
+    return Array.from(map.values());
+  }, [pesertaList, plottingList]);
+
+  // Selected company for the current session
+  const [selectedCompanyName, setSelectedCompanyName] = useState<string>('');
+
+  useEffect(() => {
+    if (activePeserta?.perusahaan) {
+      setSelectedCompanyName(activePeserta.perusahaan);
+    } else if (companyGroups.length > 0 && !selectedCompanyName) {
+      setSelectedCompanyName(companyGroups[0].nama);
+    }
+  }, [activePeserta?.perusahaan, companyGroups, selectedCompanyName]);
+
+  const currentCompanyGroup = useMemo(() => {
+    return companyGroups.find((cg) => cg.nama === selectedCompanyName) || companyGroups[0];
+  }, [companyGroups, selectedCompanyName]);
+
+  // Filter siswa untuk Penguji 1 dan 2
+  const [filterPengujiStatus, setFilterPengujiStatus] = useState<
+    'semua' | 'belum_p1' | 'belum_p2' | 'lengkap'
+  >('semua');
+
+  // Filtered students in current selected company
+  const filteredStudentsInCompany = useMemo(() => {
+    if (!currentCompanyGroup) return [];
+
+    return currentCompanyGroup.siswa.filter((siswa) => {
+      const agg = calculateFinalAggregate(siswa.id, penilaianList, 2);
+      const evalP1 = agg.nilaiPerPenguji.find(
+        (n) => n.pengujiId === 'p1' || n.pengujiPeran.includes('1') || n.pengujiPeran.toLowerCase().includes('ketua')
+      );
+      const evalP2 = agg.nilaiPerPenguji.find(
+        (n) => n.pengujiId === 'p2' || n.pengujiPeran.includes('2') || n.pengujiPeran.toLowerCase().includes('sekr')
+      );
+
+      const hasP1 = !!evalP1 && evalP1.totalNilai > 0;
+      const hasP2 = !!evalP2 && evalP2.totalNilai > 0;
+
+      if (filterPengujiStatus === 'belum_p1') return !hasP1;
+      if (filterPengujiStatus === 'belum_p2') return !hasP2;
+      if (filterPengujiStatus === 'lengkap') return hasP1 && hasP2;
+      return true;
+    });
+  }, [currentCompanyGroup, filterPengujiStatus, penilaianList]);
 
   // Synchronize form state when active student or examiner changes
   useEffect(() => {
@@ -254,7 +337,228 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
 
   return (
     <div className="space-y-6">
-      
+
+      {/* 0. SESI SIDANG PER PERUSAHAAN (PLOTTING DUDI) & FILTER PENGUJI 1 & 2 */}
+      <div className="bg-white rounded-3xl border border-orange-200/90 p-5 sm:p-6 shadow-xs">
+        {/* Top Header of Company Session */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-orange-100">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="p-2.5 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-600 text-white shadow-md shadow-orange-500/20">
+                <Building2 className="w-5 h-5" />
+              </span>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-orange-600 block">
+                  Jadwal Antrean Sidang per Perusahaan (Plotting DUDI)
+                </span>
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+                  {currentCompanyGroup?.nama || 'Sesi Sidang Perusahaan'}
+                </h2>
+              </div>
+            </div>
+            {currentCompanyGroup?.alamat && (
+              <p className="text-xs text-slate-500 mt-1 pl-11 flex items-center gap-1.5 truncate">
+                <span className="text-orange-500">📍</span>
+                <span className="truncate">{currentCompanyGroup.alamat}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Company Selector Dropdown / Pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+              <Briefcase className="w-3.5 h-3.5 text-orange-600" />
+              <span>Ganti Sesi Perusahaan:</span>
+            </span>
+            <select
+              value={selectedCompanyName}
+              onChange={(e) => {
+                const compName = e.target.value;
+                setSelectedCompanyName(compName);
+                const firstStudent = pesertaList.find((p) => (p.perusahaan || 'Lainnya') === compName);
+                if (firstStudent) {
+                  setActivePesertaId(firstStudent.id);
+                }
+              }}
+              className="px-3.5 py-2 rounded-xl border border-orange-300 bg-orange-50/70 hover:bg-orange-50 font-bold text-xs text-orange-950 focus:ring-2 focus:ring-orange-500 outline-none cursor-pointer shadow-xs"
+            >
+              {companyGroups.map((cg) => (
+                <option key={cg.nama} value={cg.nama}>
+                  🏢 {cg.nama} ({cg.siswa.length} Siswa PKL)
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Filter Penguji 1 & 2 Toolbar */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 py-3.5 border-b border-orange-100/70">
+          {/* Quick Examiner Toggle (Penguji 1 vs Penguji 2) */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+              <UserCheck className="w-4 h-4 text-orange-600" />
+              <span>Penguji Aktif Menilai:</span>
+            </span>
+
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 border border-slate-200">
+              {DAFTAR_PENGUJI.slice(0, 2).map((p, idx) => {
+                const isSelected = activePenguji.id === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      if (onSelectPenguji) {
+                        onSelectPenguji(p);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                    }`}
+                  >
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                      isSelected ? 'bg-white text-orange-600' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {idx === 0 ? 'P1' : 'P2'}
+                    </span>
+                    <span>{idx === 0 ? 'Penguji 1 (Ketua)' : 'Penguji 2 (Sekretaris)'}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Filter Status Penilaian Siswa dalam Perusahaan */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+              <Filter className="w-3.5 h-3.5 text-slate-400" />
+              <span>Filter Siswa:</span>
+            </span>
+            {[
+              { id: 'semua', label: `Semua (${currentCompanyGroup?.siswa.length || 0})` },
+              { id: 'belum_p1', label: `Belum Dinilai P1` },
+              { id: 'belum_p2', label: `Belum Dinilai P2` },
+              { id: 'lengkap', label: `Lengkap (P1 & P2)` },
+            ].map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFilterPengujiStatus(f.id as any)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  filterPengujiStatus === f.id
+                    ? 'bg-orange-950 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Student Queue in Selected Company */}
+        <div className="pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-orange-600" />
+              <span>Daftar Siswa PKL di {currentCompanyGroup?.nama} ({filteredStudentsInCompany.length} Siswa):</span>
+            </span>
+            <span className="text-[11px] text-slate-500 hidden sm:inline">
+              * Penilaian tetap individual per siswa sesuai formula 50% Sidang + 50% Jurnal PKL
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {filteredStudentsInCompany.map((siswa) => {
+              const agg = calculateFinalAggregate(siswa.id, penilaianList, 2);
+              const scoreP1 = agg.nilaiPerPenguji.find((n) => n.pengujiId === 'p1' || n.pengujiPeran.includes('1'));
+              const scoreP2 = agg.nilaiPerPenguji.find((n) => n.pengujiId === 'p2' || n.pengujiPeran.includes('2'));
+              const isCurrentSelected = siswa.id === activePeserta.id;
+
+              return (
+                <div
+                  key={siswa.id}
+                  onClick={() => setActivePesertaId(siswa.id)}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
+                    isCurrentSelected
+                      ? 'bg-orange-50/70 border-2 border-orange-500 shadow-md ring-2 ring-orange-500/20'
+                      : 'bg-slate-50/70 border-slate-200 hover:bg-orange-50/30 hover:border-orange-300'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <span className="font-mono text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
+                        {siswa.nim}
+                      </span>
+                      {isCurrentSelected ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-600 text-white animate-pulse">
+                          ● Sedang Dinilai
+                        </span>
+                      ) : (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          siswa.status === 'selesai' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                          siswa.status === 'berlangsung' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                          'bg-slate-200 text-slate-700 border-slate-300'
+                        }`}>
+                          {siswa.status}
+                        </span>
+                      )}
+                    </div>
+
+                    <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm line-clamp-1">
+                      {siswa.nama}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mb-2 truncate">
+                      {siswa.kelas} • {siswa.prodi}
+                    </p>
+                  </div>
+
+                  {/* Status Nilai P1 & P2 */}
+                  <div className="pt-2 border-t border-slate-200/80 space-y-1 text-[11px]">
+                    <div className="flex items-center justify-between font-mono">
+                      <span className="text-slate-500">Sidang P1:</span>
+                      {scoreP1 && scoreP1.totalNilai > 0 ? (
+                        <span className="font-bold text-emerald-700">
+                          {scoreP1.totalNilai.toFixed(1)} ({scoreP1.nilaiHuruf})
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 font-semibold italic text-[10px]">
+                          ⏳ Belum
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between font-mono">
+                      <span className="text-slate-500">Sidang P2:</span>
+                      {scoreP2 && scoreP2.totalNilai > 0 ? (
+                        <span className="font-bold text-blue-700">
+                          {scoreP2.totalNilai.toFixed(1)} ({scoreP2.nilaiHuruf})
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 font-semibold italic text-[10px]">
+                          ⏳ Belum
+                        </span>
+                      )}
+                    </div>
+
+                    {agg.nilaiAkhirAngka > 0 && (
+                      <div className="flex items-center justify-between font-mono pt-1 border-t border-slate-200">
+                        <span className="font-bold text-slate-700">Nilai Akhir:</span>
+                        <span className="font-black text-orange-600">
+                          {agg.nilaiAkhirAngka.toFixed(1)} [{agg.nilaiAkhirHuruf}]
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       {/* 1. STUDENT IDENTITY & TIMERS (STICKY COCKPIT) */}
       <div className="bg-white rounded-3xl border border-orange-100 p-6 shadow-xs">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">

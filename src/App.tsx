@@ -15,6 +15,7 @@ import { SupabaseModal } from './components/SupabaseModal.tsx';
 import { BeritaAcaraModal } from './components/BeritaAcaraModal.tsx';
 import { PusatUploadModal } from './components/PusatUploadModal.tsx';
 import { LoginModal } from './components/LoginModal.tsx';
+import { LoginScreen } from './components/LoginScreen.tsx';
 import { 
   MahasiswaSidang, 
   Penguji, 
@@ -263,6 +264,16 @@ export default function App() {
     }
   };
 
+  // Guard tab access for examiners: Examiners only have access to 'live', 'peserta', and 'rubrik'
+  useEffect(() => {
+    if (currentUser?.role === 'penguji') {
+      const allowedTabs = ['live', 'peserta', 'rubrik'];
+      if (!allowedTabs.includes(activeTab)) {
+        setActiveTab('live');
+      }
+    }
+  }, [currentUser, activeTab]);
+
   const handleLoginSuccess = (user: AuthUser, penguji?: Penguji) => {
     setCurrentUser(user);
     if (penguji) {
@@ -271,13 +282,29 @@ export default function App() {
       const matched = pengujiList.find((p) => p.id === user.pengujiId || p.nip === user.usernameOrNip);
       if (matched) setActivePenguji(matched);
     }
+    if (user.role === 'penguji') {
+      setActiveTab('live');
+    } else {
+      setActiveTab('plotting');
+    }
+    setIsLoginModalOpen(false);
   };
 
   const handleLogout = () => {
     logoutUser();
     setCurrentUser(null);
-    setIsLoginModalOpen(true);
   };
+
+  // Requirement 3: Before entering main dashboard, user must login first!
+  if (!currentUser) {
+    return (
+      <LoginScreen
+        pengujiList={pengujiList}
+        guruList={masterGuruList}
+        onLoginSuccess={handleLoginSuccess}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row antialiased font-sans text-slate-800">
@@ -318,6 +345,7 @@ export default function App() {
           setAutoOpenUploadPlotting(true);
         }}
         onOpenPusatUpload={() => setIsPusatUploadOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}
@@ -356,6 +384,8 @@ export default function App() {
                   activePenguji={activePenguji}
                   penilaianList={penilaianList}
                   onOpenBeritaAcara={handleOpenBeritaAcara}
+                  plottingList={plottingList}
+                  onSelectPenguji={setActivePenguji}
                 />
               )}
 
@@ -365,6 +395,7 @@ export default function App() {
                   penilaianList={penilaianList}
                   activePenguji={activePenguji}
                   currentUser={currentUser}
+                  guruList={masterGuruList}
                   onSetActivePenguji={setActivePenguji}
                   onSavePenguji={handleSavePenguji}
                   onDeletePenguji={handleDeletePenguji}
@@ -475,8 +506,10 @@ export default function App() {
                 <PesertaList
                   pesertaList={pesertaList}
                   penilaianList={penilaianList}
+                  plottingList={plottingList}
                   onSelectPesertaForSidang={handleSelectPesertaForSidang}
                   onOpenBeritaAcara={handleOpenBeritaAcara}
+                  onPesertaUpdated={loadData}
                 />
               )}
 
