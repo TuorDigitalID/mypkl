@@ -1089,5 +1089,80 @@ GRANT SELECT ON public.v_rekapitulasi_sidang_2penguji TO anon, authenticated;
 `;
 }
 
+/**
+ * Menghasilkan skrip SQL khusus untuk integrasi Tabel Penguji dengan Guru Pembimbing
+ * Memastikan kolom lengkap & menyediakan query sinkronisasi massal guru ke penguji
+ */
+export function generatePengujiGuruSQLScript(): string {
+  return `-- ====================================================================
+-- SKRIP SQL UPDATE: TABEL PENGUJI & SINKRONISASI DARI GURU PEMBIMBING
+-- Jalankan di Supabase Dashboard > SQL Editor > New query > Run
+-- ====================================================================
+
+-- 1. Pastikan kolom akun penguji sidang lengkap
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS email VARCHAR(150);
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS password VARCHAR(100) DEFAULT 'penguji123';
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS telepon VARCHAR(50);
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS instansi_asal VARCHAR(150) DEFAULT 'SMK Negeri 1 Vokasi';
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS bidang_keahlian VARCHAR(150);
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+-- 2. Pastikan constraint UNIQUE pada NIP penguji ada (Wajib untuk Upsert)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'penguji_nip_key'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.penguji ADD CONSTRAINT penguji_nip_key UNIQUE (nip);
+        EXCEPTION WHEN duplicate_table OR duplicate_object THEN
+            NULL;
+        END;
+    END IF;
+END $$;
+
+-- 3. SINKRONISASI OTOMATIS: Salin seluruh Guru Pembimbing ke Daftar Penguji Sidang
+-- (Guru yang sudah ada diupdate, guru baru ditambahkan sebagai Penguji 2 - Sekretaris)
+INSERT INTO public.penguji (nip, nama, peran, telepon, email, password, bidang_keahlian, avatar, is_active)
+SELECT 
+    nip, 
+    nama, 
+    'Penguji 2 (Sekretaris)' AS peran, 
+    telepon, 
+    email_login, 
+    COALESCE(password_login, 'penguji123'), 
+    bidang_studi, 
+    avatar, 
+    is_active
+FROM public.master_guru_pembimbing
+ON CONFLICT (nip) DO UPDATE SET
+    nama = EXCLUDED.nama,
+    telepon = EXCLUDED.telepon,
+    email = EXCLUDED.email,
+    password = EXCLUDED.password,
+    bidang_keahlian = EXCLUDED.bidang_keahlian,
+    avatar = EXCLUDED.avatar,
+    updated_at = timezone('utc'::text, now());
+
+-- 4. Aktifkan Realtime Synchronization & Hak Akses Penuh
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.penguji;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+END $$;
+
+ALTER TABLE public.penguji ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE public.penguji TO anon, authenticated;
+DROP POLICY IF EXISTS "Public Read Access Penguji" ON public.penguji;
+CREATE POLICY "Public Read Access Penguji" ON public.penguji FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "Public Write Access Penguji" ON public.penguji;
+CREATE POLICY "Public Write Access Penguji" ON public.penguji FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+`;
+}
+
 
 

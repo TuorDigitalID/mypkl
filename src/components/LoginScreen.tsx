@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   GraduationCap, 
-  KeyRound, 
   Lock, 
   Mail, 
   Eye, 
@@ -9,12 +8,9 @@ import {
   CheckCircle2, 
   AlertCircle, 
   ArrowRight, 
-  Building2, 
   ShieldCheck, 
   UserCheck, 
-  Sparkles,
   ClipboardCheck,
-  FolderTree,
   Scale
 } from 'lucide-react';
 import { Penguji, AuthUser, MasterGuruPembimbing } from '../types/index.ts';
@@ -45,6 +41,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setErrorMsg('Masukkan NIP atau Email Penguji Sidang.');
       return;
     }
+    if (!password.trim()) {
+      setErrorMsg('Masukkan kata sandi penguji.');
+      return;
+    }
     setErrorMsg('');
     setIsLoading(true);
 
@@ -68,32 +68,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
   };
 
-  // Handle Quick Login for Examiner (1-Click)
-  const handleQuickLoginPenguji = async (penguji: Penguji) => {
-    setIsLoading(true);
-    setErrorMsg('');
-    try {
-      const res = await loginUser(penguji.id, penguji.password || 'penguji123', 'penguji');
-      if (res.success && res.user) {
-        setSuccessMsg(`Berhasil masuk sebagai ${penguji.nama}!`);
-        setTimeout(() => {
-          onLoginSuccess(res.user!, penguji);
-        }, 300);
-      } else {
-        setErrorMsg(res.message);
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Gagal login.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Handle Login as Admin via Form
   const handleSubmitAdminForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) {
       setErrorMsg('Masukkan username atau email admin.');
+      return;
+    }
+    if (!password.trim()) {
+      setErrorMsg('Masukkan kata sandi administrator.');
       return;
     }
     setErrorMsg('');
@@ -111,27 +94,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'Gagal masuk sebagai admin.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Handle 1-Click Admin Quick Login
-  const handleQuickAdminLogin = async () => {
-    setIsLoading(true);
-    setErrorMsg('');
-    try {
-      const res = await loginUser('admin', 'admin123', 'admin');
-      if (res.success && res.user) {
-        setSuccessMsg('Berhasil masuk sebagai Administrator!');
-        setTimeout(() => {
-          onLoginSuccess(res.user!);
-        }, 300);
-      } else {
-        setErrorMsg(res.message);
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Gagal login admin.');
     } finally {
       setIsLoading(false);
     }
@@ -182,49 +144,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </p>
               </div>
 
-              {/* Role Cards Explanation */}
-              <div className="space-y-3 pt-2">
-                {/* Penguji Card */}
-                <div className={`p-3.5 rounded-2xl border transition-all ${
-                  activeTab === 'penguji'
-                    ? 'bg-white/15 border-white/40 shadow-md ring-1 ring-white/30'
-                    : 'bg-white/5 border-white/10 opacity-80'
-                }`}>
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-200 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                      <ClipboardCheck className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-                        <span>Dewan Penguji Sidang</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-400/30 text-amber-100 border border-amber-300/30">
-                          Penguji 1 & 2
-                        </span>
-                      </h4>
-                      <p className="text-xs text-orange-200/90 mt-0.5">
-                        Hak akses khusus: <strong>Hanya input penilaian sidang</strong> & antrean siswa per perusahaan.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Admin Card */}
-                <div className={`p-3.5 rounded-2xl border transition-all ${
-                  activeTab === 'admin'
-                    ? 'bg-white/15 border-white/40 shadow-md ring-1 ring-white/30'
-                    : 'bg-white/5 border-white/10 opacity-80'
-                }`}>
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-orange-400/20 text-orange-200 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-white">Administrator PKL</h4>
-                      <p className="text-xs text-orange-200/90 mt-0.5">
-                        Hak akses penuh: Manajemen Master Siswa, DUDI, Guru, Plotting, Rekapitulasi & Supabase.
-                      </p>
-                    </div>
-                  </div>
+              {/* Institutional Overview */}
+              <div className="pt-2">
+                <div className="p-4 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-xs space-y-1">
+                  <h4 className="font-bold text-sm text-amber-200">
+                    SMK MA Buaranjati
+                  </h4>
+                  <p className="text-xs text-orange-100/90 leading-relaxed">
+                    Sistem evaluasi dan penilaian pelaksanaan Praktik Kerja Lapangan (PKL) terintegrasi langsung antara Dewan Penguji Sidang dan Administrator Sekolah.
+                  </p>
                 </div>
               </div>
             </div>
@@ -268,8 +196,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   type="button"
                   onClick={() => {
                     setActiveTab('admin');
-                    setIdentifier('admin');
-                    setPassword('admin123');
+                    setIdentifier('');
+                    setPassword('');
                     setErrorMsg('');
                   }}
                   className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 ${
@@ -301,59 +229,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               {/* FORM PENGUJI */}
               {activeTab === 'penguji' && (
                 <div className="space-y-6">
-                  {/* Quick Examiner One-Click Login Bar */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2.5">
-                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-orange-600" />
-                        <span>Pilih Cepat Akun Penguji di Ruangan:</span>
-                      </label>
-                      <span className="text-[11px] text-slate-600">Klik untuk langsung menilai</span>
+                  <div className="p-4 bg-orange-50/70 border border-orange-200 rounded-2xl text-xs text-orange-950 flex items-start gap-3">
+                    <UserCheck className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-bold">Masuk Ruang Sidang & Penilaian</p>
+                      <p className="text-orange-900/90 leading-relaxed">
+                        Silakan masukkan Nomor Induk Pegawai (NIP) atau alamat email resmi dan kata sandi yang telah diberikan oleh Administrator.
+                      </p>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {pengujiList.slice(0, 4).map((p) => {
-                        const isKetua = p.peran.toLowerCase().includes('ketua') || p.peran.includes('1');
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            disabled={isLoading}
-                            onClick={() => handleQuickLoginPenguji(p)}
-                            className="p-3 rounded-xl border border-slate-200/90 hover:border-orange-500 bg-slate-50/70 hover:bg-orange-50/60 transition-all text-left group cursor-pointer shadow-2xs"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <img 
-                                src={p.avatar} 
-                                alt={p.nama} 
-                                className="w-9 h-9 rounded-full object-cover border border-slate-300 group-hover:border-orange-500 flex-shrink-0"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="font-bold text-xs text-slate-900 group-hover:text-orange-950 truncate">
-                                  {p.nama}
-                                </p>
-                                <span className={`inline-block text-[10px] font-bold px-1.5 py-0.2 rounded mt-0.5 ${
-                                  isKetua 
-                                    ? 'bg-orange-100 text-orange-900 border border-orange-200' 
-                                    : 'bg-amber-100 text-amber-900 border border-amber-200'
-                                }`}>
-                                  {p.peran}
-                                </span>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 border-t border-slate-200" />
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                      atau masuk via NIP & Password
-                    </span>
-                    <div className="flex-1 border-t border-slate-200" />
                   </div>
 
                   {/* Standard Form */}
@@ -366,27 +249,24 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
+                          required
                           value={identifier}
                           onChange={(e) => setIdentifier(e.target.value)}
-                          placeholder="Contoh: 198203152008121001"
+                          placeholder="Masukkan NIP atau Email Penguji"
                           className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 text-xs sm:text-sm outline-none transition-all font-mono"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-bold text-slate-700">
-                          Kata Sandi Penguji
-                        </label>
-                        <span className="text-[11px] text-slate-600">
-                          Default: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">penguji123</code>
-                        </span>
-                      </div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Kata Sandi Penguji
+                      </label>
                       <div className="relative">
                         <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                         <input
                           type={showPassword ? 'text' : 'password'}
+                          required
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           placeholder="Masukkan kata sandi..."
@@ -395,7 +275,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                         >
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -442,66 +322,53 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
+                          required
                           value={identifier}
                           onChange={(e) => setIdentifier(e.target.value)}
-                          placeholder="Username admin"
+                          placeholder="Masukkan username atau ID admin"
                           className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 text-xs sm:text-sm outline-none transition-all font-mono"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-bold text-slate-700">
-                          Kata Sandi
-                        </label>
-                        <span className="text-[11px] text-slate-600">
-                          Demo: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">admin123</code>
-                        </span>
-                      </div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Kata Sandi Administrator
+                      </label>
                       <div className="relative">
                         <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                         <input
                           type={showPassword ? 'text' : 'password'}
+                          required
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Kata sandi admin..."
+                          placeholder="Masukkan kata sandi..."
                           className="w-full pl-10 pr-11 py-2.5 rounded-xl border border-slate-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 text-xs sm:text-sm outline-none transition-all font-mono"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                         >
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                    <div className="pt-2">
                       <button
                         type="submit"
                         disabled={isLoading}
-                        className="flex-1 py-3 px-4 rounded-xl font-bold text-sm text-white bg-slate-900 hover:bg-slate-800 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                        className="w-full py-3 px-4 rounded-xl font-bold text-sm text-white bg-slate-900 hover:bg-slate-800 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                       >
                         {isLoading ? (
-                          <span>Memproses...</span>
+                          <span>Memproses Autentikasi...</span>
                         ) : (
                           <>
-                            <span>Masuk Dashboard Admin</span>
+                            <span>Masuk Dashboard Administrator</span>
                             <ArrowRight className="w-4 h-4" />
                           </>
                         )}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isLoading}
-                        onClick={handleQuickAdminLogin}
-                        className="py-3 px-4 rounded-xl font-bold text-xs text-orange-950 bg-orange-100 hover:bg-orange-200 border border-orange-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-orange-700" />
-                        <span>1-Click Masuk Admin</span>
                       </button>
                     </div>
                   </form>
@@ -509,9 +376,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               )}
             </div>
 
-            {/* Bottom Security Note */}
-            <div className="mt-8 pt-4 border-t border-slate-200/90 text-center text-xs text-slate-600">
-              Sistem Informasi Praktik Kerja Lapangan & Sidang Kelulusan SMK Vokasi
+            {/* Bottom Copyright */}
+            <div className="mt-8 pt-4 border-t border-slate-200/90 text-center text-xs text-slate-600 font-medium">
+              Copyright © 2026 SMK MA Buaranjati. All Rights Reserved.
             </div>
           </div>
 

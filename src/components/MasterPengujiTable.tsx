@@ -79,7 +79,7 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
   const [nip, setNip] = useState('');
   const [peran, setPeran] = useState('Penguji 3 (Anggota)');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('penguji123');
+  const [password, setPassword] = useState('');
   const [telepon, setTelepon] = useState('');
   const [instansiAsal, setInstansiAsal] = useState('SMK Negeri 1 Vokasi');
   const [bidangKeahlian, setBidangKeahlian] = useState('');
@@ -145,7 +145,7 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
     setNip('');
     setPeran('Penguji 3 (Anggota)');
     setEmail('');
-    setPassword('penguji123');
+    setPassword('');
     setTelepon('');
     setInstansiAsal('SMK Negeri 1 Vokasi');
     setBidangKeahlian('');
@@ -161,7 +161,7 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
     setNip(p.nip);
     setPeran(p.peran);
     setEmail(p.email || '');
-    setPassword(p.password || 'penguji123');
+    setPassword('');
     setTelepon(p.telepon || '');
     setInstansiAsal(p.instansiAsal || 'SMK Negeri 1 Vokasi');
     setBidangKeahlian(p.bidangKeahlian || '');
@@ -195,13 +195,16 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
     setFormError('');
 
     try {
+      const existingPass = editingPenguji?.password;
+      const finalPass = password.trim() ? password.trim() : (existingPass || `smk${Math.floor(100000 + Math.random() * 900000)}`);
+
       const newOrUpdatedPenguji: Penguji = {
         id: editingPenguji ? editingPenguji.id : `penguji-${Date.now()}`,
         nama: nama.trim(),
         nip: nip.trim(),
         peran: peran.trim(),
         email: email.trim() || `${nip.trim()}@smk-vokasi.sch.id`,
-        password: password.trim() || 'penguji123',
+        password: finalPass,
         telepon: telepon.trim() || '0812-0000-0000',
         instansiAsal: instansiAsal.trim(),
         bidangKeahlian: bidangKeahlian.trim(),
@@ -224,7 +227,7 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
     setNip(guru.nip);
     setTelepon(guru.telepon || '');
     setEmail(guru.emailLogin || '');
-    setPassword(guru.passwordLogin || 'penguji123');
+    setPassword(guru.passwordLogin || '');
     setBidangKeahlian(guru.bidangStudi || 'Produktif & Kejuruan');
     if (guru.avatar) setAvatar(guru.avatar);
   };
@@ -898,7 +901,7 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
                       type={showPasswordInput ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Minimal 6 karakter"
+                      placeholder={editingPenguji ? "Kosongkan jika tidak ingin diubah" : "Minimal 6 karakter"}
                       className="w-full px-3.5 pr-10 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-hidden font-medium"
                     />
                     <button

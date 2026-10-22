@@ -299,34 +299,8 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-full text-left p-2 rounded-xl text-xs sm:text-sm flex items-center gap-2.5 font-bold text-slate-700 hover:text-orange-950 hover:bg-orange-50 transition-colors cursor-pointer"
               >
                 <LogIn className="w-4 h-4 text-orange-600" />
-                <span>Menu Login Keren & Ganti Akun</span>
+                <span>Ganti Akun / Login</span>
               </button>
-
-              <div className="px-2 py-1.5 text-xs font-black text-slate-400 uppercase tracking-wider border-t border-slate-100 mt-2">
-                Pilih Akun Penguji Sidang
-              </div>
-
-              <div className="space-y-1 max-h-48 overflow-y-auto">
-                {pengujiList.map((penguji) => (
-                  <button
-                    key={penguji.id}
-                    onClick={() => setActivePenguji(penguji)}
-                    className={`w-full text-left p-2 rounded-xl text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${
-                      activePenguji.id === penguji.id
-                        ? 'bg-orange-50 text-orange-950 font-bold border-l-4 border-orange-600'
-                        : 'text-slate-700 hover:bg-orange-50/60'
-                    }`}
-                  >
-                    <div className="min-w-0 pr-1">
-                      <p className="font-bold text-slate-900 truncate">{penguji.nama}</p>
-                      <p className="text-xs text-slate-500 font-medium truncate">{penguji.peran}</p>
-                    </div>
-                    {activePenguji.id === penguji.id && (
-                      <CheckCircle2 className="w-4 h-4 text-orange-600 flex-shrink-0" />
-                    )}
-                  </button>
-                ))}
-              </div>
 
               {/* Logout Option */}
               <div className="border-t border-slate-100 mt-2 pt-1.5 px-1">

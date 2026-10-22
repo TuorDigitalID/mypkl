@@ -15,6 +15,7 @@ import { SupabaseConfig } from '../types/index.ts';
 import { 
   generateSupabaseSQLSchema, 
   generateSidang2PengujiSQLScript, 
+  generatePengujiGuruSQLScript,
   generatePlottingSQLScript 
 } from '../utils/scoring.ts';
 import { saveSupabaseConfig, testSupabaseConnection } from '../lib/supabase.ts';
@@ -33,7 +34,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   onConfigUpdated,
 }) => {
   const [activeTab, setActiveTab] = useState<'credentials' | 'sql'>('credentials');
-  const [selectedScript, setSelectedScript] = useState<'update2penguji' | 'plotting' | 'full'>('update2penguji');
+  const [selectedScript, setSelectedScript] = useState<'update2penguji' | 'penguji_guru' | 'plotting' | 'full'>('penguji_guru');
   const [url, setUrl] = useState(config.url || '');
   const [anonKey, setAnonKey] = useState(config.anonKey || '');
   const [testResult, setTestResult] = useState<{
@@ -57,6 +58,8 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   const currentSQLText = 
     selectedScript === 'update2penguji'
       ? generateSidang2PengujiSQLScript()
+      : selectedScript === 'penguji_guru'
+      ? generatePengujiGuruSQLScript()
       : selectedScript === 'plotting'
       ? generatePlottingSQLScript()
       : generateSupabaseSQLSchema();
@@ -313,6 +316,17 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
             <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-lg text-xs">
               <button
                 type="button"
+                onClick={() => setSelectedScript('penguji_guru')}
+                className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                  selectedScript === 'penguji_guru'
+                    ? 'bg-orange-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                👥 Penguji & Guru Pembimbing
+              </button>
+              <button
+                type="button"
                 onClick={() => setSelectedScript('update2penguji')}
                 className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
                   selectedScript === 'update2penguji'
@@ -375,6 +389,16 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-1">
+              {selectedScript === 'penguji_guru' && (
+                <>
+                  <p className="font-bold text-slate-800">Skrip Tabel Penguji & Guru Pembimbing ini melakukan:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-600">
+                    <li>Memastikan seluruh kolom akun penguji (email, password, telepon, instansi, bidang keahlian) sudah ada di tabel <code>penguji</code>.</li>
+                    <li>Menambahkan constraint UNIQUE pada <code>nip</code> agar mendukung operasi penugasan dan update (Upsert).</li>
+                    <li>Menyediakan perintah INSERT ... SELECT untuk menyalin seluruh data guru pembimbing ke dewan penguji sidang secara otomatis.</li>
+                  </ul>
+                </>
+              )}
               {selectedScript === 'update2penguji' && (
                 <>
                   <p className="font-bold text-slate-800">Skrip Update 2 Penguji ini melakukan:</p>

@@ -564,32 +564,47 @@ export async function savePesertaSidang(peserta: MahasiswaSidang): Promise<Mahas
 
 /**
  * Sinkronisasi Antrean Peserta Sidang dari Tabel Plotting Siswa per Perusahaan
+ * Memastikan data antrean sidang dan ruang sidang live 100% sama dan selalu update dari database
  */
-export async function syncPesertaFromPlotting(plottingList: PlottingSiswaPKL[]): Promise<MahasiswaSidang[]> {
-  const currentList = await getPesertaSidangList();
+export async function syncPesertaFromPlotting(
+  plottingList: PlottingSiswaPKL[],
+  basePesertaList?: MahasiswaSidang[]
+): Promise<MahasiswaSidang[]> {
+  const currentList = basePesertaList && basePesertaList.length > 0 ? basePesertaList : await getPesertaSidangList();
   const validPlots = plottingList.filter((p) => p.instansiNama && p.instansiNama.trim() !== '');
-  
-  let hasChanges = false;
-  const updatedList = [...currentList];
+
+  if (validPlots.length === 0) {
+    return currentList;
+  }
+
+  // Bangun daftar peserta yang bersumber langsung dari plotting per perusahaan
+  const result: MahasiswaSidang[] = [];
 
   for (const plot of validPlots) {
-    const existingIdx = updatedList.findIndex(
-      (p) => (p.nim && p.nim === plot.nisn) || p.nama.toLowerCase().trim() === plot.namaSiswa.toLowerCase().trim()
+    const cleanNisn = (plot.nisn || '').replace(/\s+/g, '');
+    const existing = currentList.find(
+      (p) => (p.nim && p.nim.replace(/\s+/g, '') === cleanNisn) ||
+             p.nama.toLowerCase().trim() === plot.namaSiswa.toLowerCase().trim()
     );
 
-    if (existingIdx >= 0) {
-      if (updatedList[existingIdx].perusahaan !== plot.instansiNama) {
-        updatedList[existingIdx] = {
-          ...updatedList[existingIdx],
-          perusahaan: plot.instansiNama,
-          pembimbingDudi: plot.pembimbingInstansi || updatedList[existingIdx].pembimbingDudi,
-          pembimbingSekolah: plot.guruNama || updatedList[existingIdx].pembimbingSekolah,
-        };
-        hasChanges = true;
-      }
+    if (existing) {
+      result.push({
+        ...existing,
+        nim: plot.nisn || existing.nim,
+        nama: plot.namaSiswa || existing.nama,
+        kelas: plot.kelas || existing.kelas,
+        prodi: plot.jurusan || existing.prodi,
+        perusahaan: plot.instansiNama,
+        pembimbingDudi: plot.pembimbingInstansi || existing.pembimbingDudi || 'Pembimbing Lapangan DUDI',
+        pembimbingSekolah: plot.guruNama || existing.pembimbingSekolah || 'Dr. Ir. Hendra Kurniawan, M.T.',
+        judulLaporan: existing.judulLaporan || `Laporan Praktik Kerja Lapangan di ${plot.instansiNama}`,
+        jadwalSidang: existing.jadwalSidang || '2026-10-19T08:30:00',
+        ruangan: existing.ruangan || 'Ruang Sidang Utama A-201',
+        status: existing.status || 'menunggu',
+      });
     } else {
-      const newPeserta: MahasiswaSidang = {
-        id: `m-plot-${plot.id || plot.nisn || Date.now()}`,
+      result.push({
+        id: isValidUUID(plot.id) ? plot.id : `m-${cleanNisn || Date.now()}`,
         nim: plot.nisn || `NIM-${Math.floor(100000 + Math.random() * 900000)}`,
         nama: plot.namaSiswa,
         prodi: plot.jurusan || 'Teknik Informatika (RPL)',
@@ -601,21 +616,52 @@ export async function syncPesertaFromPlotting(plottingList: PlottingSiswaPKL[]):
         jadwalSidang: '2026-10-19T08:30:00',
         ruangan: 'Ruang Sidang Utama A-201',
         status: 'menunggu',
-      };
-      updatedList.push(newPeserta);
-      hasChanges = true;
+      });
     }
   }
 
-  if (hasChanges && typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY_PESERTA, JSON.stringify(updatedList));
-    broadcastRealtimeChange({
-      type: 'PESERTA_UPDATED',
-      payload: updatedList[0],
-    });
+  // Simpan ke local storage
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PESERTA, JSON.stringify(result));
   }
 
-  return updatedList;
+  // Simpan ke Supabase jika terhubung agar database peserta_sidang selalu sinkron dengan plotting_siswa_pkl
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const config = getSupabaseConfig();
+      const recordsToUpsert = result.map((p) => {
+        const rec: any = {
+          nim: p.nim,
+          nama: p.nama,
+          prodi: p.prodi,
+          kelas: p.kelas,
+          perusahaan: p.perusahaan,
+          judul_laporan: p.judulLaporan,
+          pembimbing_dudi: p.pembimbingDudi,
+          pembimbing_sekolah: p.pembimbingSekolah,
+          jadwal_sidang: p.jadwalSidang,
+          ruangan: p.ruangan,
+          status: p.status,
+          updated_at: new Date().toISOString(),
+        };
+        if (isValidUUID(p.id)) {
+          rec.id = p.id;
+        }
+        return rec;
+      });
+      await client.from(config.tableNameSidang).upsert(recordsToUpsert, { onConflict: 'nim' });
+    } catch (supaErr) {
+      console.warn('Sync peserta_sidang to Supabase error:', supaErr);
+    }
+  }
+
+  broadcastRealtimeChange({
+    type: 'PESERTA_UPDATED',
+    payload: result,
+  });
+
+  return result;
 }
 
 /**
@@ -670,7 +716,7 @@ export async function getPenilaianList(): Promise<PenilaianPenguji[]> {
 }
 
 /**
- * Save / Update Penilaian from an Examiner
+ * Save / Update Penilaian from an Examiner (Online Sync & Real-Time)
  */
 export async function savePenilaian(penilaian: PenilaianPenguji): Promise<PenilaianPenguji[]> {
   const currentList = await getPenilaianList();
@@ -690,7 +736,26 @@ export async function savePenilaian(penilaian: PenilaianPenguji): Promise<Penila
     localStorage.setItem(STORAGE_KEY_PENILAIAN, JSON.stringify(updatedList));
   }
 
-  // Broadcast realtime across tabs
+  // Update status peserta sidang jika nilai sudah masuk
+  try {
+    const currentPeserta = await getPesertaSidangList();
+    const pIdx = currentPeserta.findIndex((p) => p.id === penilaian.mahasiswaId || p.nim === penilaian.mahasiswaId);
+    if (pIdx >= 0) {
+      const targetPeserta = currentPeserta[pIdx];
+      const otherEval = updatedList.find(
+        (p) => (p.mahasiswaId === penilaian.mahasiswaId || p.mahasiswaId === targetPeserta.id) &&
+               p.pengujiId !== penilaian.pengujiId && !p.isDraft
+      );
+      const newStatus = (!penilaian.isDraft && otherEval) ? 'selesai' : 'berlangsung';
+      if (targetPeserta.status !== newStatus) {
+        await savePesertaSidang({ ...targetPeserta, status: newStatus });
+      }
+    }
+  } catch (statusErr) {
+    console.warn('Auto-update student status on score save warning:', statusErr);
+  }
+
+  // Broadcast realtime across tabs & windows
   broadcastRealtimeChange({
     type: 'PENILAIAN_UPDATED',
     payload: penilaian,
@@ -701,22 +766,61 @@ export async function savePenilaian(penilaian: PenilaianPenguji): Promise<Penila
   if (client) {
     try {
       const config = getSupabaseConfig();
-      await client.from(config.tableNameNilai).upsert({
-        id: penilaian.id,
+
+      // Pastikan data peserta_sidang tersimpan di Supabase
+      const currentPeserta = await getPesertaSidangList();
+      const matchedP = currentPeserta.find((p) => p.id === penilaian.mahasiswaId || p.nim === penilaian.mahasiswaId);
+      if (matchedP) {
+        try {
+          const pRecord: any = {
+            nim: matchedP.nim,
+            nama: matchedP.nama,
+            prodi: matchedP.prodi,
+            kelas: matchedP.kelas,
+            perusahaan: matchedP.perusahaan,
+            judul_laporan: matchedP.judulLaporan,
+            pembimbing_dudi: matchedP.pembimbingDudi,
+            pembimbing_sekolah: matchedP.pembimbingSekolah,
+            jadwal_sidang: matchedP.jadwalSidang,
+            ruangan: matchedP.ruangan,
+            status: matchedP.status,
+            updated_at: new Date().toISOString(),
+          };
+          if (isValidUUID(matchedP.id)) {
+            pRecord.id = matchedP.id;
+          }
+          await client.from(config.tableNameSidang).upsert(pRecord, { onConflict: 'nim' });
+        } catch (pErr) {
+          console.warn('Supabase ensure peserta error:', pErr);
+        }
+      }
+
+      const nRecord: any = {
         mahasiswa_id: penilaian.mahasiswaId,
         penguji_id: penilaian.pengujiId,
         penguji_nama: penilaian.pengujiNama,
         penguji_peran: penilaian.pengujiPeran,
         nilai_items: penilaian.nilaiItems,
-        subtotal_agenda: penilaian.subtotalAgenda ?? null,
-        subtotal_sidang: penilaian.subtotalSidang ?? null,
+        subtotal_agenda: penilaian.subtotalAgenda ?? 0,
+        subtotal_sidang: penilaian.subtotalSidang ?? 0,
         total_nilai: penilaian.totalNilai,
         nilai_huruf: penilaian.nilaiHuruf,
-        catatan_revisi: penilaian.catatanRevisi,
-        rekomendasi_status: penilaian.rekomendasiStatus,
-        is_draft: penilaian.isDraft,
+        catatan_revisi: penilaian.catatanRevisi || '',
+        rekomendasi_status: penilaian.rekomendasiStatus || 'Lulus',
+        is_draft: Boolean(penilaian.isDraft),
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (isValidUUID(penilaian.id)) {
+        nRecord.id = penilaian.id;
+      }
+
+      const { error: supaErr } = await client
+        .from(config.tableNameNilai)
+        .upsert(nRecord);
+
+      if (supaErr) {
+        console.warn('Supabase upsert penilaian warning:', supaErr);
+      }
     } catch (err) {
       console.warn('Supabase upsert penilaian error:', err);
     }
@@ -789,12 +893,69 @@ export function subscribeToRealtimeUpdates(
   if (client) {
     try {
       supabaseChannel = client
-        .channel('sidang_evaluasi_room')
+        .channel('sidang_evaluasi_room_and_db')
         .on('broadcast', { event: '*' }, (payload: any) => {
           if (payload && payload.event) {
             callback({ type: payload.event, payload: payload.payload });
           }
         })
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'penilaian_sidang' },
+          (payload: any) => {
+            if (payload && payload.new) {
+              const d = payload.new;
+              const formatted: PenilaianPenguji = {
+                id: d.id,
+                mahasiswaId: d.mahasiswa_id,
+                pengujiId: d.penguji_id,
+                pengujiNama: d.penguji_nama,
+                pengujiPeran: d.penguji_peran,
+                nilaiItems: d.nilai_items || [],
+                subtotalAgenda: d.subtotal_agenda !== null && d.subtotal_agenda !== undefined ? Number(d.subtotal_agenda) : undefined,
+                subtotalSidang: d.subtotal_sidang !== null && d.subtotal_sidang !== undefined ? Number(d.subtotal_sidang) : undefined,
+                totalNilai: Number(d.total_nilai) || 0,
+                nilaiHuruf: d.nilai_huruf || 'E',
+                catatanRevisi: d.catatan_revisi || '',
+                rekomendasiStatus: d.rekomendasi_status || 'Lulus',
+                isDraft: Boolean(d.is_draft),
+                updatedAt: d.updated_at || new Date().toISOString(),
+              };
+              callback({ type: 'PENILAIAN_UPDATED', payload: formatted });
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'peserta_sidang' },
+          (payload: any) => {
+            if (payload && payload.new) {
+              const d = payload.new;
+              const formatted: MahasiswaSidang = {
+                id: d.id,
+                nim: d.nim,
+                nama: d.nama,
+                prodi: d.prodi,
+                kelas: d.kelas,
+                perusahaan: d.perusahaan,
+                judulLaporan: d.judul_laporan,
+                pembimbingDudi: d.pembimbing_dudi,
+                pembimbingSekolah: d.pembimbing_sekolah,
+                jadwalSidang: d.jadwal_sidang,
+                ruangan: d.ruangan,
+                status: d.status,
+              };
+              callback({ type: 'PESERTA_UPDATED', payload: formatted });
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'plotting_siswa_pkl' },
+          () => {
+            callback({ type: 'DATABASE_MUTATED', payload: 'plotting_siswa_pkl' });
+          }
+        )
         .subscribe();
     } catch (e) {
       console.warn('Supabase subscription error:', e);
@@ -3093,6 +3254,9 @@ export async function loginUser(
   if (!cleanId) {
     return { success: false, message: 'Masukkan NIP, Email, atau Username Anda.' };
   }
+  if (!cleanPass) {
+    return { success: false, message: 'Masukkan kata sandi akun Anda.' };
+  }
 
   // 1. Cek Admin Login
   if (
@@ -3100,7 +3264,7 @@ export async function loginUser(
     cleanId.toLowerCase() === 'admin@mypkl.id' ||
     targetRole === 'admin'
   ) {
-    if (cleanPass === 'admin123' || cleanPass === 'admin' || !cleanPass) {
+    if (cleanPass === 'admin123' || cleanPass === 'adminPKL2026') {
       const adminUser: AuthUser = {
         id: 'admin-01',
         nama: 'Administrator PKL & Sidang',
@@ -3112,6 +3276,8 @@ export async function loginUser(
       };
       setCurrentAuthUser(adminUser);
       return { success: true, user: adminUser, message: 'Berhasil masuk sebagai Administrator!' };
+    } else if (targetRole === 'admin' || cleanId.toLowerCase() === 'admin') {
+      return { success: false, message: 'Kata sandi administrator tidak sesuai. Silakan coba lagi.' };
     }
   }
 
@@ -3121,13 +3287,13 @@ export async function loginUser(
     (p) =>
       p.nip.toLowerCase() === cleanId.toLowerCase() ||
       p.email?.toLowerCase() === cleanId.toLowerCase() ||
-      p.nama.toLowerCase().includes(cleanId.toLowerCase())
+      p.nama.toLowerCase() === cleanId.toLowerCase()
   );
 
   if (matchedPenguji) {
-    // Verifikasi password (atau allow penguji123 / direct login di mode demo jika dikosongkan)
+    // Verifikasi password akun penguji
     const validPassword = matchedPenguji.password || 'penguji123';
-    if (!cleanPass || cleanPass === validPassword || cleanPass === 'penguji123' || cleanPass === '123456') {
+    if (cleanPass === validPassword) {
       const pengujiUser: AuthUser = {
         id: matchedPenguji.id,
         nama: matchedPenguji.nama,
@@ -3145,34 +3311,13 @@ export async function loginUser(
         message: `Selamat datang, ${matchedPenguji.nama} (${matchedPenguji.peran})!`,
       };
     } else {
-      return { success: false, message: 'Kata sandi penguji salah. (Password demo: penguji123)' };
+      return { success: false, message: 'Kata sandi tidak sesuai. Silakan periksa kembali kata sandi Anda.' };
     }
-  }
-
-  // Fallback match jika login dengan 1-click penguji ID
-  const directById = pengujiList.find((p) => p.id === cleanId);
-  if (directById) {
-    const pengujiUser: AuthUser = {
-      id: directById.id,
-      nama: directById.nama,
-      usernameOrNip: directById.nip,
-      role: 'penguji',
-      pengujiId: directById.id,
-      email: directById.email,
-      avatar: directById.avatar,
-      loginAt: new Date().toISOString(),
-    };
-    setCurrentAuthUser(pengujiUser);
-    return {
-      success: true,
-      user: pengujiUser,
-      message: `Berhasil masuk sebagai ${directById.nama}!`,
-    };
   }
 
   return {
     success: false,
-    message: 'Akun penguji tidak ditemukan. Periksa NIP atau gunakan login 1-klik di bawah.',
+    message: 'Akun tidak ditemukan. Periksa kembali NIP, Email, atau Username yang Anda masukkan.',
   };
 }
 
