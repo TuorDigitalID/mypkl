@@ -58,7 +58,7 @@ export const PesertaList: React.FC<PesertaListProps> = ({
     perusahaan: '',
     judulLaporan: '',
     pembimbingDudi: '',
-    pembimbingSekolah: 'Dr. Ir. Hendra Kurniawan, M.T.',
+    pembimbingSekolah: 'Guru Pembimbing Sekolah',
     ruangan: 'Ruang Sidang Utama A-201',
     jadwalSidang: new Date().toISOString().slice(0, 16),
   });
@@ -99,7 +99,7 @@ export const PesertaList: React.FC<PesertaListProps> = ({
           nama: compName,
           alamat: plot?.alamatInstansi || 'Alamat Terdaftar di DUDI',
           pembimbingDudi: p.pembimbingDudi || plot?.pembimbingInstansi || 'Pembimbing Lapangan DUDI',
-          guruNama: p.pembimbingSekolah || plot?.guruNama || 'Dr. Ir. Hendra Kurniawan, M.T.',
+          guruNama: p.pembimbingSekolah || plot?.guruNama || 'Guru Pembimbing Sekolah',
           ruangan: p.ruangan || 'Ruang Sidang Utama A-201',
           jadwalSidang: p.jadwalSidang,
           siswa: [],

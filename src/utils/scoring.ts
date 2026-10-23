@@ -781,13 +781,8 @@ CREATE POLICY "Public Read Access Pengaturan Ruangan" ON public.pengaturan_ruang
 
 DROP POLICY IF EXISTS "Public Write Access Pengaturan Ruangan" ON public.pengaturan_ruangan_sidang FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- Insert Data Penguji Awal (Seed Data)
-INSERT INTO public.penguji (nip, nama, peran)
-VALUES 
-    ('198203152008121001', 'Dr. Ir. Hendra Kurniawan, M.T.', 'Penguji 1 (Ketua)'),
-    ('198705202010122003', 'Siti Nurhaliza, S.Kom., M.Cs.', 'Penguji 2 (Sekretaris)'),
-    ('199108112015041002', 'Bambang Prasetyo, S.T. (DUDI)', 'Penguji 3 (Anggota)')
-ON CONFLICT (nip) DO NOTHING;
+-- Catatan: Data penguji akan diinput langsung oleh pengguna melalui menu Master Penguji Sidang
+-- atau ditugaskan langsung dari Guru Pembimbing sekolah tanpa data dummy bawaan.
 
 -- Insert Data Master Jurusan Awal (Seed Data)
 INSERT INTO public.master_jurusan (kode, nama, bidang_keahlian, kepala_program, deskripsi)
@@ -1214,6 +1209,35 @@ DROP POLICY IF EXISTS "Public Read Access Penguji" ON public.penguji;
 CREATE POLICY "Public Read Access Penguji" ON public.penguji FOR SELECT TO anon, authenticated USING (true);
 DROP POLICY IF EXISTS "Public Write Access Penguji" ON public.penguji;
 CREATE POLICY "Public Write Access Penguji" ON public.penguji FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 5. Buat Tabel Pengaturan Pasangan Penguji Ruangan (Ruang 1, 2, 3)
+CREATE TABLE IF NOT EXISTS public.pengaturan_ruangan_sidang (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ruangan_id VARCHAR(50) NOT NULL UNIQUE,
+    nama_ruangan VARCHAR(100) NOT NULL,
+    kode_ruangan VARCHAR(20) NOT NULL,
+    lokasi VARCHAR(150),
+    penguji1_id VARCHAR(100) NOT NULL,
+    penguji2_id VARCHAR(100) NOT NULL,
+    keterangan TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.pengaturan_ruangan_sidang;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+END $$;
+
+ALTER TABLE public.pengaturan_ruangan_sidang ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE public.pengaturan_ruangan_sidang TO anon, authenticated;
+DROP POLICY IF EXISTS "Public Read Access Pengaturan Ruangan" ON public.pengaturan_ruangan_sidang;
+CREATE POLICY "Public Read Access Pengaturan Ruangan" ON public.pengaturan_ruangan_sidang FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "Public Write Access Pengaturan Ruangan" ON public.pengaturan_ruangan_sidang;
+CREATE POLICY "Public Write Access Pengaturan Ruangan" ON public.pengaturan_ruangan_sidang FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 `;
 }
 

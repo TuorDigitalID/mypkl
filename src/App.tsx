@@ -29,7 +29,6 @@ import {
   AuthUser,
   PasanganPengujiRuangan
 } from './types/index.ts';
-import { DAFTAR_PENGUJI } from './data/penguji.ts';
 import { 
   getPesertaSidangList, 
   getPenilaianList, 
@@ -55,9 +54,21 @@ import {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'live' | 'master' | 'jurusan' | 'instansi' | 'guru' | 'plotting' | 'peserta' | 'rekap' | 'rubrik' | 'penguji'>('plotting');
-  const [pengujiList, setPengujiList] = useState<Penguji[]>(DAFTAR_PENGUJI);
+  const [pengujiList, setPengujiList] = useState<Penguji[]>([]);
   const [roomPairings, setRoomPairings] = useState<PasanganPengujiRuangan[]>([]);
-  const [activePenguji, setActivePenguji] = useState<Penguji>(DAFTAR_PENGUJI[0]);
+  const [activePenguji, setActivePenguji] = useState<Penguji>({
+    id: 'p1',
+    nama: 'Penguji Sidang',
+    nip: '-',
+    peran: 'Penguji 1 (Ketua)',
+    avatar: '',
+    email: '',
+    password: '',
+    telepon: '',
+    instansiAsal: 'SMK MA Buaranjati',
+    bidangKeahlian: '',
+    isActive: true,
+  });
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(getCurrentAuthUser());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
@@ -116,14 +127,19 @@ export default function App() {
       setMasterInstansiList(instansi);
       setMasterGuruList(guru);
       setPlottingList(plotting);
-      if (pengujiData && pengujiData.length > 0) {
+      if (pengujiData) {
         setPengujiList(pengujiData);
-        if (!pengujiData.some((p) => p.id === activePenguji.id)) {
-          setActivePenguji(pengujiData[0]);
+        if (pengujiData.length > 0) {
+          setActivePenguji((prev) => {
+            const match = pengujiData.find((p) => p.id === prev.id || p.nip === prev.nip);
+            return match || pengujiData[0];
+          });
         }
       }
       if (pairingsData && pairingsData.length > 0) {
         setRoomPairings(pairingsData);
+      } else if (pengujiData && pengujiData.length > 0) {
+        setRoomPairings(getDefaultRoomPairings(pengujiData));
       }
       if (activePeserta.length > 0 && !activePeserta.some((p) => p.id === activePesertaId)) {
         setActivePesertaId(activePeserta[0].id);
@@ -658,6 +674,8 @@ export default function App() {
           mahasiswaId={beritaAcaraMahasiswaId}
           pesertaList={pesertaList}
           penilaianList={penilaianList}
+          pengujiList={pengujiList}
+          roomPairings={roomPairings}
           onClose={() => setBeritaAcaraMahasiswaId(null)}
         />
       )}

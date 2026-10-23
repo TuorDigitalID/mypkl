@@ -38,7 +38,6 @@ import {
   PlottingSiswaPKL,
   PasanganPengujiRuangan
 } from '../types/index.ts';
-import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 import { 
   DEFAULT_KRITERIA, 
   GRADE_RANGES,
@@ -121,17 +120,55 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
     );
   }, [effectivePairings, selectedRoomId]);
 
-  // Resolved Penguji 1 & Penguji 2 from Master Penguji Data
+  // Resolved Penguji 1 & Penguji 2 from Master Penguji Data (Database)
   const p1Examiner: Penguji = useMemo(() => {
-    const list = pengujiList && pengujiList.length > 0 ? pengujiList : DAFTAR_PENGUJI;
-    const found = list.find((p) => p.id === activeRoomPairing.penguji1Id);
-    return found || list[0] || DAFTAR_PENGUJI[0];
+    if (pengujiList && pengujiList.length > 0) {
+      const found = pengujiList.find(
+        (p) =>
+          p.id === activeRoomPairing.penguji1Id ||
+          p.nip === activeRoomPairing.penguji1Id ||
+          (activeRoomPairing.penguji1Id === 'p1' && (p.peran.includes('1') || p.peran.toLowerCase().includes('ketua')))
+      );
+      return found || pengujiList[0];
+    }
+    return {
+      id: 'p1',
+      nama: 'Penguji 1 (Ketua)',
+      nip: '-',
+      peran: 'Penguji 1 (Ketua)',
+      avatar: '',
+      email: '',
+      password: '',
+      telepon: '',
+      instansiAsal: 'SMK MA Buaranjati',
+      bidangKeahlian: '',
+      isActive: true,
+    };
   }, [pengujiList, activeRoomPairing.penguji1Id]);
 
   const p2Examiner: Penguji = useMemo(() => {
-    const list = pengujiList && pengujiList.length > 0 ? pengujiList : DAFTAR_PENGUJI;
-    const found = list.find((p) => p.id === activeRoomPairing.penguji2Id);
-    return found || list[1] || DAFTAR_PENGUJI[1];
+    if (pengujiList && pengujiList.length > 0) {
+      const found = pengujiList.find(
+        (p) =>
+          p.id === activeRoomPairing.penguji2Id ||
+          p.nip === activeRoomPairing.penguji2Id ||
+          (activeRoomPairing.penguji2Id === 'p2' && (p.peran.includes('2') || p.peran.toLowerCase().includes('sekr')))
+      );
+      return found || pengujiList[1] || pengujiList[0];
+    }
+    return {
+      id: 'p2',
+      nama: 'Penguji 2 (Sekretaris)',
+      nip: '-',
+      peran: 'Penguji 2 (Sekretaris)',
+      avatar: '',
+      email: '',
+      password: '',
+      telepon: '',
+      instansiAsal: 'SMK MA Buaranjati',
+      bidangKeahlian: '',
+      isActive: true,
+    };
   }, [pengujiList, activeRoomPairing.penguji2Id]);
 
   const activeRoomPair = useMemo(() => [p1Examiner, p2Examiner], [p1Examiner, p2Examiner]);
@@ -188,7 +225,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
           nama: companyName,
           alamat: plot?.alamatInstansi || 'Lokasi DUDI Terdaftar',
           pembimbingDudi: p.pembimbingDudi || plot?.pembimbingInstansi || 'Pembimbing Lapangan DUDI',
-          guruNama: p.pembimbingSekolah || plot?.guruNama || 'Dr. Ir. Hendra Kurniawan, M.T.',
+          guruNama: p.pembimbingSekolah || plot?.guruNama || 'Guru Pembimbing Sekolah',
           ruangan: p.ruangan,
           jadwal: p.jadwalSidang,
           siswa: [],
@@ -910,11 +947,18 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
 
         {/* 2 Penguji Ruangan Live Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          {DAFTAR_PENGUJI.slice(0, 2).map((penguji) => {
-            const ev = penilaianList.find(
-              (p) => p.mahasiswaId === activePeserta.id && p.pengujiId === penguji.id
-            );
-            const isCurrentUser = penguji.id === activePenguji.id;
+          {activeRoomPair.map((penguji, idx) => {
+            const ev = penilaianList.find((p) => {
+              const matchMhs = p.mahasiswaId === activePeserta.id || (activePeserta.nim && p.mahasiswaId === activePeserta.nim);
+              const matchPenguji =
+                p.pengujiId === penguji.id ||
+                (p.pengujiNama && penguji.nama && p.pengujiNama.toLowerCase().trim() === penguji.nama.toLowerCase().trim()) ||
+                (penguji.nip && p.pengujiId === penguji.nip) ||
+                (idx === 0 && (p.pengujiPeran.includes('1') || p.pengujiPeran.toLowerCase().includes('ketua'))) ||
+                (idx === 1 && (p.pengujiPeran.includes('2') || p.pengujiPeran.toLowerCase().includes('sekr')));
+              return matchMhs && matchPenguji;
+            });
+            const isCurrentUser = penguji.id === activePenguji.id || (penguji.nip && activePenguji.nip === penguji.nip);
             const hasSubmitted = ev && !ev.isDraft;
 
             const displayTotal = isCurrentUser ? activeExaminerTotal : (ev ? ev.totalNilai : 0);
@@ -922,7 +966,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
 
             return (
               <div
-                key={penguji.id}
+                key={`${penguji.id}-${idx}`}
                 className={`relative rounded-2xl p-4 transition-all ${
                   isCurrentUser
                     ? 'bg-orange-950/40 border-2 border-orange-500 shadow-md ring-2 ring-orange-500/20'
@@ -932,17 +976,17 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
                 {/* Header card */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shadow-xs ${
-                      isCurrentUser ? 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white' : 'bg-slate-800 text-slate-300'
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shadow-xs ${
+                      isCurrentUser ? 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white' : 'bg-slate-800 text-amber-300'
                     }`}>
-                      {penguji.peran.includes('1') ? 'P1' : penguji.peran.includes('2') ? 'P2' : 'P3'}
+                      {idx === 0 ? 'P1' : 'P2'}
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-white truncate max-w-[130px]">
+                      <p className="text-xs font-bold text-white truncate max-w-[160px] sm:max-w-xs">
                         {penguji.nama}
                       </p>
                       <p className="text-[10px] text-orange-300 font-semibold">
-                        {penguji.peran}
+                        {idx === 0 ? 'Penguji 1 (Ketua Sidang)' : 'Penguji 2 (Sekretaris Sidang)'} {penguji.nip ? `• NIP: ${penguji.nip}` : ''}
                       </p>
                     </div>
                   </div>
@@ -1502,7 +1546,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
         isOpen={isAturRuanganModalOpen}
         onClose={() => setIsAturRuanganModalOpen(false)}
         roomPairings={effectivePairings}
-        pengujiList={pengujiList && pengujiList.length > 0 ? pengujiList : DAFTAR_PENGUJI}
+        pengujiList={pengujiList}
         onSave={async (pairings: PasanganPengujiRuangan[]) => {
           if (onSaveRoomPairings) {
             await onSaveRoomPairings(pairings);

@@ -29,7 +29,6 @@ import {
 } from 'lucide-react';
 import { MasterSiswaPKL, MasterJurusan, MasterInstansi, MasterGuruPembimbing } from '../types/index.ts';
 import { saveMasterSiswa, deleteMasterSiswa } from '../lib/supabase.ts';
-import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 import { UploadExcelModal } from './UploadExcelModal.tsx';
 import { findJurusanByNameOrCode, getJurusanColorTheme } from '../utils/jurusanUtils.ts';
 import { calculateInstansiStats, findInstansiByName } from '../utils/instansiUtils.ts';
@@ -102,7 +101,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
     pembimbingInstansi: '',
     emailLogin: '',
     passwordLogin: '',
-    guruPembimbing: guruList[0]?.nama || DAFTAR_PENGUJI[0]?.nama || 'Dr. Ir. Hendra Kurniawan, M.T.',
+    guruPembimbing: guruList[0]?.nama || '',
   });
   const [formError, setFormError] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -233,7 +232,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
       pembimbingInstansi: defaultInstansi?.pembimbingInstansi || '',
       emailLogin: `siswa.${initialNisn.slice(-4)}@smk.belajar.id`,
       passwordLogin: `Pkl#${Math.floor(1000 + Math.random() * 9000)}`,
-      guruPembimbing: DAFTAR_PENGUJI[0]?.nama || 'Dr. Ir. Hendra Kurniawan, M.T.',
+      guruPembimbing: guruList[0]?.nama || '',
     });
     setFormError('');
     setIsModalOpen(true);
@@ -1025,11 +1024,7 @@ export const MasterSiswaTable: React.FC<MasterSiswaTableProps> = ({
                       </option>
                     ))
                   ) : (
-                    DAFTAR_PENGUJI.map((p) => (
-                      <option key={p.id} value={p.nama}>
-                        {p.nama} ({p.peran})
-                      </option>
-                    ))
+                    <option value="">Belum ada data guru pembimbing (Tambahkan di Master Guru)</option>
                   )}
                 </select>
               </div>

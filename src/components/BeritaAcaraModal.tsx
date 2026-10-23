@@ -4,14 +4,15 @@ import {
   Printer, 
   FileText
 } from 'lucide-react';
-import { MahasiswaSidang, PenilaianPenguji } from '../types/index.ts';
+import { MahasiswaSidang, PenilaianPenguji, Penguji, PasanganPengujiRuangan } from '../types/index.ts';
 import { calculateFinalAggregate } from '../utils/scoring.ts';
-import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 
 interface BeritaAcaraModalProps {
   mahasiswaId: string | null;
   pesertaList: MahasiswaSidang[];
   penilaianList: PenilaianPenguji[];
+  pengujiList?: Penguji[];
+  roomPairings?: PasanganPengujiRuangan[];
   onClose: () => void;
 }
 
@@ -19,6 +20,8 @@ export const BeritaAcaraModal: React.FC<BeritaAcaraModalProps> = ({
   mahasiswaId,
   pesertaList,
   penilaianList,
+  pengujiList = [],
+  roomPairings = [],
   onClose,
 }) => {
   const mahasiswa = pesertaList.find((p) => p.id === mahasiswaId);
@@ -33,13 +36,83 @@ export const BeritaAcaraModal: React.FC<BeritaAcaraModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  // Tentukan ruangan mahasiswa (default Ruang 1 jika belum ditentukan)
+  const roomNumber = React.useMemo(() => {
+    if (!mahasiswa?.ruangan) return 'ruang-1';
+    if (mahasiswa.ruangan.includes('2')) return 'ruang-2';
+    if (mahasiswa.ruangan.includes('3')) return 'ruang-3';
+    return 'ruang-1';
+  }, [mahasiswa?.ruangan]);
+
+  const activeRoomPair = React.useMemo(() => {
+    return roomPairings.find((r) => r.ruanganId === roomNumber) || roomPairings[0];
+  }, [roomPairings, roomNumber]);
+
+  // Resolusi nama & NIP Penguji 1 & 2 dari Master Penguji di Database
+  const p1: Penguji = React.useMemo(() => {
+    if (pengujiList && pengujiList.length > 0) {
+      const found = pengujiList.find(
+        (p) =>
+          p.id === activeRoomPair?.penguji1Id ||
+          p.nip === activeRoomPair?.penguji1Id ||
+          (activeRoomPair?.penguji1Id === 'p1' && (p.peran.includes('1') || p.peran.toLowerCase().includes('ketua')))
+      );
+      if (found) return found;
+      return pengujiList[0];
+    }
+    return {
+      id: 'p1',
+      nama: 'Penguji 1 (Ketua)',
+      nip: '-',
+      peran: 'Penguji 1 (Ketua)',
+      avatar: '',
+      email: '',
+      password: '',
+      telepon: '',
+      instansiAsal: 'SMK MA Buaranjati',
+      bidangKeahlian: '',
+      isActive: true,
+    };
+  }, [pengujiList, activeRoomPair?.penguji1Id]);
+
+  const p2: Penguji = React.useMemo(() => {
+    if (pengujiList && pengujiList.length > 0) {
+      const found = pengujiList.find(
+        (p) =>
+          p.id === activeRoomPair?.penguji2Id ||
+          p.nip === activeRoomPair?.penguji2Id ||
+          (activeRoomPair?.penguji2Id === 'p2' && (p.peran.includes('2') || p.peran.toLowerCase().includes('sekr')))
+      );
+      if (found) return found;
+      return pengujiList[1] || pengujiList[0];
+    }
+    return {
+      id: 'p2',
+      nama: 'Penguji 2 (Sekretaris)',
+      nip: '-',
+      peran: 'Penguji 2 (Sekretaris)',
+      avatar: '',
+      email: '',
+      password: '',
+      telepon: '',
+      instansiAsal: 'SMK MA Buaranjati',
+      bidangKeahlian: '',
+      isActive: true,
+    };
+  }, [pengujiList, activeRoomPair?.penguji2Id]);
+
+  const dewanPengujiRuangan = React.useMemo(() => [
+    { ...p1, peran: 'Penguji 1 (Ketua Sidang)' },
+    { ...p2, peran: 'Penguji 2 (Sekretaris Sidang)' }
+  ], [p1, p2]);
+
   if (!mahasiswa) return null;
 
-  // 2 examiners per room formula
-  const aggregate = calculateFinalAggregate(mahasiswa.id, penilaianList, 2);
-
-  // Filter 2 dewan penguji ruangan (Penguji 1 & Penguji 2)
-  const dewanPengujiRuangan = DAFTAR_PENGUJI.slice(0, 2);
+  // Hitung nilai akhir spesifik dewan penguji ruangan yang bertugas
+  const aggregate = calculateFinalAggregate(mahasiswa.id, penilaianList, 2, {
+    p1Id: p1.id,
+    p2Id: p2.id,
+  });
 
   const handlePrint = () => {
     window.print();
@@ -175,7 +248,9 @@ export const BeritaAcaraModal: React.FC<BeritaAcaraModalProps> = ({
                   <td className="p-2 border-r border-slate-200 text-center font-mono" rowSpan={3}>2</td>
                   <td className="p-2 border-r border-slate-200">
                     <p className="font-semibold text-slate-900">Ujian Sidang — Penguji 1 (Ketua)</p>
-                    <p className="text-[10px] text-slate-500">{dewanPengujiRuangan[0]?.nama || 'Dr. Ir. Hendra Kurniawan, M.T.'}</p>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      {p1.nama} {p1.nip && p1.nip !== '-' ? `• NIP: ${p1.nip}` : ''}
+                    </p>
                   </td>
                   <td className="p-2 border-r border-slate-200 text-center font-mono font-bold text-slate-800">
                     {aggregate.nilaiSidangP1 > 0 ? aggregate.nilaiSidangP1.toFixed(2) : '-'}
@@ -192,7 +267,9 @@ export const BeritaAcaraModal: React.FC<BeritaAcaraModalProps> = ({
                 <tr className="bg-slate-50/50">
                   <td className="p-2 border-r border-slate-200">
                     <p className="font-semibold text-slate-900">Ujian Sidang — Penguji 2 (Sekretaris)</p>
-                    <p className="text-[10px] text-slate-500">{dewanPengujiRuangan[1]?.nama || 'Siti Nurhaliza, S.Kom., M.Cs.'}</p>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      {p2.nama} {p2.nip && p2.nip !== '-' ? `• NIP: ${p2.nip}` : ''}
+                    </p>
                   </td>
                   <td className="p-2 border-r border-slate-200 text-center font-mono font-bold text-slate-800">
                     {aggregate.nilaiSidangP2 > 0 ? aggregate.nilaiSidangP2.toFixed(2) : '-'}
@@ -292,7 +369,9 @@ export const BeritaAcaraModal: React.FC<BeritaAcaraModalProps> = ({
                     <p className="font-black text-slate-900 border-t border-slate-300 pt-1.5">
                       {penguji.nama}
                     </p>
-                    <p className="text-[10px] font-mono text-slate-500">NIP: {penguji.nip}</p>
+                    <p className="text-[10px] font-mono text-slate-500">
+                      {penguji.nip && penguji.nip !== '-' ? `NIP: ${penguji.nip}` : 'Dewan Penguji Sidang'}
+                    </p>
                   </div>
                 </div>
               ))}

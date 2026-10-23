@@ -3095,76 +3095,29 @@ export async function getPengujiList(): Promise<Penguji[]> {
       const { data, error } = await client
         .from('penguji')
         .select('*')
-        .order('nip', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (!error && data) {
-        if (data.length > 0) {
-          const mapped: Penguji[] = data.map((d: any) => ({
-            id: d.id,
-            nama: d.nama,
-            nip: d.nip,
-            peran: d.peran,
-            avatar: d.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-            email: d.email || `${d.nip}@smk-vokasi.sch.id`,
-            password: d.password || 'penguji123',
-            telepon: d.telepon || '0812-0000-0000',
-            instansiAsal: d.instansi_asal || 'SMK Negeri Vokasi',
-            bidangKeahlian: d.bidang_keahlian || 'Teknologi Informasi',
-            isActive: d.is_active !== false,
-            createdAt: d.created_at,
-            updatedAt: d.updated_at,
-          }));
+        const mapped: Penguji[] = data.map((d: any) => ({
+          id: d.id,
+          nama: d.nama,
+          nip: d.nip,
+          peran: d.peran,
+          avatar: d.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+          email: d.email || `${d.nip}@smk-vokasi.sch.id`,
+          password: d.password || 'penguji123',
+          telepon: d.telepon || '0812-0000-0000',
+          instansiAsal: d.instansi_asal || 'SMK MA Buaranjati',
+          bidangKeahlian: d.bidang_keahlian || 'Teknologi Informasi & Kejuruan',
+          isActive: d.is_active !== false,
+          createdAt: d.created_at,
+          updatedAt: d.updated_at,
+        }));
 
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(STORAGE_KEY_PENGUJI, JSON.stringify(mapped));
-          }
-          return mapped;
-        } else {
-          // Tabel penguji ada di Supabase tetapi masih kosong -> Seed data bawaan secara otomatis
-          try {
-            const seedPayload = DAFTAR_PENGUJI.map((p) => ({
-              nip: p.nip,
-              nama: p.nama,
-              peran: p.peran,
-              avatar: p.avatar,
-              email: p.email,
-              password: p.password,
-              telepon: p.telepon,
-              instansi_asal: p.instansiAsal,
-              bidang_keahlian: p.bidangKeahlian,
-              is_active: p.isActive !== false,
-            }));
-
-            const { data: seededRows, error: seedErr } = await client
-              .from('penguji')
-              .upsert(seedPayload, { onConflict: 'nip' })
-              .select();
-
-            if (!seedErr && seededRows && seededRows.length > 0) {
-              const mappedSeeded: Penguji[] = seededRows.map((d: any) => ({
-                id: d.id,
-                nama: d.nama,
-                nip: d.nip,
-                peran: d.peran,
-                avatar: d.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-                email: d.email || `${d.nip}@smk-vokasi.sch.id`,
-                password: d.password || 'penguji123',
-                telepon: d.telepon || '0812-0000-0000',
-                instansiAsal: d.instansi_asal || 'SMK Negeri Vokasi',
-                bidangKeahlian: d.bidang_keahlian || 'Teknologi Informasi',
-                isActive: d.is_active !== false,
-                createdAt: d.created_at,
-                updatedAt: d.updated_at,
-              }));
-              if (typeof window !== 'undefined') {
-                localStorage.setItem(STORAGE_KEY_PENGUJI, JSON.stringify(mappedSeeded));
-              }
-              return mappedSeeded;
-            }
-          } catch (seedError) {
-            console.warn('Auto-seed penguji to Supabase warning:', seedError);
-          }
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY_PENGUJI, JSON.stringify(mapped));
         }
+        return mapped;
       }
     } catch (err) {
       console.warn('Supabase fetch penguji error, falling back to local store:', err);
@@ -3183,11 +3136,9 @@ export async function getPengujiList(): Promise<Penguji[]> {
         // ignore
       }
     }
-    // initialize default seed
-    localStorage.setItem(STORAGE_KEY_PENGUJI, JSON.stringify(DAFTAR_PENGUJI));
   }
 
-  return DAFTAR_PENGUJI;
+  return [];
 }
 
 /**
@@ -3353,9 +3304,9 @@ export async function resetPengujiToDefault(): Promise<Penguji[]> {
  * Menghasilkan susunan pasangan penguji default untuk Ruang 1, Ruang 2, dan Ruang 3
  */
 export function getDefaultRoomPairings(pengujiList?: Penguji[]): PasanganPengujiRuangan[] {
-  const pList = pengujiList && pengujiList.length > 0 ? pengujiList : DAFTAR_PENGUJI;
+  const pList = pengujiList && pengujiList.length > 0 ? pengujiList : [];
 
-  // Pasangkan penguji secara seimbang
+  // Pasangkan penguji secara seimbang dari data penguji database yang tersedia
   const p1 = pList[0]?.id || 'p1';
   const p2 = pList[1]?.id || pList[0]?.id || 'p2';
 
@@ -3410,20 +3361,21 @@ export async function getRoomPairingsList(pengujiList?: Penguji[]): Promise<Pasa
     try {
       const { data, error } = await client
         .from('pengaturan_ruangan_sidang')
-        .select('*')
-        .order('id', { ascending: true });
+        .select('*');
 
       if (!error && data && data.length > 0) {
         const mapped: PasanganPengujiRuangan[] = data.map((d: any) => ({
-          ruanganId: d.id,
+          ruanganId: d.ruangan_id || (typeof d.id === 'string' && d.id.startsWith('ruang-') ? d.id : 'ruang-1'),
           namaRuangan: d.nama_ruangan,
-          kodeRuangan: d.nama_ruangan.replace(/Sidang\s+/i, ''),
-          lokasi: d.lokasi,
+          kodeRuangan: d.kode_ruangan || d.nama_ruangan?.replace(/Sidang\s+/i, '') || 'Ruang',
+          lokasi: d.lokasi || '',
           penguji1Id: d.penguji1_id,
           penguji2Id: d.penguji2_id,
-          keterangan: d.keterangan,
-          updatedAt: d.updated_at,
+          keterangan: d.keterangan || '',
+          updatedAt: d.updated_at || new Date().toISOString(),
         }));
+
+        mapped.sort((a, b) => a.ruanganId.localeCompare(b.ruanganId));
 
         if (typeof window !== 'undefined') {
           localStorage.setItem(STORAGE_KEY_ROOM_PAIRINGS, JSON.stringify(mapped));
@@ -3482,8 +3434,9 @@ export async function saveRoomPairings(
   if (client) {
     try {
       const recordsToUpsert = withTimestamps.map((p) => ({
-        id: p.ruanganId,
+        ruangan_id: p.ruanganId,
         nama_ruangan: p.namaRuangan,
+        kode_ruangan: p.kodeRuangan || p.namaRuangan.replace(/Sidang\s+/i, ''),
         lokasi: p.lokasi || null,
         penguji1_id: p.penguji1Id,
         penguji2_id: p.penguji2Id,
@@ -3491,12 +3444,19 @@ export async function saveRoomPairings(
         updated_at: now,
       }));
 
-      const { error } = await client
+      // Coba upsert dengan onConflict ruangan_id
+      const { error: upsertErr1 } = await client
         .from('pengaturan_ruangan_sidang')
-        .upsert(recordsToUpsert, { onConflict: 'id' });
+        .upsert(recordsToUpsert, { onConflict: 'ruangan_id' });
 
-      if (error) {
-        console.warn('Supabase upsert pengaturan_ruangan_sidang warning:', error);
+      if (upsertErr1) {
+        console.warn('Supabase upsert on conflict ruangan_id warning, trying id PK:', upsertErr1);
+        await client
+          .from('pengaturan_ruangan_sidang')
+          .upsert(
+            recordsToUpsert.map((r) => ({ ...r, id: r.ruangan_id })),
+            { onConflict: 'id' }
+          );
       }
     } catch (err) {
       console.warn('Supabase upsert pengaturan_ruangan_sidang error:', err);
