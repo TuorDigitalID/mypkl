@@ -45,7 +45,8 @@ import {
   setCurrentAuthUser,
   logoutUser,
   getSupabaseConfig, 
-  subscribeToRealtimeUpdates 
+  subscribeToRealtimeUpdates,
+  syncPesertaFromPlotting
 } from './lib/supabase.ts';
 
 export default function App() {
@@ -95,7 +96,14 @@ export default function App() {
         getPlottingList(),
         getPengujiList(),
       ]);
-      setPesertaList(peserta);
+
+      // SINKRONISASI OTOMATIS:
+      // Memastikan data jadwal antrean dan data sidang ruang live 100% sama dan selalu update dari database plotting & peserta
+      let activePeserta = peserta;
+      if (plotting && plotting.length > 0) {
+        activePeserta = await syncPesertaFromPlotting(plotting, peserta);
+      }
+      setPesertaList(activePeserta);
       setPenilaianList(nilai);
       setMasterSiswaList(master);
       setMasterJurusanList(jurusan);
@@ -108,8 +116,8 @@ export default function App() {
           setActivePenguji(pengujiData[0]);
         }
       }
-      if (peserta.length > 0 && !peserta.some((p) => p.id === activePesertaId)) {
-        setActivePesertaId(peserta[0].id);
+      if (activePeserta.length > 0 && !activePeserta.some((p) => p.id === activePesertaId)) {
+        setActivePesertaId(activePeserta[0].id);
       }
     } catch (e) {
       console.error('Error loading data:', e);
@@ -218,6 +226,9 @@ export default function App() {
           }
           return [event.payload, ...prev];
         });
+        loadData();
+      } else if (event.type === 'DATABASE_MUTATED') {
+        loadData();
       }
     });
 
@@ -237,10 +248,16 @@ export default function App() {
 
   // Examiner CRUD Handlers
   const handleSavePenguji = async (p: Penguji) => {
-    const updated = await savePenguji(p);
-    setPengujiList(updated);
-    if (activePenguji.id === p.id) {
-      setActivePenguji(p);
+    try {
+      const updated = await savePenguji(p);
+      setPengujiList(updated);
+      if (activePenguji.id === p.id || activePenguji.nip === p.nip) {
+        const found = updated.find((item) => item.id === p.id || item.nip === p.nip);
+        if (found) setActivePenguji(found);
+      }
+    } catch (err) {
+      console.error('Error saving examiner:', err);
+      throw err;
     }
   };
 
@@ -386,6 +403,7 @@ export default function App() {
                   onOpenBeritaAcara={handleOpenBeritaAcara}
                   plottingList={plottingList}
                   onSelectPenguji={setActivePenguji}
+                  onPenilaianSaved={loadData}
                 />
               )}
 

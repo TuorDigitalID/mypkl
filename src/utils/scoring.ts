@@ -647,6 +647,12 @@ BEGIN
     END;
 
     BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.penguji;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+
+    BEGIN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.master_siswa_pkl;
     EXCEPTION WHEN duplicate_object THEN
         NULL;
@@ -1099,7 +1105,25 @@ export function generatePengujiGuruSQLScript(): string {
 -- Jalankan di Supabase Dashboard > SQL Editor > New query > Run
 -- ====================================================================
 
--- 1. Pastikan kolom akun penguji sidang lengkap
+-- 1. Buat Tabel Penguji Sidang jika belum ada
+CREATE TABLE IF NOT EXISTS public.penguji (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nip VARCHAR(50) NOT NULL UNIQUE,
+    nama VARCHAR(150) NOT NULL,
+    peran VARCHAR(80) NOT NULL,
+    avatar TEXT,
+    email VARCHAR(150),
+    password VARCHAR(100) DEFAULT 'penguji123',
+    telepon VARCHAR(50),
+    instansi_asal VARCHAR(150) DEFAULT 'SMK Negeri 1 Vokasi',
+    bidang_keahlian VARCHAR(150),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 2. Pastikan kolom akun penguji sidang lengkap jika tabel lama sudah ada
+ALTER TABLE public.penguji ALTER COLUMN id SET DEFAULT gen_random_uuid();
 ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS email VARCHAR(150);
 ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS password VARCHAR(100) DEFAULT 'penguji123';
 ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS telepon VARCHAR(50);
@@ -1108,7 +1132,7 @@ ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS bidang_keahlian VARCHAR(150)
 ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE public.penguji ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
 
--- 2. Pastikan constraint UNIQUE pada NIP penguji ada (Wajib untuk Upsert)
+-- 3. Pastikan constraint UNIQUE pada NIP penguji ada (Wajib untuk Upsert)
 DO $$
 BEGIN
     IF NOT EXISTS (

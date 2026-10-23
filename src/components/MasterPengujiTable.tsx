@@ -26,6 +26,7 @@ import {
   Briefcase
 } from 'lucide-react';
 import { Penguji, PenilaianPenguji, AuthUser, MasterGuruPembimbing } from '../types/index.ts';
+import { generateUUID, isValidUUID } from '../lib/supabase.ts';
 
 interface MasterPengujiTableProps {
   pengujiList: Penguji[];
@@ -88,6 +89,7 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Delete Confirmation State
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -199,7 +201,7 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
       const finalPass = password.trim() ? password.trim() : (existingPass || `smk${Math.floor(100000 + Math.random() * 900000)}`);
 
       const newOrUpdatedPenguji: Penguji = {
-        id: editingPenguji ? editingPenguji.id : `penguji-${Date.now()}`,
+        id: editingPenguji && isValidUUID(editingPenguji.id) ? editingPenguji.id : generateUUID(),
         nama: nama.trim(),
         nip: nip.trim(),
         peran: peran.trim(),
@@ -214,6 +216,8 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
 
       await onSavePenguji(newOrUpdatedPenguji);
       setIsModalOpen(false);
+      setSuccessToast(`Data penguji "${newOrUpdatedPenguji.nama}" berhasil disimpan ke database.`);
+      setTimeout(() => setSuccessToast(null), 4500);
     } catch (err: any) {
       setFormError(err?.message || 'Gagal menyimpan data penguji.');
     } finally {
@@ -241,7 +245,7 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
         (p) => p.nip.replace(/\s+/g, '') === cleanNip
       );
       const pengujiToSave: Penguji = {
-        id: existing ? existing.id : `p-${Date.now()}`,
+        id: existing && isValidUUID(existing.id) ? existing.id : generateUUID(),
         nip: guru.nip,
         nama: guru.nama,
         peran: peranSidang,
@@ -254,6 +258,8 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
         isActive: true,
       };
       await onSavePenguji(pengujiToSave);
+      setSuccessToast(`Guru "${guru.nama}" berhasil ditugaskan sebagai ${peranSidang} ke database.`);
+      setTimeout(() => setSuccessToast(null), 4500);
     } catch (err: any) {
       alert(err?.message || 'Gagal menugaskan guru sebagai penguji.');
     } finally {
@@ -298,6 +304,23 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       
+      {/* Success Toast Notification */}
+      {successToast && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 shadow-sm flex items-center justify-between gap-3 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span className="text-sm font-semibold">{successToast}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessToast(null)}
+            className="p-1 rounded-lg text-emerald-700 hover:bg-emerald-100 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Banner Card: Management Header & Summary */}
       <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-orange-100/40 via-amber-50/20 to-transparent pointer-events-none rounded-full blur-2xl" />

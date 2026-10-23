@@ -768,8 +768,11 @@ export async function savePenilaian(penilaian: PenilaianPenguji): Promise<Penila
       const config = getSupabaseConfig();
 
       // Pastikan data peserta_sidang tersimpan di Supabase
+      let mahasiswaUuid = isValidUUID(penilaian.mahasiswaId) ? penilaian.mahasiswaId : null;
       const currentPeserta = await getPesertaSidangList();
-      const matchedP = currentPeserta.find((p) => p.id === penilaian.mahasiswaId || p.nim === penilaian.mahasiswaId);
+      const matchedP = currentPeserta.find(
+        (p) => p.id === penilaian.mahasiswaId || (p.nim && p.nim === penilaian.mahasiswaId)
+      );
       if (matchedP) {
         try {
           const pRecord: any = {
@@ -789,15 +792,61 @@ export async function savePenilaian(penilaian: PenilaianPenguji): Promise<Penila
           if (isValidUUID(matchedP.id)) {
             pRecord.id = matchedP.id;
           }
-          await client.from(config.tableNameSidang).upsert(pRecord, { onConflict: 'nim' });
+          const { data: dbPeserta } = await client
+            .from(config.tableNameSidang)
+            .upsert(pRecord, { onConflict: 'nim' })
+            .select('id')
+            .single();
+
+          if (dbPeserta?.id) {
+            mahasiswaUuid = dbPeserta.id;
+          }
         } catch (pErr) {
           console.warn('Supabase ensure peserta error:', pErr);
         }
       }
 
+      // Pastikan data penguji terdaftar di Supabase
+      let pengujiUuid = isValidUUID(penilaian.pengujiId) ? penilaian.pengujiId : null;
+      const currentPenguji = await getPengujiList();
+      const matchedPenguji = currentPenguji.find(
+        (p) => p.id === penilaian.pengujiId || (p.nama && p.nama.toLowerCase().trim() === penilaian.pengujiNama?.toLowerCase()?.trim())
+      );
+      if (matchedPenguji) {
+        try {
+          const pengRecord: any = {
+            nama: matchedPenguji.nama,
+            nip: matchedPenguji.nip,
+            peran: matchedPenguji.peran,
+            avatar: matchedPenguji.avatar,
+            email: matchedPenguji.email,
+            password: matchedPenguji.password,
+            telepon: matchedPenguji.telepon,
+            instansi_asal: matchedPenguji.instansiAsal,
+            bidang_keahlian: matchedPenguji.bidangKeahlian,
+            is_active: matchedPenguji.isActive !== false,
+            updated_at: new Date().toISOString(),
+          };
+          if (isValidUUID(matchedPenguji.id)) {
+            pengRecord.id = matchedPenguji.id;
+          }
+          const { data: dbPenguji } = await client
+            .from('penguji')
+            .upsert(pengRecord, { onConflict: 'nip' })
+            .select('id')
+            .single();
+
+          if (dbPenguji?.id) {
+            pengujiUuid = dbPenguji.id;
+          }
+        } catch (pengErr) {
+          console.warn('Supabase ensure penguji error:', pengErr);
+        }
+      }
+
       const nRecord: any = {
-        mahasiswa_id: penilaian.mahasiswaId,
-        penguji_id: penilaian.pengujiId,
+        mahasiswa_id: mahasiswaUuid || penilaian.mahasiswaId,
+        penguji_id: pengujiUuid || penilaian.pengujiId,
         penguji_nama: penilaian.pengujiNama,
         penguji_peran: penilaian.pengujiPeran,
         nilai_items: penilaian.nilaiItems,
@@ -816,7 +865,7 @@ export async function savePenilaian(penilaian: PenilaianPenguji): Promise<Penila
 
       const { error: supaErr } = await client
         .from(config.tableNameNilai)
-        .upsert(nRecord);
+        .upsert(nRecord, { onConflict: 'mahasiswa_id, penguji_id' });
 
       if (supaErr) {
         console.warn('Supabase upsert penilaian warning:', supaErr);
@@ -954,6 +1003,33 @@ export function subscribeToRealtimeUpdates(
           { event: '*', schema: 'public', table: 'plotting_siswa_pkl' },
           () => {
             callback({ type: 'DATABASE_MUTATED', payload: 'plotting_siswa_pkl' });
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'penguji' },
+          (payload: any) => {
+            if (payload && payload.eventType === 'DELETE' && payload.old) {
+              callback({ type: 'PENGUJI_DELETED', payload: { id: payload.old.id } });
+            } else if (payload && payload.new) {
+              const d = payload.new;
+              const formatted: Penguji = {
+                id: d.id,
+                nama: d.nama,
+                nip: d.nip,
+                peran: d.peran,
+                avatar: d.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+                email: d.email || `${d.nip}@smk-vokasi.sch.id`,
+                password: d.password || 'penguji123',
+                telepon: d.telepon || '0812-0000-0000',
+                instansiAsal: d.instansi_asal || 'SMK Negeri Vokasi',
+                bidangKeahlian: d.bidang_keahlian || 'Teknologi Informasi',
+                isActive: d.is_active !== false,
+                createdAt: d.created_at,
+                updatedAt: d.updated_at,
+              };
+              callback({ type: 'PENGUJI_UPDATED', payload: formatted });
+            }
           }
         )
         .subscribe();
@@ -3012,22 +3088,74 @@ export async function getPengujiList(): Promise<Penguji[]> {
         .select('*')
         .order('nip', { ascending: true });
 
-      if (!error && data && data.length > 0) {
-        return data.map((d: any) => ({
-          id: d.id,
-          nama: d.nama,
-          nip: d.nip,
-          peran: d.peran,
-          avatar: d.avatar || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
-          email: d.email || `${d.nip}@smk-vokasi.sch.id`,
-          password: d.password || 'penguji123',
-          telepon: d.telepon || '0812-0000-0000',
-          instansiAsal: d.instansi_asal || 'SMK Negeri Vokasi',
-          bidangKeahlian: d.bidang_keahlian || 'Teknologi Informasi',
-          isActive: d.is_active !== false,
-          createdAt: d.created_at,
-          updatedAt: d.updated_at,
-        }));
+      if (!error && data) {
+        if (data.length > 0) {
+          const mapped: Penguji[] = data.map((d: any) => ({
+            id: d.id,
+            nama: d.nama,
+            nip: d.nip,
+            peran: d.peran,
+            avatar: d.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+            email: d.email || `${d.nip}@smk-vokasi.sch.id`,
+            password: d.password || 'penguji123',
+            telepon: d.telepon || '0812-0000-0000',
+            instansiAsal: d.instansi_asal || 'SMK Negeri Vokasi',
+            bidangKeahlian: d.bidang_keahlian || 'Teknologi Informasi',
+            isActive: d.is_active !== false,
+            createdAt: d.created_at,
+            updatedAt: d.updated_at,
+          }));
+
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY_PENGUJI, JSON.stringify(mapped));
+          }
+          return mapped;
+        } else {
+          // Tabel penguji ada di Supabase tetapi masih kosong -> Seed data bawaan secara otomatis
+          try {
+            const seedPayload = DAFTAR_PENGUJI.map((p) => ({
+              nip: p.nip,
+              nama: p.nama,
+              peran: p.peran,
+              avatar: p.avatar,
+              email: p.email,
+              password: p.password,
+              telepon: p.telepon,
+              instansi_asal: p.instansiAsal,
+              bidang_keahlian: p.bidangKeahlian,
+              is_active: p.isActive !== false,
+            }));
+
+            const { data: seededRows, error: seedErr } = await client
+              .from('penguji')
+              .upsert(seedPayload, { onConflict: 'nip' })
+              .select();
+
+            if (!seedErr && seededRows && seededRows.length > 0) {
+              const mappedSeeded: Penguji[] = seededRows.map((d: any) => ({
+                id: d.id,
+                nama: d.nama,
+                nip: d.nip,
+                peran: d.peran,
+                avatar: d.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+                email: d.email || `${d.nip}@smk-vokasi.sch.id`,
+                password: d.password || 'penguji123',
+                telepon: d.telepon || '0812-0000-0000',
+                instansiAsal: d.instansi_asal || 'SMK Negeri Vokasi',
+                bidangKeahlian: d.bidang_keahlian || 'Teknologi Informasi',
+                isActive: d.is_active !== false,
+                createdAt: d.created_at,
+                updatedAt: d.updated_at,
+              }));
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY_PENGUJI, JSON.stringify(mappedSeeded));
+              }
+              return mappedSeeded;
+            }
+          } catch (seedError) {
+            console.warn('Auto-seed penguji to Supabase warning:', seedError);
+          }
+        }
       }
     } catch (err) {
       console.warn('Supabase fetch penguji error, falling back to local store:', err);
@@ -3058,17 +3186,74 @@ export async function getPengujiList(): Promise<Penguji[]> {
  */
 export async function savePenguji(penguji: Penguji): Promise<Penguji[]> {
   const currentList = await getPengujiList();
-  const existingIdx = currentList.findIndex((p) => p.id === penguji.id);
-  let updatedList: Penguji[];
+  const existingIdx = currentList.findIndex(
+    (p) => p.id === penguji.id || p.nip.trim() === penguji.nip.trim()
+  );
 
   const now = new Date().toISOString();
-  const pengujiWithTimestamps: Penguji = {
+  let pengujiWithTimestamps: Penguji = {
     ...penguji,
+    nama: penguji.nama.trim(),
+    nip: penguji.nip.trim(),
+    peran: penguji.peran.trim(),
     isActive: penguji.isActive !== false,
     createdAt: penguji.createdAt || now,
     updatedAt: now,
   };
 
+  const client = getSupabaseClient();
+  if (client) {
+    const recordToUpsert: any = {
+      nama: pengujiWithTimestamps.nama,
+      nip: pengujiWithTimestamps.nip,
+      peran: pengujiWithTimestamps.peran,
+      avatar: pengujiWithTimestamps.avatar,
+      email: pengujiWithTimestamps.email?.trim() || null,
+      password: pengujiWithTimestamps.password?.trim() || 'penguji123',
+      telepon: pengujiWithTimestamps.telepon?.trim() || null,
+      instansi_asal: pengujiWithTimestamps.instansiAsal?.trim() || 'SMK Negeri 1 Vokasi',
+      bidang_keahlian: pengujiWithTimestamps.bidangKeahlian?.trim() || null,
+      is_active: pengujiWithTimestamps.isActive,
+      updated_at: now,
+    };
+
+    // PENTING: Hanya sertakan 'id' jika merupakan UUID valid.
+    // Jika 'id' adalah string biasa (seperti 'p1', 'penguji-172...'), jangan sertakan
+    // agar Supabase PostgreSQL otomatis mengenerate gen_random_uuid() dan mencocokkan via NIP unik.
+    if (isValidUUID(pengujiWithTimestamps.id)) {
+      recordToUpsert.id = pengujiWithTimestamps.id;
+    }
+
+    const { data: supaData, error: supaError } = await client
+      .from('penguji')
+      .upsert(recordToUpsert, { onConflict: 'nip' })
+      .select()
+      .single();
+
+    if (supaError) {
+      console.error('Supabase upsert penguji error:', supaError);
+      if (supaError.code === '42P01' || supaError.message?.toLowerCase().includes('does not exist')) {
+        throw new Error(
+          'Tabel "penguji" belum dibuat di database Supabase Anda. Silakan buka menu Supabase di pojok kanan atas dan jalankan Skrip SQL Penguji & Guru.'
+        );
+      }
+      if (supaError.code === '23505') {
+        throw new Error(`NIP "${pengujiWithTimestamps.nip}" sudah digunakan oleh penguji lain di database.`);
+      }
+      throw new Error(`Gagal menyimpan ke database Supabase: ${supaError.message} (Kode: ${supaError.code})`);
+    }
+
+    if (supaData && supaData.id) {
+      pengujiWithTimestamps = {
+        ...pengujiWithTimestamps,
+        id: supaData.id,
+        createdAt: supaData.created_at || pengujiWithTimestamps.createdAt,
+        updatedAt: supaData.updated_at || pengujiWithTimestamps.updatedAt,
+      };
+    }
+  }
+
+  let updatedList: Penguji[];
   if (existingIdx >= 0) {
     updatedList = [...currentList];
     updatedList[existingIdx] = pengujiWithTimestamps;
@@ -3084,28 +3269,6 @@ export async function savePenguji(penguji: Penguji): Promise<Penguji[]> {
     type: 'PENGUJI_UPDATED' as any,
     payload: pengujiWithTimestamps,
   });
-
-  const client = getSupabaseClient();
-  if (client) {
-    try {
-      await client.from('penguji').upsert({
-        id: pengujiWithTimestamps.id,
-        nama: pengujiWithTimestamps.nama,
-        nip: pengujiWithTimestamps.nip,
-        peran: pengujiWithTimestamps.peran,
-        avatar: pengujiWithTimestamps.avatar,
-        email: pengujiWithTimestamps.email,
-        password: pengujiWithTimestamps.password,
-        telepon: pengujiWithTimestamps.telepon,
-        instansi_asal: pengujiWithTimestamps.instansiAsal,
-        bidang_keahlian: pengujiWithTimestamps.bidangKeahlian,
-        is_active: pengujiWithTimestamps.isActive,
-        updated_at: now,
-      });
-    } catch (err) {
-      console.warn('Supabase upsert penguji error:', err);
-    }
-  }
 
   return updatedList;
 }
@@ -3123,6 +3286,7 @@ export async function deletePenguji(id: string): Promise<{ success: boolean; lis
     };
   }
 
+  const target = currentList.find((p) => p.id === id);
   const updatedList = currentList.filter((p) => p.id !== id);
 
   if (typeof window !== 'undefined') {
@@ -3131,13 +3295,19 @@ export async function deletePenguji(id: string): Promise<{ success: boolean; lis
 
   broadcastRealtimeChange({
     type: 'PENGUJI_DELETED' as any,
-    payload: { id },
+    payload: { id, nip: target?.nip },
   });
 
   const client = getSupabaseClient();
-  if (client) {
+  if (client && target) {
     try {
-      await client.from('penguji').delete().eq('id', id);
+      if (isValidUUID(target.id)) {
+        const { error } = await client.from('penguji').delete().eq('id', target.id);
+        if (error) console.warn('Supabase delete penguji by id error:', error);
+      } else {
+        const { error } = await client.from('penguji').delete().eq('nip', target.nip);
+        if (error) console.warn('Supabase delete penguji by nip error:', error);
+      }
     } catch (err) {
       console.warn('Supabase delete penguji error:', err);
     }

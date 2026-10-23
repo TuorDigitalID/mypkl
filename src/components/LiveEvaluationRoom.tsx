@@ -59,6 +59,7 @@ interface LiveEvaluationRoomProps {
   onOpenBeritaAcara: (mahasiswaId: string) => void;
   kriteriaList?: KriteriaNilai[];
   plottingList?: PlottingSiswaPKL[];
+  onPenilaianSaved?: () => void;
 }
 
 export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
@@ -71,6 +72,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
   onOpenBeritaAcara,
   kriteriaList = DEFAULT_KRITERIA,
   plottingList = [],
+  onPenilaianSaved,
 }) => {
   // Current active student
   const activePeserta = useMemo(() => {
@@ -86,9 +88,14 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
   // Find existing evaluation for current active examiner
   const existingEvaluation = useMemo(() => {
     if (!activePeserta) return null;
-    return penilaianList.find(
-      (p) => p.mahasiswaId === activePeserta.id && p.pengujiId === activePenguji.id
-    );
+    return penilaianList.find((p) => {
+      const matchMhs = p.mahasiswaId === activePeserta.id || (activePeserta.nim && p.mahasiswaId === activePeserta.nim);
+      const matchPenguji =
+        p.pengujiId === activePenguji.id ||
+        (p.pengujiNama && activePenguji.nama && p.pengujiNama.toLowerCase().trim() === activePenguji.nama.toLowerCase().trim()) ||
+        (activePenguji.nip && p.pengujiId === activePenguji.nip);
+      return matchMhs && matchPenguji;
+    });
   }, [activePeserta, activePenguji, penilaianList]);
 
   // Scoring Form State
@@ -296,6 +303,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
 
     await savePenilaian(payload);
     setSubmitSuccess(true);
+    await onPenilaianSaved?.();
 
     // If this completes examiners with passing grade, trigger confetti
     if (
@@ -321,6 +329,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
       status,
     };
     await savePesertaSidang(updated);
+    await onPenilaianSaved?.();
   };
 
   // Group criteria into the 2 official categories
