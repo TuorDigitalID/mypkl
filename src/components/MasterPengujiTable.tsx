@@ -23,10 +23,13 @@ import {
   Grid, 
   List,
   AlertTriangle,
-  Briefcase
+  Briefcase,
+  DoorOpen,
+  Settings2
 } from 'lucide-react';
-import { Penguji, PenilaianPenguji, AuthUser, MasterGuruPembimbing } from '../types/index.ts';
-import { generateUUID, isValidUUID } from '../lib/supabase.ts';
+import { Penguji, PenilaianPenguji, AuthUser, MasterGuruPembimbing, PasanganPengujiRuangan } from '../types/index.ts';
+import { generateUUID, isValidUUID, getDefaultRoomPairings } from '../lib/supabase.ts';
+import { AturPengujiRuanganModal } from './AturPengujiRuanganModal.tsx';
 
 interface MasterPengujiTableProps {
   pengujiList: Penguji[];
@@ -34,11 +37,13 @@ interface MasterPengujiTableProps {
   activePenguji: Penguji;
   currentUser: AuthUser | null;
   guruList?: MasterGuruPembimbing[];
+  roomPairings?: PasanganPengujiRuangan[];
   onSetActivePenguji: (p: Penguji) => void;
   onSavePenguji: (p: Penguji) => Promise<void>;
   onDeletePenguji: (id: string) => Promise<void>;
   onResetDefault: () => Promise<void>;
   onOpenLoginModal: () => void;
+  onSaveRoomPairings?: (pairings: PasanganPengujiRuangan[]) => Promise<void>;
 }
 
 const AVATAR_PRESETS = [
@@ -56,11 +61,13 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
   activePenguji,
   currentUser,
   guruList = [],
+  roomPairings = [],
   onSetActivePenguji,
   onSavePenguji,
   onDeletePenguji,
   onResetDefault,
   onOpenLoginModal,
+  onSaveRoomPairings,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPeran, setFilterPeran] = useState<string>('semua');
@@ -70,6 +77,15 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
   // Modal State for Assigning from Guru Pembimbing
   const [isAssignGuruModalOpen, setIsAssignGuruModalOpen] = useState(false);
   const [guruSearchQuery, setGuruSearchQuery] = useState('');
+
+  // Modal State for Room Pairings (Ruang 1, 2, 3)
+  const [isAturRuanganModalOpen, setIsAturRuanganModalOpen] = useState(false);
+
+  // Effective room pairings list
+  const effectivePairings = useMemo(() => {
+    if (roomPairings && roomPairings.length >= 3) return roomPairings;
+    return getDefaultRoomPairings(pengujiList);
+  }, [roomPairings, pengujiList]);
 
   // Modal State for Add / Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -369,6 +385,16 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Penguji Baru</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsAturRuanganModalOpen(true)}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-orange-950 bg-orange-100 hover:bg-orange-200 border border-orange-300 shadow-2xs transition-all cursor-pointer"
+              title="Atur Pasangan 2 Penguji Sidang untuk Ruang 1, Ruang 2, dan Ruang 3"
+            >
+              <DoorOpen className="w-4 h-4 text-orange-700" />
+              <span>Atur Pasangan Ruangan (1, 2, 3)</span>
             </button>
 
             <button
@@ -1261,6 +1287,21 @@ export const MasterPengujiTable: React.FC<MasterPengujiTableProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Pengaturan Penguji Ruangan Sidang (Ruang 1, 2, 3) */}
+      <AturPengujiRuanganModal
+        isOpen={isAturRuanganModalOpen}
+        onClose={() => setIsAturRuanganModalOpen(false)}
+        roomPairings={effectivePairings}
+        pengujiList={pengujiList}
+        onSave={async (pairings: PasanganPengujiRuangan[]) => {
+          if (onSaveRoomPairings) {
+            await onSaveRoomPairings(pairings);
+          }
+          setSuccessToast('Pengaturan pasangan penguji Ruang 1, 2, dan 3 berhasil disimpan.');
+          setTimeout(() => setSuccessToast(null), 4500);
+        }}
+      />
 
     </div>
   );

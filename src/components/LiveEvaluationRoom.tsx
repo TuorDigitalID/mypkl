@@ -23,7 +23,10 @@ import {
   AlertTriangle,
   Filter,
   Layers,
-  Briefcase
+  Briefcase,
+  DoorOpen,
+  Settings2,
+  SlidersHorizontal
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -32,7 +35,8 @@ import {
   PenilaianPenguji, 
   KriteriaNilai, 
   NilaiKriteriaItem,
-  PlottingSiswaPKL
+  PlottingSiswaPKL,
+  PasanganPengujiRuangan
 } from '../types/index.ts';
 import { DAFTAR_PENGUJI } from '../data/penguji.ts';
 import { 
@@ -47,7 +51,8 @@ import {
   calculateFinalAggregate,
   validateScores 
 } from '../utils/scoring.ts';
-import { savePenilaian, savePesertaSidang } from '../lib/supabase.ts';
+import { savePenilaian, savePesertaSidang, getDefaultRoomPairings } from '../lib/supabase.ts';
+import { AturPengujiRuanganModal } from './AturPengujiRuanganModal.tsx';
 
 interface LiveEvaluationRoomProps {
   pesertaList: MahasiswaSidang[];
@@ -60,6 +65,9 @@ interface LiveEvaluationRoomProps {
   kriteriaList?: KriteriaNilai[];
   plottingList?: PlottingSiswaPKL[];
   onPenilaianSaved?: () => void;
+  pengujiList?: Penguji[];
+  roomPairings?: PasanganPengujiRuangan[];
+  onSaveRoomPairings?: (pairings: PasanganPengujiRuangan[]) => Promise<void>;
 }
 
 export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
@@ -73,17 +81,69 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
   kriteriaList = DEFAULT_KRITERIA,
   plottingList = [],
   onPenilaianSaved,
+  pengujiList = [],
+  roomPairings = [],
+  onSaveRoomPairings,
 }) => {
   // Current active student
   const activePeserta = useMemo(() => {
     return pesertaList.find((p) => p.id === activePesertaId) || pesertaList[0];
   }, [pesertaList, activePesertaId]);
 
+  // Selected Room Navigation & Modal State
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('ruang-1');
+  const [isAturRuanganModalOpen, setIsAturRuanganModalOpen] = useState(false);
+
+  // Auto-detect student's scheduled room when active student changes
+  useEffect(() => {
+    if (activePeserta?.ruangan) {
+      if (activePeserta.ruangan.includes('2')) {
+        setSelectedRoomId('ruang-2');
+      } else if (activePeserta.ruangan.includes('3')) {
+        setSelectedRoomId('ruang-3');
+      } else {
+        setSelectedRoomId('ruang-1');
+      }
+    }
+  }, [activePeserta?.id]);
+
+  // Effective room pairings list (Ruang 1, 2, 3)
+  const effectivePairings = useMemo(() => {
+    if (roomPairings && roomPairings.length >= 3) return roomPairings;
+    return getDefaultRoomPairings(pengujiList);
+  }, [roomPairings, pengujiList]);
+
+  // Active room pair configuration
+  const activeRoomPairing = useMemo(() => {
+    return (
+      effectivePairings.find((r) => r.ruanganId === selectedRoomId) ||
+      effectivePairings[0]
+    );
+  }, [effectivePairings, selectedRoomId]);
+
+  // Resolved Penguji 1 & Penguji 2 from Master Penguji Data
+  const p1Examiner: Penguji = useMemo(() => {
+    const list = pengujiList && pengujiList.length > 0 ? pengujiList : DAFTAR_PENGUJI;
+    const found = list.find((p) => p.id === activeRoomPairing.penguji1Id);
+    return found || list[0] || DAFTAR_PENGUJI[0];
+  }, [pengujiList, activeRoomPairing.penguji1Id]);
+
+  const p2Examiner: Penguji = useMemo(() => {
+    const list = pengujiList && pengujiList.length > 0 ? pengujiList : DAFTAR_PENGUJI;
+    const found = list.find((p) => p.id === activeRoomPairing.penguji2Id);
+    return found || list[1] || DAFTAR_PENGUJI[1];
+  }, [pengujiList, activeRoomPairing.penguji2Id]);
+
+  const activeRoomPair = useMemo(() => [p1Examiner, p2Examiner], [p1Examiner, p2Examiner]);
+
   // Aggregate stats for this student across 2 room examiners
   const aggregateResult = useMemo(() => {
     if (!activePeserta) return null;
-    return calculateFinalAggregate(activePeserta.id, penilaianList, 2);
-  }, [activePeserta, penilaianList]);
+    return calculateFinalAggregate(activePeserta.id, penilaianList, 2, {
+      p1Id: p1Examiner.id,
+      p2Id: p2Examiner.id,
+    });
+  }, [activePeserta, penilaianList, p1Examiner.id, p2Examiner.id]);
 
   // Find existing evaluation for current active examiner
   const existingEvaluation = useMemo(() => {
@@ -347,6 +407,88 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
   return (
     <div className="space-y-6">
 
+      {/* ROOM SELECTOR & PENGUJI RUANGAN CONTROL BAR */}
+      <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 rounded-3xl p-4 sm:p-5 text-white shadow-md">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="p-2.5 rounded-2xl bg-white/15 backdrop-blur-xs text-white border border-white/20">
+              <DoorOpen className="w-5 h-5 text-amber-200" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold tracking-widest uppercase bg-white/20 px-2 py-0.5 rounded-full text-amber-100">
+                  Sidang Ruang Berpasangan
+                </span>
+                <span className="text-xs text-white/90 font-medium">
+                  • 2 Penguji per Ruangan
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2 mt-0.5">
+                <span>{activeRoomPairing.namaRuangan} ({activeRoomPairing.kodeRuangan})</span>
+                <span className="text-xs font-normal text-amber-200/90 font-sans">
+                  — {activeRoomPairing.lokasi}
+                </span>
+              </h3>
+            </div>
+          </div>
+
+          {/* Room Pills & Atur Button */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center bg-black/20 p-1 rounded-2xl border border-white/15">
+              {effectivePairings.map((r) => {
+                const isActive = selectedRoomId === r.ruanganId;
+                return (
+                  <button
+                    key={r.ruanganId}
+                    type="button"
+                    onClick={() => setSelectedRoomId(r.ruanganId)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-white text-orange-950 shadow-sm'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <span>{r.namaRuangan}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsAturRuanganModalOpen(true)}
+              className="px-3.5 py-2 rounded-2xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-all border border-white/25 flex items-center gap-2 cursor-pointer shadow-xs"
+            >
+              <Settings2 className="w-4 h-4 text-amber-200" />
+              <span>Atur Penguji Ruangan</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Display Current Room's Active Pair */}
+        <div className="mt-3.5 pt-3 border-t border-white/15 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          <div className="flex items-center gap-2.5 bg-black/15 px-3 py-2 rounded-xl border border-white/10">
+            <span className="w-6 h-6 rounded-lg bg-amber-400 text-slate-950 font-black text-[11px] flex items-center justify-center">
+              P1
+            </span>
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase font-bold text-amber-200 block">Penguji 1 (Ketua Sidang)</span>
+              <p className="font-bold text-white truncate">{p1Examiner.nama}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 bg-black/15 px-3 py-2 rounded-xl border border-white/10">
+            <span className="w-6 h-6 rounded-lg bg-orange-300 text-slate-950 font-black text-[11px] flex items-center justify-center">
+              P2
+            </span>
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase font-bold text-orange-200 block">Penguji 2 (Sekretaris Sidang)</span>
+              <p className="font-bold text-white truncate">{p2Examiner.nama}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 0. SESI SIDANG PER PERUSAHAAN (PLOTTING DUDI) & FILTER PENGUJI 1 & 2 */}
       <div className="bg-white rounded-3xl border border-orange-200/90 p-5 sm:p-6 shadow-xs">
         {/* Top Header of Company Session */}
@@ -410,7 +552,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
             </span>
 
             <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 border border-slate-200">
-              {DAFTAR_PENGUJI.slice(0, 2).map((p, idx) => {
+              {activeRoomPair.map((p, idx) => {
                 const isSelected = activePenguji.id === p.id;
                 return (
                   <button
@@ -432,7 +574,9 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
                     }`}>
                       {idx === 0 ? 'P1' : 'P2'}
                     </span>
-                    <span>{idx === 0 ? 'Penguji 1 (Ketua)' : 'Penguji 2 (Sekretaris)'}</span>
+                    <span className="truncate max-w-[130px] sm:max-w-none">
+                      {idx === 0 ? `P1: ${p.nama.split(',')[0]}` : `P2: ${p.nama.split(',')[0]}`}
+                    </span>
                   </button>
                 );
               })}
@@ -481,9 +625,16 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredStudentsInCompany.map((siswa) => {
-              const agg = calculateFinalAggregate(siswa.id, penilaianList, 2);
-              const scoreP1 = agg.nilaiPerPenguji.find((n) => n.pengujiId === 'p1' || n.pengujiPeran.includes('1'));
-              const scoreP2 = agg.nilaiPerPenguji.find((n) => n.pengujiId === 'p2' || n.pengujiPeran.includes('2'));
+              const agg = calculateFinalAggregate(siswa.id, penilaianList, 2, {
+                p1Id: p1Examiner.id,
+                p2Id: p2Examiner.id,
+              });
+              const scoreP1 = agg.nilaiPerPenguji.find(
+                (n) => n.pengujiId === p1Examiner.id || n.pengujiPeran.includes('1') || n.pengujiPeran.toLowerCase().includes('ketua')
+              );
+              const scoreP2 = agg.nilaiPerPenguji.find(
+                (n) => n.pengujiId === p2Examiner.id || n.pengujiPeran.includes('2') || n.pengujiPeran.toLowerCase().includes('sekr')
+              );
               const isCurrentSelected = siswa.id === activePeserta.id;
 
               return (
@@ -527,7 +678,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
                   {/* Status Nilai P1 & P2 */}
                   <div className="pt-2 border-t border-slate-200/80 space-y-1 text-[11px]">
                     <div className="flex items-center justify-between font-mono">
-                      <span className="text-slate-500">Sidang P1:</span>
+                      <span className="text-slate-500">P1 ({p1Examiner.nama.split(' ')[0]}):</span>
                       {scoreP1 && scoreP1.totalNilai > 0 ? (
                         <span className="font-bold text-emerald-700">
                           {scoreP1.totalNilai.toFixed(1)} ({scoreP1.nilaiHuruf})
@@ -540,7 +691,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between font-mono">
-                      <span className="text-slate-500">Sidang P2:</span>
+                      <span className="text-slate-500">P2 ({p2Examiner.nama.split(' ')[0]}):</span>
                       {scoreP2 && scoreP2.totalNilai > 0 ? (
                         <span className="font-bold text-blue-700">
                           {scoreP2.totalNilai.toFixed(1)} ({scoreP2.nilaiHuruf})
@@ -1345,6 +1496,19 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
         </div>
 
       </div>
+
+      {/* Modal Pengaturan Penguji Ruangan Sidang (Ruang 1, 2, 3) */}
+      <AturPengujiRuanganModal
+        isOpen={isAturRuanganModalOpen}
+        onClose={() => setIsAturRuanganModalOpen(false)}
+        roomPairings={effectivePairings}
+        pengujiList={pengujiList && pengujiList.length > 0 ? pengujiList : DAFTAR_PENGUJI}
+        onSave={async (pairings: PasanganPengujiRuangan[]) => {
+          if (onSaveRoomPairings) {
+            await onSaveRoomPairings(pairings);
+          }
+        }}
+      />
 
     </div>
   );

@@ -198,3 +198,14 @@ export interface PlottingSiswaPKL {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface PasanganPengujiRuangan {
+  ruanganId: string; // 'ruang-1' | 'ruang-2' | 'ruang-3'
+  namaRuangan: string; // 'Ruang Sidang 1' | 'Ruang Sidang 2' | 'Ruang Sidang 3'
+  kodeRuangan?: string; // 'Ruang 1' | 'Ruang 2' | 'Ruang 3'
+  lokasi?: string; // 'Gedung A Lt. 2 (Ruang Utama)'
+  penguji1Id: string; // ID dari Penguji 1 (Ketua)
+  penguji2Id: string; // ID dari Penguji 2 (Sekretaris)
+  keterangan?: string;
+  updatedAt?: string;
+}

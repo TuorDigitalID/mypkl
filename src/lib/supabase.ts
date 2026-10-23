@@ -9,7 +9,8 @@ import type {
   MasterGuruPembimbing, 
   PlottingSiswaPKL,
   Penguji,
-  AuthUser
+  AuthUser,
+  PasanganPengujiRuangan
 } from '../types/index.ts';
 import { INITIAL_MASTER_JURUSAN } from '../data/jurusan.ts';
 import { INITIAL_MASTER_INSTANSI } from '../data/instansi.ts';
@@ -26,6 +27,7 @@ const STORAGE_KEY_MASTER_INSTANSI = 'my_pkl_master_instansi';
 const STORAGE_KEY_MASTER_GURU = 'my_pkl_master_guru';
 const STORAGE_KEY_PLOTTING = 'my_pkl_plotting_siswa';
 const STORAGE_KEY_PENGUJI = 'my_pkl_daftar_penguji';
+const STORAGE_KEY_ROOM_PAIRINGS = 'my_pkl_room_pairings';
 const STORAGE_KEY_AUTH = 'my_pkl_current_auth';
 
 // Initial Seed Data for immediate high-fidelity testing
@@ -1030,6 +1032,13 @@ export function subscribeToRealtimeUpdates(
               };
               callback({ type: 'PENGUJI_UPDATED', payload: formatted });
             }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'pengaturan_ruangan_sidang' },
+          () => {
+            callback({ type: 'ROOM_PAIRINGS_MUTATED', payload: null });
           }
         )
         .subscribe();
@@ -3334,6 +3343,167 @@ export async function resetPengujiToDefault(): Promise<Penguji[]> {
   });
 
   return DAFTAR_PENGUJI;
+}
+
+// =========================================================================
+// PENGATURAN PASANGAN PENGUJI PER RUANGAN (RUANG 1, 2, 3)
+// =========================================================================
+
+/**
+ * Menghasilkan susunan pasangan penguji default untuk Ruang 1, Ruang 2, dan Ruang 3
+ */
+export function getDefaultRoomPairings(pengujiList?: Penguji[]): PasanganPengujiRuangan[] {
+  const pList = pengujiList && pengujiList.length > 0 ? pengujiList : DAFTAR_PENGUJI;
+
+  // Pasangkan penguji secara seimbang
+  const p1 = pList[0]?.id || 'p1';
+  const p2 = pList[1]?.id || pList[0]?.id || 'p2';
+
+  const p3 = pList[2]?.id || pList[0]?.id || 'p1';
+  const p4 = pList[3]?.id || pList[1]?.id || 'p2';
+
+  const p5 = pList[4]?.id || pList[0]?.id || 'p1';
+  const p6 = pList[5]?.id || pList[1]?.id || 'p2';
+
+  const now = new Date().toISOString();
+
+  return [
+    {
+      ruanganId: 'ruang-1',
+      namaRuangan: 'Ruang Sidang 1',
+      kodeRuangan: 'Ruang 1',
+      lokasi: 'Gedung A Lt. 2 (Ruang Utama Sidang RPL)',
+      penguji1Id: p1,
+      penguji2Id: p2,
+      keterangan: 'Sesi Pengujian Bidang Rekayasa Perangkat Lunak & Basis Data',
+      updatedAt: now,
+    },
+    {
+      ruanganId: 'ruang-2',
+      namaRuangan: 'Ruang Sidang 2',
+      kodeRuangan: 'Ruang 2',
+      lokasi: 'Gedung B Lt. 1 (Lab SIJA & Internet of Things)',
+      penguji1Id: p3,
+      penguji2Id: p4,
+      keterangan: 'Sesi Pengujian Bidang Sistem Informasi Jaringan & Cloud',
+      updatedAt: now,
+    },
+    {
+      ruanganId: 'ruang-3',
+      namaRuangan: 'Ruang Sidang 3',
+      kodeRuangan: 'Ruang 3',
+      lokasi: 'Gedung C Lt. 2 (Studio Multimedia & DKV)',
+      penguji1Id: p5,
+      penguji2Id: p6,
+      keterangan: 'Sesi Pengujian Bidang Desain Komunikasi Visual & TKJ',
+      updatedAt: now,
+    },
+  ];
+}
+
+/**
+ * Mengambil data pasangan penguji ruangan (Ruang 1, 2, 3) dari Supabase / LocalStorage
+ */
+export async function getRoomPairingsList(pengujiList?: Penguji[]): Promise<PasanganPengujiRuangan[]> {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('pengaturan_ruangan_sidang')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        const mapped: PasanganPengujiRuangan[] = data.map((d: any) => ({
+          ruanganId: d.id,
+          namaRuangan: d.nama_ruangan,
+          kodeRuangan: d.nama_ruangan.replace(/Sidang\s+/i, ''),
+          lokasi: d.lokasi,
+          penguji1Id: d.penguji1_id,
+          penguji2Id: d.penguji2_id,
+          keterangan: d.keterangan,
+          updatedAt: d.updated_at,
+        }));
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY_ROOM_PAIRINGS, JSON.stringify(mapped));
+        }
+        return mapped;
+      }
+    } catch (supaErr) {
+      console.warn('Fetch pengaturan_ruangan_sidang error, fallback to local store:', supaErr);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const raw = localStorage.getItem(STORAGE_KEY_ROOM_PAIRINGS);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length >= 3) {
+          return parsed;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // Gunakan data bawaan jika belum pernah diatur
+  const defaults = getDefaultRoomPairings(pengujiList);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_ROOM_PAIRINGS, JSON.stringify(defaults));
+  }
+  return defaults;
+}
+
+/**
+ * Menyimpan pengaturan pasangan penguji ruangan (Ruang 1, Ruang 2, Ruang 3)
+ */
+export async function saveRoomPairings(
+  pairings: PasanganPengujiRuangan[]
+): Promise<PasanganPengujiRuangan[]> {
+  const now = new Date().toISOString();
+  const withTimestamps = pairings.map((p) => ({
+    ...p,
+    updatedAt: now,
+  }));
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_ROOM_PAIRINGS, JSON.stringify(withTimestamps));
+  }
+
+  broadcastRealtimeChange({
+    type: 'ROOM_PAIRINGS_UPDATED' as any,
+    payload: withTimestamps,
+  });
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const recordsToUpsert = withTimestamps.map((p) => ({
+        id: p.ruanganId,
+        nama_ruangan: p.namaRuangan,
+        lokasi: p.lokasi || null,
+        penguji1_id: p.penguji1Id,
+        penguji2_id: p.penguji2Id,
+        keterangan: p.keterangan || null,
+        updated_at: now,
+      }));
+
+      const { error } = await client
+        .from('pengaturan_ruangan_sidang')
+        .upsert(recordsToUpsert, { onConflict: 'id' });
+
+      if (error) {
+        console.warn('Supabase upsert pengaturan_ruangan_sidang warning:', error);
+      }
+    } catch (err) {
+      console.warn('Supabase upsert pengaturan_ruangan_sidang error:', err);
+    }
+  }
+
+  return withTimestamps;
 }
 
 // =========================================================================

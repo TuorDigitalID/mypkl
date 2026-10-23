@@ -26,7 +26,8 @@ import {
   MasterInstansi, 
   MasterGuruPembimbing, 
   PlottingSiswaPKL,
-  AuthUser
+  AuthUser,
+  PasanganPengujiRuangan
 } from './types/index.ts';
 import { DAFTAR_PENGUJI } from './data/penguji.ts';
 import { 
@@ -46,12 +47,16 @@ import {
   logoutUser,
   getSupabaseConfig, 
   subscribeToRealtimeUpdates,
-  syncPesertaFromPlotting
+  syncPesertaFromPlotting,
+  getRoomPairingsList,
+  saveRoomPairings,
+  getDefaultRoomPairings
 } from './lib/supabase.ts';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'live' | 'master' | 'jurusan' | 'instansi' | 'guru' | 'plotting' | 'peserta' | 'rekap' | 'rubrik' | 'penguji'>('plotting');
   const [pengujiList, setPengujiList] = useState<Penguji[]>(DAFTAR_PENGUJI);
+  const [roomPairings, setRoomPairings] = useState<PasanganPengujiRuangan[]>([]);
   const [activePenguji, setActivePenguji] = useState<Penguji>(DAFTAR_PENGUJI[0]);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(getCurrentAuthUser());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -86,7 +91,7 @@ export default function App() {
   // Load initial data
   const loadData = useCallback(async () => {
     try {
-      const [peserta, nilai, master, jurusan, instansi, guru, plotting, pengujiData] = await Promise.all([
+      const [peserta, nilai, master, jurusan, instansi, guru, plotting, pengujiData, pairingsData] = await Promise.all([
         getPesertaSidangList(),
         getPenilaianList(),
         getMasterSiswaList(),
@@ -95,6 +100,7 @@ export default function App() {
         getMasterGuruList(),
         getPlottingList(),
         getPengujiList(),
+        getRoomPairingsList(),
       ]);
 
       // SINKRONISASI OTOMATIS:
@@ -115,6 +121,9 @@ export default function App() {
         if (!pengujiData.some((p) => p.id === activePenguji.id)) {
           setActivePenguji(pengujiData[0]);
         }
+      }
+      if (pairingsData && pairingsData.length > 0) {
+        setRoomPairings(pairingsData);
       }
       if (activePeserta.length > 0 && !activePeserta.some((p) => p.id === activePesertaId)) {
         setActivePesertaId(activePeserta[0].id);
@@ -227,6 +236,8 @@ export default function App() {
           return [event.payload, ...prev];
         });
         loadData();
+      } else if ((event.type === 'ROOM_PAIRINGS_MUTATED' || event.type === 'ROOM_PAIRINGS_UPDATED') && event.payload) {
+        setRoomPairings(event.payload);
       } else if (event.type === 'DATABASE_MUTATED') {
         loadData();
       }
@@ -278,6 +289,16 @@ export default function App() {
       const reset = await resetPengujiToDefault();
       setPengujiList(reset);
       setActivePenguji(reset[0]);
+    }
+  };
+
+  const handleSaveRoomPairings = async (pairings: PasanganPengujiRuangan[]) => {
+    try {
+      setRoomPairings(pairings);
+      await saveRoomPairings(pairings);
+    } catch (err) {
+      console.error('Error saving room pairings:', err);
+      throw err;
     }
   };
 
@@ -404,6 +425,9 @@ export default function App() {
                   plottingList={plottingList}
                   onSelectPenguji={setActivePenguji}
                   onPenilaianSaved={loadData}
+                  pengujiList={pengujiList}
+                  roomPairings={roomPairings}
+                  onSaveRoomPairings={handleSaveRoomPairings}
                 />
               )}
 
@@ -414,11 +438,13 @@ export default function App() {
                   activePenguji={activePenguji}
                   currentUser={currentUser}
                   guruList={masterGuruList}
+                  roomPairings={roomPairings}
                   onSetActivePenguji={setActivePenguji}
                   onSavePenguji={handleSavePenguji}
                   onDeletePenguji={handleDeletePenguji}
                   onResetDefault={handleResetPenguji}
                   onOpenLoginModal={() => setIsLoginModalOpen(true)}
+                  onSaveRoomPairings={handleSaveRoomPairings}
                 />
               )}
 

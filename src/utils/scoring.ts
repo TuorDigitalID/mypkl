@@ -270,7 +270,8 @@ export function getGradeRangeInfo(score: number): GradeRangeInfo {
 export function calculateFinalAggregate(
   mahasiswaId: string,
   evaluations: PenilaianPenguji[],
-  requiredExaminersCount: number = 2
+  requiredExaminersCount: number = 2,
+  assignedPair?: { p1Id?: string; p2Id?: string }
 ): HasilRekapitulasi {
   const mEvaluations = evaluations.filter(
     (e) => e.mahasiswaId === mahasiswaId && !e.isDraft
@@ -300,18 +301,20 @@ export function calculateFinalAggregate(
   }
 
   // Tentukan Penguji 1 (Ketua) dan Penguji 2 (Sekretaris / Penguji 2)
-  const evalP1 = mEvaluations.find(
-    (e) => e.pengujiId === 'p1' || e.pengujiPeran.includes('1') || e.pengujiPeran.toLowerCase().includes('ketua')
-  ) || mEvaluations[0];
+  const evalP1 = (assignedPair?.p1Id ? mEvaluations.find((e) => e.pengujiId === assignedPair.p1Id) : undefined) ||
+    mEvaluations.find(
+      (e) => e.pengujiId === 'p1' || e.pengujiPeran.includes('1') || e.pengujiPeran.toLowerCase().includes('ketua')
+    ) || mEvaluations[0];
 
-  const evalP2 = mEvaluations.find(
-    (e) =>
-      (e.pengujiId === 'p2' ||
-        e.pengujiPeran.includes('2') ||
-        e.pengujiPeran.toLowerCase().includes('sekr') ||
-        e.pengujiPeran.toLowerCase().includes('anggota')) &&
-      e.pengujiId !== evalP1?.pengujiId
-  ) || (mEvaluations.length > 1 ? mEvaluations[1] : undefined);
+  const evalP2 = (assignedPair?.p2Id ? mEvaluations.find((e) => e.pengujiId === assignedPair.p2Id && e.pengujiId !== evalP1?.pengujiId) : undefined) ||
+    mEvaluations.find(
+      (e) =>
+        (e.pengujiId === 'p2' ||
+          e.pengujiPeran.includes('2') ||
+          e.pengujiPeran.toLowerCase().includes('sekr') ||
+          e.pengujiPeran.toLowerCase().includes('anggota')) &&
+        e.pengujiId !== evalP1?.pengujiId
+    ) || (mEvaluations.length > 1 && mEvaluations[1]?.pengujiId !== evalP1?.pengujiId ? mEvaluations[1] : undefined);
 
   // Nilai Sidang per penguji (2 Aspek Sidang)
   const nilaiSidangP1 = evalP1
@@ -624,6 +627,19 @@ CREATE TABLE IF NOT EXISTS public.plotting_siswa_pkl (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
+-- 9. Tabel Pengaturan Pasangan Penguji Ruangan Sidang (Ruang 1, 2, 3)
+CREATE TABLE IF NOT EXISTS public.pengaturan_ruangan_sidang (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ruangan_id VARCHAR(50) NOT NULL UNIQUE,
+    nama_ruangan VARCHAR(100) NOT NULL,
+    kode_ruangan VARCHAR(20) NOT NULL,
+    lokasi VARCHAR(150),
+    penguji1_id VARCHAR(100) NOT NULL,
+    penguji2_id VARCHAR(100) NOT NULL,
+    keterangan TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
 -- Tambah kolom relasi penempatan pada master_siswa_pkl jika belum ada
 ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS guru_nip VARCHAR(50);
 ALTER TABLE public.master_siswa_pkl ADD COLUMN IF NOT EXISTS alamat_instansi TEXT;
@@ -681,6 +697,12 @@ BEGIN
     EXCEPTION WHEN duplicate_object THEN
         NULL;
     END;
+
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.pengaturan_ruangan_sidang;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
 END $$;
 
 -- Enable Row Level Security (RLS) & Public Access Policies for Sidang
@@ -692,6 +714,7 @@ ALTER TABLE public.master_jurusan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_instansi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_guru_pembimbing ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.plotting_siswa_pkl ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pengaturan_ruangan_sidang ENABLE ROW LEVEL SECURITY;
 
 -- Berikan izin akses penuh ke role anon dan authenticated Supabase
 GRANT ALL ON TABLE public.peserta_sidang TO anon, authenticated;
@@ -702,6 +725,7 @@ GRANT ALL ON TABLE public.master_jurusan TO anon, authenticated;
 GRANT ALL ON TABLE public.master_instansi TO anon, authenticated;
 GRANT ALL ON TABLE public.master_guru_pembimbing TO anon, authenticated;
 GRANT ALL ON TABLE public.plotting_siswa_pkl TO anon, authenticated;
+GRANT ALL ON TABLE public.pengaturan_ruangan_sidang TO anon, authenticated;
 
 -- Policies (DROP IF EXISTS agar tidak error jika sudah ada)
 DROP POLICY IF EXISTS "Public Read Access Peserta" ON public.peserta_sidang;
@@ -751,6 +775,11 @@ CREATE POLICY "Public Read Access Plotting Siswa" ON public.plotting_siswa_pkl F
 
 DROP POLICY IF EXISTS "Public Write Access Plotting Siswa" ON public.plotting_siswa_pkl;
 CREATE POLICY "Public Write Access Plotting Siswa" ON public.plotting_siswa_pkl FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Read Access Pengaturan Ruangan" ON public.pengaturan_ruangan_sidang;
+CREATE POLICY "Public Read Access Pengaturan Ruangan" ON public.pengaturan_ruangan_sidang FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Pengaturan Ruangan" ON public.pengaturan_ruangan_sidang FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- Insert Data Penguji Awal (Seed Data)
 INSERT INTO public.penguji (nip, nama, peran)
