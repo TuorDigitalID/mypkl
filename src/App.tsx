@@ -590,7 +590,7 @@ export default function App() {
         {/* Footer */}
         <footer className="border-t border-slate-200/90 bg-white py-4 mt-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
-            <p>© {new Date().getFullYear()} My PKL Vokasi — Aplikasi Penilaian Sidang Praktik Kerja Lapangan Real-Time.</p>
+            <p>Copyright © 2026 SMK MA Buaranjati. All Rights Reserved.</p>
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setActiveTab('penguji')}

@@ -158,12 +158,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="font-black text-lg tracking-tight text-slate-900">
                   My PKL
                 </span>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-black bg-gradient-to-r from-orange-100 to-amber-100 text-orange-950 border border-orange-300 uppercase tracking-wider">
-                  Vokasi
-                </span>
               </div>
-              <p className="text-xs text-slate-600 font-medium leading-none mt-1">
-                Sistem Sidang & Plotting
+              <p className="text-xs text-orange-600 font-bold leading-none mt-1">
+                SMK MA Buaranjati
               </p>
             </div>
           </div>

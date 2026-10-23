@@ -124,12 +124,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     <span className="font-black text-2xl tracking-tight text-white">
                       My PKL
                     </span>
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30">
-                      Vokasi
-                    </span>
                   </div>
-                  <p className="text-xs text-orange-200/90 font-medium">
-                    Portal Sidang & Plotting Industri
+                  <p className="text-xs text-orange-200/90 font-bold">
+                    SMK MA Buaranjati
                   </p>
                 </div>
               </div>
