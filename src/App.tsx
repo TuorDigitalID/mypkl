@@ -50,7 +50,9 @@ import {
   getRoomPairingsList,
   saveRoomPairings,
   getDefaultRoomPairings,
-  syncSupabaseConfigFromServer
+  syncSupabaseConfigFromServer,
+  resetPenilaianByMahasiswa,
+  resetAllPenilaian
 } from './lib/supabase.ts';
 
 export default function App() {
@@ -355,6 +357,30 @@ export default function App() {
     setCurrentUser(null);
   };
 
+  const handleResetNilaiMahasiswa = async (mahasiswaId: string, nama?: string) => {
+    try {
+      const res = await resetPenilaianByMahasiswa(mahasiswaId);
+      if (res.success) {
+        setPenilaianList(res.list);
+        await loadData();
+      }
+    } catch (err: any) {
+      alert(`Gagal mereset nilai: ${err?.message || err}`);
+    }
+  };
+
+  const handleResetAllNilai = async () => {
+    try {
+      const res = await resetAllPenilaian();
+      if (res.success) {
+        setPenilaianList([]);
+        await loadData();
+      }
+    } catch (err: any) {
+      alert(`Gagal mereset semua nilai: ${err?.message || err}`);
+    }
+  };
+
   // Requirement 3: Before entering main dashboard, user must login first!
   if (!currentUser) {
     return (
@@ -462,6 +488,8 @@ export default function App() {
                   pengujiList={pengujiList}
                   roomPairings={roomPairings}
                   onSaveRoomPairings={handleSaveRoomPairings}
+                  isAdmin={currentUser?.role === 'admin'}
+                  onResetNilaiMahasiswa={handleResetNilaiMahasiswa}
                 />
               )}
 
@@ -597,6 +625,9 @@ export default function App() {
                   penilaianList={penilaianList}
                   onOpenBeritaAcara={handleOpenBeritaAcara}
                   onSelectPesertaForSidang={handleSelectPesertaForSidang}
+                  isAdmin={currentUser?.role === 'admin'}
+                  onResetNilaiMahasiswa={handleResetNilaiMahasiswa}
+                  onResetAllNilai={handleResetAllNilai}
                 />
               )}
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   FileSpreadsheet, 
   Download, 
@@ -7,7 +7,13 @@ import {
   Clock, 
   Award, 
   Users, 
-  Printer
+  Printer,
+  Trash2,
+  RotateCcw,
+  AlertTriangle,
+  X,
+  ShieldAlert,
+  CheckCircle2
 } from 'lucide-react';
 import { MahasiswaSidang, PenilaianPenguji } from '../types/index.ts';
 import { calculateFinalAggregate } from '../utils/scoring.ts';
@@ -17,13 +23,22 @@ interface RekapitulasiViewProps {
   penilaianList: PenilaianPenguji[];
   onOpenBeritaAcara: (mahasiswaId: string) => void;
   onSelectPesertaForSidang: (mahasiswaId: string) => void;
+  isAdmin?: boolean;
+  onResetNilaiMahasiswa?: (mahasiswaId: string, nama: string) => Promise<void>;
+  onResetAllNilai?: () => Promise<void>;
 }
 
 export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
   pesertaList,
   penilaianList,
   onOpenBeritaAcara,
+  isAdmin = false,
+  onResetNilaiMahasiswa,
+  onResetAllNilai,
 }) => {
+  const [isResetAllModalOpen, setIsResetAllModalOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string>('');
   // Compute overall statistics with 2 examiners per room
   const totalPeserta = pesertaList.length;
   const selesaiCount = pesertaList.filter((p) => p.status === 'selesai').length;
@@ -109,7 +124,18 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {isAdmin && (
+            <button
+              onClick={() => setIsResetAllModalOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md shadow-red-600/20 transition-all cursor-pointer"
+              title="Reset Seluruh Nilai Uji Coba (Khusus Administrator)"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Reset Semua Nilai Uji Coba</span>
+            </button>
+          )}
+
           <button
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
@@ -127,6 +153,14 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Toast Notifikasi Sukses */}
+      {toastMessage && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center gap-2.5 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -311,6 +345,24 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
                     {/* Action */}
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {isAdmin && (agg.nilaiAkhirAngka > 0 || agg.totalPengujiMenilai > 0) && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (confirm(`Yakin ingin mereset seluruh nilai ujian sidang untuk siswa "${peserta.nama}"? Nilai dari semua dewan penguji akan dihapus dan status dikembalikan ke Menunggu.`)) {
+                                await onResetNilaiMahasiswa?.(peserta.id, peserta.nama);
+                                setToastMessage(`Nilai siswa ${peserta.nama} berhasil direset.`);
+                                setTimeout(() => setToastMessage(''), 4000);
+                              }
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-semibold cursor-pointer transition-colors"
+                            title="Reset Nilai Siswa Ini (Admin)"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 text-red-600" />
+                            <span className="hidden sm:inline">Reset Nilai</span>
+                          </button>
+                        )}
+
                         <button
                           onClick={() => onOpenBeritaAcara(peserta.id)}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
@@ -328,6 +380,91 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Modal Konfirmasi Reset Seluruh Nilai (Khusus Administrator) */}
+      {isResetAllModalOpen && (
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isResetting) setIsResetAllModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+        >
+          <div className="bg-white rounded-3xl border border-red-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-red-100 text-red-600 shadow-xs">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-slate-900">
+                    Reset Seluruh Nilai Sidang
+                  </h3>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-red-600 block">
+                    Fitur Khusus Administrator
+                  </span>
+                </div>
+              </div>
+              <button
+                disabled={isResetting}
+                onClick={() => setIsResetAllModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-red-50/80 border border-red-200 rounded-2xl text-xs text-red-950 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="font-bold leading-relaxed">
+                  Tindakan ini akan menghapus permanen seluruh nilai sidang yang tersimpan di database Supabase ({penilaianList.length} rekaman nilai).
+                </p>
+              </div>
+              <ul className="list-disc list-inside space-y-1 text-slate-700 pl-1 font-medium">
+                <li>Seluruh nilai dari <strong>Penguji 1 &amp; Penguji 2</strong> akan dihapus bersih.</li>
+                <li>Status sidang seluruh peserta akan dikembalikan menjadi <strong>Menunggu</strong>.</li>
+                <li>Fitur ini dirancang khusus untuk membersihkan data hasil uji coba / simulasi.</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={() => setIsResetAllModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 font-bold text-xs text-slate-700 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={async () => {
+                  setIsResetting(true);
+                  try {
+                    await onResetAllNilai?.();
+                    setIsResetAllModalOpen(false);
+                    setToastMessage('Seluruh nilai sidang uji coba berhasil dibersihkan.');
+                    setTimeout(() => setToastMessage(''), 4000);
+                  } finally {
+                    setIsResetting(false);
+                  }
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black text-xs shadow-md shadow-red-600/30 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              >
+                {isResetting ? (
+                  <span>Sedang Menghapus...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Ya, Bersihkan &amp; Reset Semua Nilai</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

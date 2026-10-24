@@ -68,6 +68,8 @@ interface LiveEvaluationRoomProps {
   pengujiList?: Penguji[];
   roomPairings?: PasanganPengujiRuangan[];
   onSaveRoomPairings?: (pairings: PasanganPengujiRuangan[]) => Promise<void>;
+  isAdmin?: boolean;
+  onResetNilaiMahasiswa?: (mahasiswaId: string) => Promise<void>;
 }
 
 export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
@@ -84,6 +86,8 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
   pengujiList = [],
   roomPairings = [],
   onSaveRoomPairings,
+  isAdmin = false,
+  onResetNilaiMahasiswa,
 }) => {
   // Current active student
   const activePeserta = useMemo(() => {
@@ -998,6 +1002,22 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
               <span>Berita Acara Resmi</span>
               <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
             </button>
+
+            {isAdmin && aggregateResult && (aggregateResult.totalPengujiMenilai > 0 || aggregateResult.nilaiAkhirAngka > 0) && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirm(`Yakin ingin mereset seluruh nilai ujian sidang untuk siswa "${activePeserta.nama}"? Nilai dari semua dewan penguji akan dihapus dan status dikembalikan ke Menunggu.`)) {
+                    await onResetNilaiMahasiswa?.(activePeserta.id);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 hover:text-red-200 border border-red-500/30 text-xs font-bold transition-all cursor-pointer"
+                title="Reset Nilai Siswa Ini (Admin)"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-red-400" />
+                <span>Reset Nilai Siswa</span>
+              </button>
+            )}
           </div>
         </div>
 

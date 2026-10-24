@@ -802,8 +802,8 @@ export async function getPenilaianList(): Promise<PenilaianPenguji[]> {
         .from(config.tableNameNilai)
         .select('*');
 
-      if (!error && data && data.length > 0) {
-        return data.map((d: any) => ({
+      if (!error && data) {
+        const mapped: PenilaianPenguji[] = data.map((d: any) => ({
           id: d.id,
           mahasiswaId: d.mahasiswa_id,
           pengujiId: d.penguji_id,
@@ -819,6 +819,11 @@ export async function getPenilaianList(): Promise<PenilaianPenguji[]> {
           isDraft: Boolean(d.is_draft),
           updatedAt: d.updated_at,
         }));
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY_PENILAIAN, JSON.stringify(mapped));
+        }
+        return mapped;
       }
     } catch (err) {
       console.warn('Supabase fetch penilaian error, falling back to local store:', err);
@@ -829,16 +834,139 @@ export async function getPenilaianList(): Promise<PenilaianPenguji[]> {
     const raw = localStorage.getItem(STORAGE_KEY_PENILAIAN);
     if (raw) {
       try {
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
       } catch {
         // ignore
       }
     }
-    // initialize default
-    localStorage.setItem(STORAGE_KEY_PENILAIAN, JSON.stringify(INITIAL_PENILAIAN));
   }
 
-  return INITIAL_PENILAIAN;
+  return [];
+}
+
+/**
+ * Reset nilai sidang untuk 1 mahasiswa tertentu (Fitur Administrator)
+ */
+export async function resetPenilaianByMahasiswa(mahasiswaId: string): Promise<{
+  success: boolean;
+  message: string;
+  list: PenilaianPenguji[];
+}> {
+  const client = getSupabaseClient();
+  const config = getSupabaseConfig();
+
+  if (client) {
+    try {
+      // 1. Hapus nilai mahasiswa ini di Supabase
+      const { error } = await client
+        .from(config.tableNameNilai)
+        .delete()
+        .eq('mahasiswa_id', mahasiswaId);
+
+      if (error) {
+        console.error('Supabase delete penilaian error:', error);
+      }
+
+      // 2. Kembalikan status mahasiswa ke 'menunggu'
+      await client
+        .from(config.tableNameSidang)
+        .update({ status: 'menunggu', updated_at: new Date().toISOString() })
+        .eq('id', mahasiswaId);
+    } catch (err) {
+      console.warn('Error deleting score from Supabase:', err);
+    }
+  }
+
+  // Update local store penilaian
+  const currentList = await getPenilaianList();
+  const updatedList = currentList.filter((p) => p.mahasiswaId !== mahasiswaId);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PENILAIAN, JSON.stringify(updatedList));
+  }
+
+  // Update status peserta di local
+  const currentPeserta = await getPesertaSidangList();
+  const updatedPeserta = currentPeserta.map((p) =>
+    p.id === mahasiswaId || p.nim === mahasiswaId ? { ...p, status: 'menunggu' as const } : p
+  );
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PESERTA, JSON.stringify(updatedPeserta));
+  }
+
+  // Broadcast realtime updates
+  broadcastRealtimeChange({
+    type: 'DATABASE_MUTATED',
+    payload: `reset_nilai_${mahasiswaId}`,
+  });
+
+  return {
+    success: true,
+    message: 'Nilai ujian sidang siswa ini berhasil direset.',
+    list: updatedList,
+  };
+}
+
+/**
+ * Reset seluruh nilai sidang penguji yang sudah masuk di database (Fitur Administrator Uji Coba)
+ */
+export async function resetAllPenilaian(): Promise<{
+  success: boolean;
+  message: string;
+  list: PenilaianPenguji[];
+}> {
+  const client = getSupabaseClient();
+  const config = getSupabaseConfig();
+
+  if (client) {
+    try {
+      // Hapus seluruh baris di tabel penilaian_sidang
+      const { error } = await client
+        .from(config.tableNameNilai)
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+
+      if (error) {
+        // Fallback filter
+        await client
+          .from(config.tableNameNilai)
+          .delete()
+          .gte('total_nilai', 0);
+      }
+
+      // Kembalikan status seluruh peserta sidang ke 'menunggu'
+      await client
+        .from(config.tableNameSidang)
+        .update({ status: 'menunggu', updated_at: new Date().toISOString() })
+        .neq('status', 'menunggu');
+    } catch (err) {
+      console.warn('Error resetting all scores in Supabase:', err);
+    }
+  }
+
+  // Kosongkan nilai di local store
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PENILAIAN, JSON.stringify([]));
+  }
+
+  // Kembalikan status peserta di local
+  const currentPeserta = await getPesertaSidangList();
+  const updatedPeserta = currentPeserta.map((p) => ({ ...p, status: 'menunggu' as const }));
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PESERTA, JSON.stringify(updatedPeserta));
+  }
+
+  // Broadcast realtime changes
+  broadcastRealtimeChange({
+    type: 'DATABASE_MUTATED',
+    payload: 'reset_all_penilaian',
+  });
+
+  return {
+    success: true,
+    message: 'Seluruh nilai sidang penguji berhasil direset ke status awal.',
+    list: [],
+  };
 }
 
 /**
