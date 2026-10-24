@@ -9,7 +9,8 @@ import {
   AlertCircle, 
   ExternalLink,
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  Share2
 } from 'lucide-react';
 import { SupabaseConfig } from '../types/index.ts';
 import { 
@@ -18,7 +19,7 @@ import {
   generatePengujiGuruSQLScript,
   generatePlottingSQLScript 
 } from '../utils/scoring.ts';
-import { saveSupabaseConfig, testSupabaseConnection } from '../lib/supabase.ts';
+import { saveSupabaseConfig, testSupabaseConnection, generateQuickSyncUrl } from '../lib/supabase.ts';
 
 interface SupabaseModalProps {
   config: SupabaseConfig;
@@ -42,6 +43,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
     message: string;
   }>({ status: 'idle', message: '' });
   const [copiedSQL, setCopiedSQL] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -94,6 +96,25 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
       await navigator.clipboard.writeText(currentSQLText);
       setCopiedSQL(true);
       setTimeout(() => setCopiedSQL(false), 2500);
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleCopySyncLink = async () => {
+    try {
+      const syncUrl = generateQuickSyncUrl({
+        url: url.trim(),
+        anonKey: anonKey.trim(),
+        tableNameSidang: 'peserta_sidang',
+        tableNameNilai: 'penilaian_sidang',
+        isConnected: true,
+      });
+      if (syncUrl) {
+        await navigator.clipboard.writeText(syncUrl);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2500);
+      }
     } catch {
       // fallback
     }
@@ -306,6 +327,47 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                 </div>
               </div>
             </form>
+
+            {/* Bagikan Tautan Akses Sinkronisasi ke Komputer / Penguji Lain */}
+            {(config.isConnected || (url.trim() && anonKey.trim())) && (
+              <div className="mt-4 p-4 rounded-xl bg-orange-50/80 border border-orange-200 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-orange-500 text-white shadow-2xs">
+                      <Share2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="font-extrabold text-xs text-orange-950 block">
+                        Tautan Sinkronisasi untuk Komputer Lain
+                      </span>
+                      <span className="text-[10px] text-orange-700 block font-medium">
+                        Agar penguji di Ruang 1, 2, 3 langsung terhubung tanpa ketik ulang
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopySyncLink}
+                    className="px-3.5 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
+                  >
+                    {copiedLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-200" />
+                        <span>Tautan Tersalin!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Salin Tautan Akses Penguji</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-[11px] text-orange-900/90 leading-relaxed bg-white/70 p-2.5 rounded-lg border border-orange-200/60">
+                  💡 <strong>Cara Pakai:</strong> Salin tautan ini lalu buka di laptop/komputer penguji lain (atau kirim via WhatsApp). Saat tautan dibuka, komputer tersebut akan <strong>otomatis langsung terhubung ke database Supabase</strong> secara online, sehingga data sidang dan akun login penguji langsung aktif.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

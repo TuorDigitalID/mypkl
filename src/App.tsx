@@ -49,7 +49,8 @@ import {
   syncPesertaFromPlotting,
   getRoomPairingsList,
   saveRoomPairings,
-  getDefaultRoomPairings
+  getDefaultRoomPairings,
+  syncSupabaseConfigFromServer
 } from './lib/supabase.ts';
 
 export default function App() {
@@ -102,6 +103,11 @@ export default function App() {
   // Load initial data
   const loadData = useCallback(async () => {
     try {
+      if (!getSupabaseConfig().isConnected) {
+        await syncSupabaseConfigFromServer();
+        setSupabaseConfig(getSupabaseConfig());
+      }
+
       const [peserta, nilai, master, jurusan, instansi, guru, plotting, pengujiData, pairingsData] = await Promise.all([
         getPesertaSidangList(),
         getPenilaianList(),
@@ -352,11 +358,23 @@ export default function App() {
   // Requirement 3: Before entering main dashboard, user must login first!
   if (!currentUser) {
     return (
-      <LoginScreen
-        pengujiList={pengujiList}
-        guruList={masterGuruList}
-        onLoginSuccess={handleLoginSuccess}
-      />
+      <>
+        <LoginScreen
+          pengujiList={pengujiList}
+          guruList={masterGuruList}
+          onLoginSuccess={handleLoginSuccess}
+          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+        />
+        <SupabaseModal
+          config={supabaseConfig}
+          isOpen={isSupabaseModalOpen}
+          onClose={() => setIsSupabaseModalOpen(false)}
+          onConfigUpdated={() => {
+            setSupabaseConfig(getSupabaseConfig());
+            loadData();
+          }}
+        />
+      </>
     );
   }
 

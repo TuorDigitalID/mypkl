@@ -11,20 +11,25 @@ import {
   ShieldCheck, 
   UserCheck, 
   ClipboardCheck,
-  Scale
+  Scale,
+  Database,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { Penguji, AuthUser, MasterGuruPembimbing } from '../types/index.ts';
-import { loginUser } from '../lib/supabase.ts';
+import { loginUser, getSupabaseConfig } from '../lib/supabase.ts';
 
 interface LoginScreenProps {
   pengujiList: Penguji[];
   guruList?: MasterGuruPembimbing[];
   onLoginSuccess: (user: AuthUser, penguji?: Penguji) => void;
+  onOpenSupabaseModal?: () => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   pengujiList,
   onLoginSuccess,
+  onOpenSupabaseModal,
 }) => {
   const [activeTab, setActiveTab] = useState<'penguji' | 'admin'>('penguji');
   const [identifier, setIdentifier] = useState('');
@@ -206,6 +211,43 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   <ShieldCheck className={`w-4 h-4 ${activeTab === 'admin' ? 'text-orange-600' : 'text-slate-400'}`} />
                   <span>Administrator</span>
                 </button>
+              </div>
+
+              {/* Database Connection Status Bar */}
+              <div className="mb-4">
+                {getSupabaseConfig().isConnected ? (
+                  <div className="p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/90 text-emerald-900 text-xs flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span className="font-bold text-[11px]">Database Online Terhubung</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-700 font-semibold">Supabase Realtime Aktif</span>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs space-y-2 animate-in fade-in">
+                    <div className="flex items-start gap-2.5">
+                      <WifiOff className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-bold text-amber-900 text-xs">
+                          Database Supabase Belum Terhubung di Komputer Ini
+                        </p>
+                        <p className="text-[11px] text-amber-800 leading-relaxed mt-0.5">
+                          Agar akun penguji dapat dimuat &amp; login secara online, silakan hubungkan database Supabase atau buka tautan sinkronisasi dari Admin.
+                        </p>
+                      </div>
+                    </div>
+                    {onOpenSupabaseModal && (
+                      <button
+                        type="button"
+                        onClick={onOpenSupabaseModal}
+                        className="w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-98"
+                      >
+                        <Database className="w-3.5 h-3.5" />
+                        <span>Hubungkan Database Supabase Sekarang</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Status Notifications */}

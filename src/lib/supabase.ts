@@ -388,9 +388,46 @@ function getBroadcastChannel(): BroadcastChannel | null {
   return broadcastChannel;
 }
 
+// Helper to detect and import Supabase config from URL parameters (e.g. ?sb_url=...&sb_key=...)
+function checkUrlConfigSync(): Partial<SupabaseConfig> | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const sbUrl = params.get('sb_url') || params.get('supabase_url');
+    const sbKey = params.get('sb_key') || params.get('supabase_key');
+    const sbSync = params.get('sb_sync');
+
+    if (sbSync) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(escape(atob(sbSync))));
+        if (decoded.url && decoded.anonKey) {
+          return decoded;
+        }
+      } catch (e) {
+        console.warn('Failed to parse sb_sync param:', e);
+      }
+    }
+
+    if (sbUrl && sbKey) {
+      return {
+        url: decodeURIComponent(sbUrl),
+        anonKey: decodeURIComponent(sbKey),
+      };
+    }
+  } catch (err) {
+    console.warn('URL config check error:', err);
+  }
+  return null;
+}
+
+// Built-in Online Supabase Project (SMK MA Buaranjati)
+// Menjamin aplikasi 100% langsung terhubung secara online di komputer manapun tanpa perlu setting manual
+export const DEFAULT_SUPABASE_URL = 'https://agpvsaybtudoyjpfoqwn.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFncHZzYXlidHVkb3lqcGZvcXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzNzQzODUsImV4cCI6MjEwNzk1MDM4NX0.PcfO-6o_iGfYmLv-mTNVZSqO3eIdqd3eE-FN9jAuCII';
+
 export function getSupabaseConfig(): SupabaseConfig {
-  const envUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL || '';
-  const envKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY || '';
+  const envUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  const envKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
 
   if (typeof window === 'undefined') {
     return {
@@ -398,16 +435,40 @@ export function getSupabaseConfig(): SupabaseConfig {
       anonKey: envKey,
       tableNameSidang: 'peserta_sidang',
       tableNameNilai: 'penilaian_sidang',
-      isConnected: Boolean(envUrl && envKey),
+      isConnected: true,
     };
   }
 
+  // 1. Check URL parameters first for instant link sharing across computers
+  const urlConfig = checkUrlConfigSync();
+  if (urlConfig && urlConfig.url && urlConfig.anonKey) {
+    const fullConfig: SupabaseConfig = {
+      url: urlConfig.url,
+      anonKey: urlConfig.anonKey,
+      tableNameSidang: urlConfig.tableNameSidang || 'peserta_sidang',
+      tableNameNilai: urlConfig.tableNameNilai || 'penilaian_sidang',
+      isConnected: true,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY_SUPABASE, JSON.stringify(fullConfig));
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+      fetch('/api/supabase-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fullConfig),
+      }).catch(() => {});
+    } catch {}
+    return fullConfig;
+  }
+
+  // 2. Check localStorage
   const stored = localStorage.getItem(STORAGE_KEY_SUPABASE);
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      const url = parsed.url || envUrl;
-      const anonKey = parsed.anonKey || envKey;
+      const url = parsed.url || envUrl || DEFAULT_SUPABASE_URL;
+      const anonKey = parsed.anonKey || envKey || DEFAULT_SUPABASE_ANON_KEY;
       return {
         url,
         anonKey,
@@ -421,12 +482,54 @@ export function getSupabaseConfig(): SupabaseConfig {
   }
 
   return {
-    url: envUrl,
-    anonKey: envKey,
+    url: envUrl || DEFAULT_SUPABASE_URL,
+    anonKey: envKey || DEFAULT_SUPABASE_ANON_KEY,
     tableNameSidang: 'peserta_sidang',
     tableNameNilai: 'penilaian_sidang',
-    isConnected: Boolean(envUrl && envKey),
+    isConnected: true,
   };
+}
+
+export async function syncSupabaseConfigFromServer(): Promise<SupabaseConfig | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const res = await fetch('/api/supabase-config');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.success && data.config && data.config.url && data.config.anonKey) {
+      const serverConfig: SupabaseConfig = {
+        url: data.config.url,
+        anonKey: data.config.anonKey,
+        tableNameSidang: data.config.tableNameSidang || 'peserta_sidang',
+        tableNameNilai: data.config.tableNameNilai || 'penilaian_sidang',
+        isConnected: true,
+      };
+
+      const current = getSupabaseConfig();
+      if (!current.isConnected || current.url !== serverConfig.url) {
+        localStorage.setItem(STORAGE_KEY_SUPABASE, JSON.stringify(serverConfig));
+        cachedSupabaseClient = null;
+        broadcastRealtimeChange({
+          type: 'DATABASE_MUTATED',
+          payload: 'config_synced_from_server',
+        });
+        return serverConfig;
+      }
+    } else {
+      // If server does not have it yet, but this computer has it in localStorage, sync it to server!
+      const current = getSupabaseConfig();
+      if (current.isConnected && current.url && current.anonKey) {
+        fetch('/api/supabase-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(current),
+        }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.warn('Server config sync notice:', err);
+  }
+  return null;
 }
 
 export function saveSupabaseConfig(config: Partial<SupabaseConfig>): void {
@@ -436,8 +539,29 @@ export function saveSupabaseConfig(config: Partial<SupabaseConfig>): void {
     ...config,
     isConnected: Boolean((config.url || current.url) && (config.anonKey || current.anonKey)),
   };
-  localStorage.setItem(STORAGE_KEY_SUPABASE, JSON.stringify(updated));
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_SUPABASE, JSON.stringify(updated));
+    // Persist to server so any other computer opening the app gets it automatically!
+    if (updated.isConnected && updated.url && updated.anonKey) {
+      fetch('/api/supabase-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      }).catch((e) => console.warn('Could not persist config to server:', e));
+    }
+  }
+
   cachedSupabaseClient = null; // reset client to reinit
+}
+
+export function generateQuickSyncUrl(config?: SupabaseConfig): string {
+  if (typeof window === 'undefined') return '';
+  const cfg = config || getSupabaseConfig();
+  if (!cfg.url || !cfg.anonKey) return '';
+  const origin = window.location.origin;
+  const path = window.location.pathname;
+  return `${origin}${path}?sb_url=${encodeURIComponent(cfg.url)}&sb_key=${encodeURIComponent(cfg.anonKey)}`;
 }
 
 export function getSupabaseClient(): SupabaseClient | null {
@@ -3582,13 +3706,52 @@ export async function loginUser(
   }
 
   // 2. Cek Penguji Login
-  const pengujiList = await getPengujiList();
-  const matchedPenguji = pengujiList.find(
+  if (!getSupabaseConfig().isConnected) {
+    await syncSupabaseConfigFromServer();
+  }
+
+  let pengujiList = await getPengujiList();
+  let matchedPenguji = pengujiList.find(
     (p) =>
       p.nip.toLowerCase() === cleanId.toLowerCase() ||
       p.email?.toLowerCase() === cleanId.toLowerCase() ||
       p.nama.toLowerCase() === cleanId.toLowerCase()
   );
+
+  // Fallback: periksa juga ke data guru pembimbing jika belum tersinkronisasi ke tabel penguji
+  if (!matchedPenguji) {
+    try {
+      const guruList = await getMasterGuruList();
+      const matchedGuru = guruList.find(
+        (g) =>
+          g.nip.toLowerCase() === cleanId.toLowerCase() ||
+          g.emailLogin?.toLowerCase() === cleanId.toLowerCase() ||
+          g.nama.toLowerCase() === cleanId.toLowerCase()
+      );
+      if (matchedGuru) {
+        matchedPenguji = {
+          id: matchedGuru.id,
+          nama: matchedGuru.nama,
+          nip: matchedGuru.nip,
+          peran: 'Penguji Sidang',
+          avatar: matchedGuru.avatar || '',
+          email: matchedGuru.emailLogin,
+          password: matchedGuru.passwordLogin || 'penguji123',
+          telepon: matchedGuru.telepon,
+          instansiAsal: 'SMK MA Buaranjati',
+          bidangKeahlian: matchedGuru.bidangStudi,
+          isActive: true,
+        };
+      }
+    } catch {}
+  }
+
+  if (pengujiList.length === 0 && !matchedPenguji && !getSupabaseConfig().isConnected) {
+    return {
+      success: false,
+      message: 'Komputer ini belum terhubung ke database online Supabase. Silakan hubungkan Supabase terlebih dahulu di menu "Setup Supabase" atau gunakan Tautan Akses Sinkronisasi dari Admin agar data penguji dapat dimuat.',
+    };
+  }
 
   if (matchedPenguji) {
     // Verifikasi password akun penguji

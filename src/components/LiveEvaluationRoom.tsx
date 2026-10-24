@@ -26,7 +26,8 @@ import {
   Briefcase,
   DoorOpen,
   Settings2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Copy
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -369,6 +370,78 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
       if (prev.includes(text)) return prev;
       return `${prev}\n• ${text}`;
     });
+  };
+
+  // Rekan penguji di ruangan yang sama (Penguji 1 atau Penguji 2)
+  const fellowExaminer: Penguji = useMemo(() => {
+    if (activePenguji.id === p1Examiner.id || activePenguji.nip === p1Examiner.nip) {
+      return p2Examiner;
+    }
+    return p1Examiner;
+  }, [activePenguji.id, activePenguji.nip, p1Examiner, p2Examiner]);
+
+  // Evaluasi rekan penguji untuk siswa aktif ini (apakah sudah ada nilai agenda yang diinput duluan)
+  const fellowEvaluation = useMemo(() => {
+    if (!activePeserta) return null;
+    return (
+      penilaianList.find((e) => {
+        if (e.mahasiswaId !== activePeserta.id) return false;
+        // Hindari mencocokkan penilaian diri sendiri
+        if (e.pengujiId === activePenguji.id || e.pengujiId === activePenguji.nip) return false;
+
+        // Cek apakah rekan penguji sudah memiliki nilai agenda yang valid (> 0)
+        const hasAgendaScores =
+          (typeof e.subtotalAgenda === 'number' && e.subtotalAgenda > 0) ||
+          (e.nilaiItems &&
+            e.nilaiItems.some(
+              (ni) =>
+                ['k1', 'k2', 'k3', 'k4', 'k5'].includes(ni.kriteriaId) &&
+                typeof ni.skor === 'number' &&
+                ni.skor > 0
+            ));
+
+        return Boolean(hasAgendaScores);
+      }) || null
+    );
+  }, [activePeserta?.id, activePenguji.id, activePenguji.nip, penilaianList]);
+
+  const [syncAgendaToast, setSyncAgendaToast] = useState<string>('');
+
+  const handleCopyAgendaFromFellow = () => {
+    if (!fellowEvaluation || !fellowEvaluation.nilaiItems || fellowEvaluation.nilaiItems.length === 0) {
+      alert('Belum ada nilai buku agenda dari rekan penguji untuk siswa ini.');
+      return;
+    }
+
+    const agendaKeys = ['k1', 'k2', 'k3', 'k4', 'k5'];
+    let count = 0;
+    setScores((prev) => {
+      const next = { ...prev };
+      fellowEvaluation.nilaiItems.forEach((item) => {
+        const isAgenda =
+          agendaKeys.includes(item.kriteriaId) ||
+          item.kriteriaId.startsWith('k1') ||
+          item.kriteriaId.startsWith('k2') ||
+          item.kriteriaId.startsWith('k3') ||
+          item.kriteriaId.startsWith('k4') ||
+          item.kriteriaId.startsWith('k5') ||
+          item.kriteriaId.includes('agenda');
+
+        if (isAgenda && typeof item.skor === 'number') {
+          next[item.kriteriaId] = item.skor;
+          count++;
+        }
+      });
+      return next;
+    });
+
+    setSubmitSuccess(false);
+    const sourceName = fellowEvaluation.pengujiNama || fellowExaminer.nama || 'Rekan Penguji';
+    const subtotalText = fellowEvaluation.subtotalAgenda ? ` (Rata-rata: ${fellowEvaluation.subtotalAgenda.toFixed(2)})` : '';
+    setSyncAgendaToast(`Berhasil menyalin 5 Aspek Nilai Buku Agenda dari ${sourceName}${subtotalText}!`);
+    setTimeout(() => {
+      setSyncAgendaToast('');
+    }, 4500);
   };
 
   const handleSubmitNilai = async (isDraft: boolean = false) => {
@@ -1198,6 +1271,56 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
               </div>
             </div>
           </div>
+
+          {/* SINKRONISASI BUKU AGENDA DARI REKAN PENGUJI */}
+          {fellowEvaluation ? (
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-300 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-xs flex-shrink-0 mt-0.5 sm:mt-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-extrabold text-sm text-slate-900">
+                      Nilai Buku Agenda Sudah Diisi oleh {fellowEvaluation.pengujiNama || fellowExaminer.nama}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-950 border border-amber-300">
+                      {fellowEvaluation.pengujiPeran || fellowExaminer.peran}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    Rekan penguji telah menginput 5 aspek buku agenda fisik siswa ini dengan rata-rata <strong>{fellowEvaluation.subtotalAgenda?.toFixed(2) || '-'}</strong>. Karena buku fisik agenda hanya 1 eksemplar, Anda dapat langsung menyalin nilai ini secara instan.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCopyAgendaFromFellow}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:shadow transition-all whitespace-nowrap self-stretch sm:self-auto cursor-pointer"
+              >
+                <Copy className="w-4 h-4" />
+                <span>Salin / Sinkronkan Nilai Agenda</span>
+              </button>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-white/80 border border-orange-200 text-xs text-slate-600 flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></span>
+                <span>
+                  Buku agenda fisik hanya 1 eksemplar. Nilai yang Anda input di sini dapat langsung disalin oleh <strong>{fellowExaminer.nama}</strong> ({fellowExaminer.peran}) secara real-time.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Toast Notifikasi Berhasil Sinkron */}
+          {syncAgendaToast && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-1">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <span>{syncAgendaToast}</span>
+            </div>
+          )}
 
           {/* The 5 Criteria Sliders */}
           <div className="space-y-4">
