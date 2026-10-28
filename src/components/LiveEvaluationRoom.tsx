@@ -70,6 +70,7 @@ interface LiveEvaluationRoomProps {
   onSaveRoomPairings?: (pairings: PasanganPengujiRuangan[]) => Promise<void>;
   isAdmin?: boolean;
   onResetNilaiMahasiswa?: (mahasiswaId: string) => Promise<void>;
+  onOpenSertifikat?: (mahasiswaId: string) => void;
 }
 
 export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
@@ -80,6 +81,7 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
   onSelectPenguji,
   penilaianList,
   onOpenBeritaAcara,
+  onOpenSertifikat,
   kriteriaList = DEFAULT_KRITERIA,
   plottingList = [],
   onPenilaianSaved,
@@ -999,9 +1001,21 @@ export const LiveEvaluationRoom: React.FC<LiveEvaluationRoomProps> = ({
               className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>Berita Acara Resmi</span>
+              <span>Berita Acara</span>
               <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
             </button>
+
+            {onOpenSertifikat && (
+              <button
+                type="button"
+                onClick={() => onOpenSertifikat(activePeserta.id)}
+                className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+                title="Cetak Sertifikat Kelulusan PKL A4 (2 Muka)"
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>Cetak Sertifikat A4</span>
+              </button>
+            )}
 
             {isAdmin && aggregateResult && (aggregateResult.totalPengujiMenilai > 0 || aggregateResult.nilaiAkhirAngka > 0) && (
               <button

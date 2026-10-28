@@ -28,6 +28,7 @@ interface PesertaListProps {
   plottingList?: PlottingSiswaPKL[];
   onSelectPesertaForSidang: (id: string) => void;
   onOpenBeritaAcara: (id: string) => void;
+  onOpenSertifikat?: (id: string) => void;
   onPesertaUpdated?: () => void;
 }
 
@@ -37,6 +38,7 @@ export const PesertaList: React.FC<PesertaListProps> = ({
   plottingList = [],
   onSelectPesertaForSidang,
   onOpenBeritaAcara,
+  onOpenSertifikat,
   onPesertaUpdated,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -566,6 +568,17 @@ export const PesertaList: React.FC<PesertaListProps> = ({
                                       <FileText className="w-3 h-3 text-emerald-600" />
                                       <span>BA</span>
                                     </button>
+                                    {onOpenSertifikat && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onOpenSertifikat(siswa.id)}
+                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold text-[11px] cursor-pointer shadow-2xs"
+                                        title="Cetak Sertifikat Kelulusan PKL A4"
+                                      >
+                                        <Award className="w-3 h-3 text-amber-600" />
+                                        <span>Sertifikat</span>
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -686,6 +699,15 @@ export const PesertaList: React.FC<PesertaListProps> = ({
                     >
                       <FileText className="w-4 h-4 text-emerald-600" />
                     </button>
+                    {onOpenSertifikat && (
+                      <button
+                        onClick={() => onOpenSertifikat(peserta.id)}
+                        className="p-1.5 rounded-lg border border-amber-200 hover:bg-amber-50 text-amber-700 cursor-pointer"
+                        title="Cetak Sertifikat A4 (2 Muka)"
+                      >
+                        <Award className="w-4 h-4 text-amber-600" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

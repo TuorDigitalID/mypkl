@@ -17,7 +17,8 @@ import {
   generateSupabaseSQLSchema, 
   generateSidang2PengujiSQLScript, 
   generatePengujiGuruSQLScript,
-  generatePlottingSQLScript 
+  generatePlottingSQLScript,
+  generateResetAndSyncSQLScript 
 } from '../utils/scoring.ts';
 import { saveSupabaseConfig, testSupabaseConnection, generateQuickSyncUrl } from '../lib/supabase.ts';
 
@@ -35,7 +36,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   onConfigUpdated,
 }) => {
   const [activeTab, setActiveTab] = useState<'credentials' | 'sql'>('credentials');
-  const [selectedScript, setSelectedScript] = useState<'update2penguji' | 'penguji_guru' | 'plotting' | 'full'>('penguji_guru');
+  const [selectedScript, setSelectedScript] = useState<'update2penguji' | 'penguji_guru' | 'plotting' | 'full' | 'reset_sync'>('reset_sync');
   const [url, setUrl] = useState(config.url || '');
   const [anonKey, setAnonKey] = useState(config.anonKey || '');
   const [testResult, setTestResult] = useState<{
@@ -58,7 +59,9 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   if (!isOpen) return null;
 
   const currentSQLText = 
-    selectedScript === 'update2penguji'
+    selectedScript === 'reset_sync'
+      ? generateResetAndSyncSQLScript()
+      : selectedScript === 'update2penguji'
       ? generateSidang2PengujiSQLScript()
       : selectedScript === 'penguji_guru'
       ? generatePengujiGuruSQLScript()
@@ -378,6 +381,17 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
             <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-lg text-xs">
               <button
                 type="button"
+                onClick={() => setSelectedScript('reset_sync')}
+                className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                  selectedScript === 'reset_sync'
+                    ? 'bg-orange-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                🔄 Reset Nilai &amp; Sync RLS
+              </button>
+              <button
+                type="button"
                 onClick={() => setSelectedScript('penguji_guru')}
                 className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
                   selectedScript === 'penguji_guru'
@@ -385,7 +399,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                👥 Penguji & Guru Pembimbing
+                👥 Penguji &amp; Guru Pembimbing
               </button>
               <button
                 type="button"

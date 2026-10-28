@@ -1241,5 +1241,43 @@ CREATE POLICY "Public Write Access Pengaturan Ruangan" ON public.pengaturan_ruan
 `;
 }
 
+/**
+ * Menghasilkan skrip SQL khusus untuk mengaktifkan izin Reset Nilai & verifikasi kolom terbaru
+ */
+export function generateResetAndSyncSQLScript(): string {
+  return `-- ====================================================================
+-- SKRIP SQL UPDATE: DUKUNGAN RESET NILAI & IZIN HAPUS PENILAIAN
+-- Jalankan di Supabase Dashboard > SQL Editor > New query > Run
+-- ====================================================================
+
+-- 1. Pastikan kolom subtotal penilaian lengkap
+ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_agenda NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_sidang NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS is_draft BOOLEAN DEFAULT false;
+
+-- 2. Berikan izin DELETE dan ALL agar tombol Reset Nilai Administrator tidak ditolak RLS
+ALTER TABLE public.penilaian_sidang ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE public.penilaian_sidang TO anon, authenticated;
+
+DROP POLICY IF EXISTS "Public Delete Access Penilaian" ON public.penilaian_sidang;
+DROP POLICY IF EXISTS "Public Write Access Penilaian" ON public.penilaian_sidang;
+CREATE POLICY "Public Write Access Penilaian" ON public.penilaian_sidang FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 3. Pastikan realtime aktif untuk tabel penilaian_sidang
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.penilaian_sidang;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+END $$;
+
+-- 4. Kueri opsional langsung untuk mereset seluruh nilai uji coba via SQL (jika dibutuhkan):
+-- DELETE FROM public.penilaian_sidang;
+-- UPDATE public.peserta_sidang SET status = 'menunggu';
+`;
+}
+
 
 

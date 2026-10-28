@@ -23,6 +23,7 @@ interface RekapitulasiViewProps {
   penilaianList: PenilaianPenguji[];
   onOpenBeritaAcara: (mahasiswaId: string) => void;
   onSelectPesertaForSidang: (mahasiswaId: string) => void;
+  onOpenSertifikat?: (mahasiswaId: string) => void;
   isAdmin?: boolean;
   onResetNilaiMahasiswa?: (mahasiswaId: string, nama: string) => Promise<void>;
   onResetAllNilai?: () => Promise<void>;
@@ -32,6 +33,7 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
   pesertaList,
   penilaianList,
   onOpenBeritaAcara,
+  onOpenSertifikat,
   isAdmin = false,
   onResetNilaiMahasiswa,
   onResetAllNilai,
@@ -133,6 +135,17 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
             >
               <Trash2 className="w-4 h-4" />
               <span>Reset Semua Nilai Uji Coba</span>
+            </button>
+          )}
+
+          {onOpenSertifikat && pesertaList.length > 0 && (
+            <button
+              onClick={() => onOpenSertifikat(pesertaList[0].id)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all cursor-pointer"
+              title="Buka &amp; Cetak Sertifikat PKL A4 2 Muka"
+            >
+              <Award className="w-4 h-4" />
+              <span>Cetak Sertifikat A4</span>
             </button>
           )}
 
@@ -360,6 +373,18 @@ export const RekapitulasiView: React.FC<RekapitulasiViewProps> = ({
                           >
                             <RotateCcw className="w-3.5 h-3.5 text-red-600" />
                             <span className="hidden sm:inline">Reset Nilai</span>
+                          </button>
+                        )}
+
+                        {onOpenSertifikat && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenSertifikat(peserta.id)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold cursor-pointer transition-colors shadow-2xs"
+                            title="Cetak Sertifikat Kelulusan PKL A4 (2 Muka)"
+                          >
+                            <Award className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Sertifikat</span>
                           </button>
                         )}
 

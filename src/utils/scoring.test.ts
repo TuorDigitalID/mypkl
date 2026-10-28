@@ -11,6 +11,7 @@ import {
   getGradeRangeInfo,
   validateScores,
   generateSupabaseSQLSchema,
+  generateResetAndSyncSQLScript,
 } from './scoring.ts';
 import type { NilaiKriteriaItem, PenilaianPenguji } from '../types/index.ts';
 
@@ -182,5 +183,13 @@ test('generateSupabaseSQLSchema produces valid DDL script', () => {
   assert.ok(sql.includes('ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_agenda'));
   assert.ok(sql.includes('CREATE TABLE IF NOT EXISTS public.master_siswa_pkl'));
   assert.ok(sql.includes('ALTER PUBLICATION supabase_realtime'));
+});
+
+test('generateResetAndSyncSQLScript produces valid SQL with DELETE policy and realtime', () => {
+  const sql = generateResetAndSyncSQLScript();
+  assert.ok(sql.includes('ALTER TABLE public.penilaian_sidang ADD COLUMN IF NOT EXISTS subtotal_agenda'));
+  assert.ok(sql.includes('GRANT ALL ON TABLE public.penilaian_sidang TO anon, authenticated'));
+  assert.ok(sql.includes('CREATE POLICY "Public Write Access Penilaian"'));
+  assert.ok(sql.includes('ALTER PUBLICATION supabase_realtime ADD TABLE public.penilaian_sidang'));
 });
 

@@ -13,6 +13,7 @@ import { RekapitulasiView } from './components/RekapitulasiView.tsx';
 import { RubrikGuide } from './components/RubrikGuide.tsx';
 import { SupabaseModal } from './components/SupabaseModal.tsx';
 import { BeritaAcaraModal } from './components/BeritaAcaraModal.tsx';
+import { SertifikatModal } from './components/SertifikatModal.tsx';
 import { PusatUploadModal } from './components/PusatUploadModal.tsx';
 import { LoginModal } from './components/LoginModal.tsx';
 import { LoginScreen } from './components/LoginScreen.tsx';
@@ -100,6 +101,7 @@ export default function App() {
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [beritaAcaraMahasiswaId, setBeritaAcaraMahasiswaId] = useState<string | null>(null);
+  const [sertifikatMahasiswaId, setSertifikatMahasiswaId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load initial data
@@ -279,6 +281,10 @@ export default function App() {
 
   const handleOpenBeritaAcara = (mahasiswaId: string) => {
     setBeritaAcaraMahasiswaId(mahasiswaId);
+  };
+
+  const handleOpenSertifikat = (mahasiswaId: string) => {
+    setSertifikatMahasiswaId(mahasiswaId);
   };
 
   // Examiner CRUD Handlers
@@ -482,6 +488,7 @@ export default function App() {
                   activePenguji={activePenguji}
                   penilaianList={penilaianList}
                   onOpenBeritaAcara={handleOpenBeritaAcara}
+                  onOpenSertifikat={handleOpenSertifikat}
                   plottingList={plottingList}
                   onSelectPenguji={setActivePenguji}
                   onPenilaianSaved={loadData}
@@ -615,6 +622,7 @@ export default function App() {
                   plottingList={plottingList}
                   onSelectPesertaForSidang={handleSelectPesertaForSidang}
                   onOpenBeritaAcara={handleOpenBeritaAcara}
+                  onOpenSertifikat={handleOpenSertifikat}
                   onPesertaUpdated={loadData}
                 />
               )}
@@ -624,6 +632,7 @@ export default function App() {
                   pesertaList={pesertaList}
                   penilaianList={penilaianList}
                   onOpenBeritaAcara={handleOpenBeritaAcara}
+                  onOpenSertifikat={handleOpenSertifikat}
                   onSelectPesertaForSidang={handleSelectPesertaForSidang}
                   isAdmin={currentUser?.role === 'admin'}
                   onResetNilaiMahasiswa={handleResetNilaiMahasiswa}
@@ -726,6 +735,19 @@ export default function App() {
           pengujiList={pengujiList}
           roomPairings={roomPairings}
           onClose={() => setBeritaAcaraMahasiswaId(null)}
+        />
+      )}
+
+      {/* Official Sertifikat Kelulusan & Transkrip A4 Modal (2 Muka) */}
+      {sertifikatMahasiswaId && (
+        <SertifikatModal
+          mahasiswaId={sertifikatMahasiswaId}
+          pesertaList={pesertaList}
+          penilaianList={penilaianList}
+          masterSiswaList={masterSiswaList}
+          pengujiList={pengujiList}
+          onClose={() => setSertifikatMahasiswaId(null)}
+          onSelectMahasiswa={(id) => setSertifikatMahasiswaId(id)}
         />
       )}
 

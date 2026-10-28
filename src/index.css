@@ -23,3 +23,71 @@
     font-family: inherit;
   }
 }
+
+@font-face {
+  font-family: 'Certificate Font';
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/Certificate.woff') format('woff');
+  font-display: swap;
+}
+
+.font-certificate-script {
+  font-family: 'Certificate Font', 'Pinyon Script', 'Great Vibes', 'Alex Brush', cursive;
+}
+
+.font-pinyon {
+  font-family: 'Pinyon Script', 'Great Vibes', cursive;
+}
+
+.font-great-vibes {
+  font-family: 'Great Vibes', 'Alex Brush', cursive;
+}
+
+.font-alex-brush {
+  font-family: 'Alex Brush', cursive;
+}
+
+.font-cinzel-decorative {
+  font-family: 'Cinzel Decorative', Georgia, serif;
+}
+
+.font-cinzel {
+  font-family: 'Cinzel', Georgia, serif;
+}
+
+.font-playfair {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm;
+  }
+
+  body {
+    background-color: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .certificate-sheet {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    page-break-inside: avoid !important;
+  }
+}
