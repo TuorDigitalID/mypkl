@@ -20,11 +20,13 @@ import {
   Eye,
   Wallpaper,
   FileCheck2,
-  Database
+  Database,
+  Barcode as BarcodeIcon
 } from 'lucide-react';
 import { MahasiswaSidang, PenilaianPenguji, MasterSiswaPKL, MasterJurusan, Penguji } from '../types/index.ts';
 import { calculateFinalAggregate } from '../utils/scoring.ts';
 import { getMasterJurusanList } from '../lib/supabase.ts';
+import { CertificateBarcode, BarcodeType, BarcodeFormat } from './CertificateBarcode.tsx';
 
 interface SertifikatModalProps {
   mahasiswaId: string | null;
@@ -61,10 +63,32 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
   // View mode tab: 'both' (2 Muka A4) | 'front' (Muka Depan) | 'back' (Muka Belakang / Transkrip)
   const [viewMode, setViewMode] = useState<'both' | 'front' | 'back'>('both');
   const [showSettings, setShowSettings] = useState(false);
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'logo' | 'background' | 'data'>('background');
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'logo' | 'background' | 'data' | 'barcode'>('background');
   const [fontJudul, setFontJudul] = useState<'certificate' | 'pinyon' | 'cinzel-dec' | 'playfair' | 'cinzel'>(() => {
     return (localStorage.getItem('sertifikat_font_judul') as any) || 'certificate';
   });
+
+  // =========================================================================
+  // BARCODE & URUTAN GENERATION STATE (Derived from NISN & Urutan Peserta)
+  // =========================================================================
+  const [barcodeType, setBarcodeType] = useState<BarcodeType>(() => {
+    return (localStorage.getItem('sertifikat_barcode_type') as BarcodeType) || 'barcode';
+  });
+  const [barcodeFormat, setBarcodeFormat] = useState<BarcodeFormat>(() => {
+    return (localStorage.getItem('sertifikat_barcode_format') as BarcodeFormat) || 'simple';
+  });
+  const [customUrutan, setCustomUrutan] = useState<string>('');
+  const [showBarcodeOnBack, setShowBarcodeOnBack] = useState<boolean>(() => {
+    return localStorage.getItem('sertifikat_show_barcode_back') !== 'false';
+  });
+
+  // Effective sequence number: auto-padded from student index (e.g. 1 -> 001) or custom override
+  const effectiveUrutan = useMemo(() => {
+    if (customUrutan && customUrutan.trim()) {
+      return customUrutan.trim();
+    }
+    return String(currentIndex + 1).padStart(3, '0');
+  }, [customUrutan, currentIndex]);
 
   // =========================================================================
   // CERTIFICATE BACKGROUND STATE (User uploaded asset as default)
@@ -637,6 +661,18 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
                   <span>Teks Surat &amp; Tanda Tangan</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSettingsTab('barcode')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    activeSettingsTab === 'barcode'
+                      ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-800 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <BarcodeIcon className="w-3.5 h-3.5" />
+                  <span>Barcode &amp; Urutan Siswa</span>
                 </button>
               </div>
               <span className="text-[11px] text-emerald-400 font-medium">
@@ -1365,6 +1401,251 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* TAB 4: GENERATE BARCODE DARI NISN DAN URUTAN */}
+            {activeSettingsTab === 'barcode' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Left: Live Barcode & QR Preview */}
+                  <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-teal-600/50 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-teal-300 flex items-center gap-1.5 text-xs">
+                          <BarcodeIcon className="w-4 h-4 text-emerald-400" />
+                          <span>Pratinjau Barcode Ter-generate</span>
+                        </span>
+                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-teal-950 text-teal-300 border border-teal-800/80">
+                          Live Render
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mb-3">
+                        Barcode resmi ter-generate otomatis secara dinamis dari kombinasi NISN dan nomor urut peserta.
+                      </p>
+
+                      <div className="bg-white p-3 rounded-xl border border-slate-300 shadow-inner flex flex-col items-center justify-center min-h-[100px]">
+                        <CertificateBarcode
+                          nisn={studentNISN}
+                          urutan={effectiveUrutan}
+                          type={barcodeType}
+                          format={barcodeFormat}
+                          showDetails={true}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-700/80 flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">Status Generator:</span>
+                      <span className="text-emerald-400 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Aktif &amp; Terverifikasi
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Middle: Barcode Type & Format Selection */}
+                  <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700 space-y-3">
+                    <span className="font-bold text-white flex items-center gap-1.5 text-xs">
+                      <SlidersHorizontal className="w-4 h-4 text-teal-400" />
+                      <span>Format &amp; Tipe Barcode</span>
+                    </span>
+
+                    {/* Mode Barcode: 1D Barcode vs QR Code vs Both */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
+                        Tipe Barcode:
+                      </label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBarcodeType('barcode');
+                            localStorage.setItem('sertifikat_barcode_type', 'barcode');
+                          }}
+                          className={`p-2 rounded-xl text-center font-bold text-xs border transition-all cursor-pointer ${
+                            barcodeType === 'barcode'
+                              ? 'bg-teal-500 text-slate-950 border-teal-400 shadow-xs'
+                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
+                          }`}
+                        >
+                          <BarcodeIcon className="w-4 h-4 mx-auto mb-1" />
+                          <span className="block text-[10.5px]">Barcode 1D</span>
+                          <span className="text-[8.5px] font-normal opacity-80">Garis Batang</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBarcodeType('qrcode');
+                            localStorage.setItem('sertifikat_barcode_type', 'qrcode');
+                          }}
+                          className={`p-2 rounded-xl text-center font-bold text-xs border transition-all cursor-pointer ${
+                            barcodeType === 'qrcode'
+                              ? 'bg-teal-500 text-slate-950 border-teal-400 shadow-xs'
+                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
+                          }`}
+                        >
+                          <QrCode className="w-4 h-4 mx-auto mb-1" />
+                          <span className="block text-[10.5px]">QR Code 2D</span>
+                          <span className="text-[8.5px] font-normal opacity-80">Matriks</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBarcodeType('both');
+                            localStorage.setItem('sertifikat_barcode_type', 'both');
+                          }}
+                          className={`p-2 rounded-xl text-center font-bold text-xs border transition-all cursor-pointer ${
+                            barcodeType === 'both'
+                              ? 'bg-teal-500 text-slate-950 border-teal-400 shadow-xs'
+                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
+                          }`}
+                        >
+                          <Sparkles className="w-4 h-4 mx-auto mb-1" />
+                          <span className="block text-[10.5px]">Keduanya</span>
+                          <span className="text-[8.5px] font-normal opacity-80">Barcode + QR</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Format Nomor Seri */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
+                        Format Kode Barcode (NISN + Urutan):
+                      </label>
+                      <div className="space-y-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBarcodeFormat('simple');
+                            localStorage.setItem('sertifikat_barcode_format', 'simple');
+                          }}
+                          className={`w-full p-2 rounded-xl text-left font-bold text-xs border transition-all flex items-center justify-between cursor-pointer ${
+                            barcodeFormat === 'simple'
+                              ? 'bg-emerald-950/80 text-emerald-200 border-emerald-500'
+                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-600'
+                          }`}
+                        >
+                          <div>
+                            <span className="block text-[11px]">NISN-Urutan (Rekomendasi)</span>
+                            <span className="text-[9.5px] font-mono text-slate-400">{studentNISN}-{effectiveUrutan}</span>
+                          </div>
+                          {barcodeFormat === 'simple' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBarcodeFormat('prefix');
+                            localStorage.setItem('sertifikat_barcode_format', 'prefix');
+                          }}
+                          className={`w-full p-2 rounded-xl text-left font-bold text-xs border transition-all flex items-center justify-between cursor-pointer ${
+                            barcodeFormat === 'prefix'
+                              ? 'bg-emerald-950/80 text-emerald-200 border-emerald-500'
+                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-600'
+                          }`}
+                        >
+                          <div>
+                            <span className="block text-[11px]">SMKMA-NISN-Urutan</span>
+                            <span className="text-[9.5px] font-mono text-slate-400">SMKMA-{studentNISN}-{effectiveUrutan}</span>
+                          </div>
+                          {barcodeFormat === 'prefix' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBarcodeFormat('full');
+                            localStorage.setItem('sertifikat_barcode_format', 'full');
+                          }}
+                          className={`w-full p-2 rounded-xl text-left font-bold text-xs border transition-all flex items-center justify-between cursor-pointer ${
+                            barcodeFormat === 'full'
+                              ? 'bg-emerald-950/80 text-emerald-200 border-emerald-500'
+                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-600'
+                          }`}
+                        >
+                          <div>
+                            <span className="block text-[11px]">PKL-2026-NISN-Urutan</span>
+                            <span className="text-[9.5px] font-mono text-slate-400">PKL-2026-{studentNISN}-{effectiveUrutan}</span>
+                          </div>
+                          {barcodeFormat === 'full' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Urutan Siswa & Options */}
+                  <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700 space-y-3">
+                    <span className="font-bold text-white flex items-center gap-1.5 text-xs">
+                      <GraduationCap className="w-4 h-4 text-blue-400" />
+                      <span>Data Sumber Barcode</span>
+                    </span>
+
+                    <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-700 space-y-1.5">
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="text-slate-400">Nama Siswa:</span>
+                        <span className="font-bold text-white truncate max-w-[150px]">{mahasiswa.nama}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="text-slate-400">NISN Siswa:</span>
+                        <span className="font-mono font-bold text-emerald-400">{studentNISN}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="text-slate-400">Urutan Otomatis:</span>
+                        <span className="font-mono font-bold text-cyan-400">
+                          #{currentIndex + 1} dari {pesertaList.length}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Kustomisasi Nomor Urut (Opsional):
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={customUrutan}
+                          onChange={(e) => setCustomUrutan(e.target.value)}
+                          placeholder={String(currentIndex + 1).padStart(3, '0')}
+                          className="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono text-xs outline-none focus:border-teal-400"
+                        />
+                        {customUrutan && (
+                          <button
+                            type="button"
+                            onClick={() => setCustomUrutan('')}
+                            className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                            title="Reset ke otomatis"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Kosongkan untuk menggunakan nomor urut otomatis (#{String(currentIndex + 1).padStart(3, '0')}).
+                      </p>
+                    </div>
+
+                    <label className="flex items-start gap-2.5 cursor-pointer bg-slate-900 p-2.5 rounded-xl border border-slate-700 mt-2">
+                      <input
+                        type="checkbox"
+                        checked={showBarcodeOnBack}
+                        onChange={(e) => {
+                          setShowBarcodeOnBack(e.target.checked);
+                          localStorage.setItem('sertifikat_show_barcode_back', String(e.target.checked));
+                        }}
+                        className="mt-0.5 rounded-md text-teal-500 focus:ring-0"
+                      />
+                      <div>
+                        <span className="font-bold text-white block text-xs">Tampilkan No. Seri di Transkrip</span>
+                        <span className="text-[10px] text-slate-400">Cantumkan kode seri verifikasi di halaman 2 (transkrip nilai)</span>
+                      </div>
+                    </label>
+                  </div>
+
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1572,23 +1853,15 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               <div className="relative z-10 pt-2 border-t-2 border-emerald-800/20 mt-auto">
                 <div className="flex items-end justify-between text-xs px-4 sm:px-8">
                   
-                  {/* Left: Official Digital Verification Shield & QR */}
-                  <div className="flex items-center gap-3">
-                    <div className="p-1.5 rounded-xl bg-white/95 border border-teal-300 shadow-xs flex items-center justify-center">
-                      <QrCode className="w-13 h-13 text-slate-800" />
-                    </div>
-                    <div className="space-y-0.5 text-left">
-                      <div className="flex items-center gap-1 text-[10px] font-black text-emerald-800">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>E-VERIFIKASI RESMI</span>
-                      </div>
-                      <p className="text-[9px] font-mono text-slate-600">
-                        No. Seri: {studentNISN}-{currentIndex + 1}
-                      </p>
-                      <p className="text-[9px] text-slate-500">
-                        Sertifikat Sah Terdaftar di SMK MA Buaranjati
-                      </p>
-                    </div>
+                  {/* Left: Official Digital Verification Shield & Barcode (Generated from NISN & Urutan) */}
+                  <div className="flex items-center">
+                    <CertificateBarcode
+                      nisn={studentNISN}
+                      urutan={effectiveUrutan}
+                      type={barcodeType}
+                      format={barcodeFormat}
+                      showDetails={true}
+                    />
                   </div>
 
                   {/* Right: Kepala SMK Mathla'ul Anwar Buaranjati */}
@@ -1845,6 +2118,14 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   <span>•</span>
                   <span>D (&lt;60)</span>
                 </div>
+                {showBarcodeOnBack && (
+                  <div className="flex items-center gap-1.5 font-mono text-[9px] text-slate-700 bg-white/90 px-2 py-0.5 rounded border border-slate-300 shadow-2xs">
+                    <span className="font-sans font-bold text-slate-800">No. Seri:</span>
+                    <span className="font-bold text-teal-900">
+                      {barcodeFormat === 'prefix' ? `SMKMA-${studentNISN}-${effectiveUrutan}` : barcodeFormat === 'full' ? `PKL-2026-${studentNISN}-${effectiveUrutan}` : `${studentNISN}-${effectiveUrutan}`}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <span className="text-emerald-800 font-bold">Hasil Sidang:</span>
                   <span className="font-black px-2 py-0.5 rounded bg-emerald-100 text-emerald-950 border border-emerald-300 flex items-center gap-1">
