@@ -1870,9 +1870,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     <p className="font-extrabold text-slate-900 text-xs sm:text-[13px]">
                       Kepala SMK Mathla'ul Anwar Buaranjati
                     </p>
-                    <div className="h-16 flex items-center justify-center text-[10px] text-slate-400 italic">
-                      [Tanda Tangan &amp; Cap Sekolah]
-                    </div>
+                    <div className="h-16 sm:h-20"></div>
                     <p className="font-black text-slate-950 underline decoration-blue-600 underline-offset-4 text-xs sm:text-[13px]">
                       {namaKepsek}
                     </p>
@@ -1902,7 +1900,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
           {/* 2. MUKA 2: HALAMAN BELAKANG (TRANSKRIP NILAI & CAPAIAN KOMPETENSI)     */}
           {/* ======================================================================= */}
           {(viewMode === 'both' || viewMode === 'back') && (
-            <div className="certificate-sheet bg-white text-slate-900 rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-7 relative overflow-hidden mx-auto max-w-[1050px] aspect-[297/210] flex flex-col justify-between select-text border-[6px] border-slate-300">
+            <div className="certificate-sheet bg-white text-slate-900 rounded-2xl shadow-2xl p-3 sm:p-4 lg:p-5 relative overflow-hidden mx-auto max-w-[1050px] aspect-[297/210] flex flex-col justify-between select-text border-[6px] border-slate-300">
               
               {/* Optional Background in Muka 2 */}
               {showBackground && showBgOnBack && bgSertifikatUrl && (
@@ -1922,7 +1920,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 z-10"></div>
 
               {/* Header Transkrip: Logo Sekolah (Kiri) - Teks Tengah - Logo Jurusan (Kanan) */}
-              <div className="relative z-10 pt-0.5 pb-1.5 border-b-2 border-slate-900 px-6 sm:px-12 md:px-16">
+              <div className="relative z-10 pt-0.5 pb-1.5 border-b-2 border-slate-900 px-2 sm:px-4 md:px-6">
                 <div className="flex items-center justify-between gap-3 sm:gap-6">
                   
                   {/* LOGO SEKOLAH (KIRI - TRANSPARAN) */}
@@ -2144,11 +2142,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     <p className="font-extrabold text-slate-900 text-xs sm:text-sm">Ketua Panitia Sidang PKL</p>
                     
                     {/* Clear space for physical stamp and signature */}
-                    <div className="h-14 sm:h-16 flex items-center justify-center">
-                      <span className="text-[10px] text-slate-400 border border-dashed border-slate-300 px-3 py-1 rounded italic">
-                        (Tanda Tangan &amp; Cap Panitia)
-                      </span>
-                    </div>
+                    <div className="h-16 sm:h-20"></div>
 
                     <p className="font-black text-slate-950 underline decoration-teal-600 underline-offset-4 text-xs sm:text-sm">
                       {namaKetuaPanitia || 'Dr. Ir. Hendra Kurniawan, M.T.'}
@@ -2162,11 +2156,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     <p className="text-[10px] text-emerald-800 font-bold">{mahasiswa.prodi}</p>
                     
                     {/* Clear space for physical signature */}
-                    <div className="h-12 sm:h-14 flex items-center justify-center">
-                      <span className="text-[10px] text-slate-400 border border-dashed border-slate-300 px-3 py-1 rounded italic">
-                        (Tanda Tangan &amp; Pengesahan)
-                      </span>
-                    </div>
+                    <div className="h-16 sm:h-20"></div>
 
                     <p className="font-black text-slate-950 underline decoration-blue-600 underline-offset-4 text-xs sm:text-sm">
                       {namaKaprodi || 'Ahmad Zulfikar, S.T., M.Kom.'}
