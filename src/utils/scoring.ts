@@ -789,6 +789,8 @@ INSERT INTO public.master_jurusan (kode, nama, bidang_keahlian, kepala_program, 
 VALUES
     ('RPL', 'Rekayasa Perangkat Lunak', 'Teknologi Informasi & Komunikasi', 'Dr. Ir. Hendra Kurniawan, M.T.', 'Pengembangan web, mobile, cloud computing, dan database.'),
     ('TKJ', 'Teknik Komputer & Jaringan', 'Teknologi Informasi & Komunikasi', 'Ahmad Zulfikar, S.T., M.Kom.', 'Infrastruktur jaringan, administrasi server, dan cyber security.'),
+    ('TBSM', 'Teknik & Bisnis Sepeda Motor', 'Teknologi & Rekayasa', 'Bambang Prasetyo, S.T.', 'Teknik perawatan, perbaikan mesin otomotif roda dua, dan wirausaha bengkel.'),
+    ('AKL', 'Akuntansi & Keuangan Lembaga', 'Bisnis & Manajemen', 'Dra. Hj. Ratna Sari, M.M.', 'Akuntansi keuangan, perpajakan, komputer akuntansi, dan perbankan syariah.'),
     ('SIJA', 'Sistem Informasi Jaringan & Aplikasi', 'Teknologi Informasi & Komunikasi', 'Siti Nurhaliza, S.Kom., M.Cs.', 'Cloud platform, devops, internet of things (IoT), dan system integration.'),
     ('DKV', 'Desain Komunikasi Visual', 'Seni & Ekonomi Kreatif', 'Dra. Sri Wahyuni, M.Pd.', 'Desain grafis, UI/UX, visual branding, dan videografi digital.')
 ON CONFLICT (kode) DO NOTHING;
@@ -1278,6 +1280,94 @@ END $$;
 -- UPDATE public.peserta_sidang SET status = 'menunggu';
 `;
 }
+
+/**
+ * Menghasilkan skrip SQL khusus untuk sinkronisasi Master Jurusan & Nama Kepala Program (Kaprodi)
+ * Memastikan tabel master_jurusan memiliki kolom kepala_program, RLS, Realtime, dan data 6 jurusan lengkap
+ */
+export function generateMasterJurusanSQLScript(): string {
+  return `-- ====================================================================
+-- SKRIP SQL UPDATE: TABEL MASTER JURUSAN & KEPALA PROGRAM KEAHLIAN (KAPRODI)
+-- Jalankan di Supabase Dashboard > SQL Editor > New query > Run
+-- ====================================================================
+
+-- 1. Buat Tabel Master Jurusan jika belum ada
+CREATE TABLE IF NOT EXISTS public.master_jurusan (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    kode VARCHAR(20) NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    bidang_keahlian VARCHAR(150) NOT NULL,
+    kepala_program VARCHAR(150),
+    deskripsi TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 2. Pastikan Kolom Id Memiliki Default UUID Otomatis
+ALTER TABLE public.master_jurusan ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+-- 3. Pastikan Kolom kepala_program dan bidang_keahlian ada pada tabel lama
+ALTER TABLE public.master_jurusan ADD COLUMN IF NOT EXISTS kepala_program VARCHAR(150);
+ALTER TABLE public.master_jurusan ADD COLUMN IF NOT EXISTS bidang_keahlian VARCHAR(150);
+ALTER TABLE public.master_jurusan ADD COLUMN IF NOT EXISTS deskripsi TEXT;
+ALTER TABLE public.master_jurusan ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE public.master_jurusan ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+-- 4. Pastikan constraint UNIQUE pada 'kode' ada (Wajib untuk Upsert ON CONFLICT kode)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'master_jurusan_kode_key'
+    ) THEN
+        BEGIN
+            ALTER TABLE public.master_jurusan ADD CONSTRAINT master_jurusan_kode_key UNIQUE (kode);
+        EXCEPTION WHEN duplicate_table OR duplicate_object THEN
+            NULL;
+        END;
+    END IF;
+END $$;
+
+-- 5. SINKRONISASI DATA JURUSAN & NAMA KAPRODI SMK MATHLA'UL ANWAR
+-- Memperbarui data yang sudah ada dan memasukkan jurusan baru secara instan
+INSERT INTO public.master_jurusan (kode, nama, bidang_keahlian, kepala_program, deskripsi, is_active)
+VALUES
+    ('RPL', 'Rekayasa Perangkat Lunak', 'Teknologi Informasi & Komunikasi', 'Dr. Ir. Hendra Kurniawan, M.T.', 'Pengembangan web, mobile, cloud computing, dan database.', true),
+    ('TKJ', 'Teknik Komputer & Jaringan', 'Teknologi Informasi & Komunikasi', 'Ahmad Zulfikar, S.T., M.Kom.', 'Infrastruktur jaringan, administrasi server, dan cyber security.', true),
+    ('TBSM', 'Teknik & Bisnis Sepeda Motor', 'Teknologi & Rekayasa', 'Bambang Prasetyo, S.T.', 'Teknik perawatan, perbaikan mesin otomotif roda dua, dan wirausaha bengkel.', true),
+    ('AKL', 'Akuntansi & Keuangan Lembaga', 'Bisnis & Manajemen', 'Dra. Hj. Ratna Sari, M.M.', 'Akuntansi keuangan, perpajakan, komputer akuntansi, dan perbankan syariah.', true),
+    ('SIJA', 'Sistem Informasi Jaringan & Aplikasi', 'Teknologi Informasi & Komunikasi', 'Siti Nurhaliza, S.Kom., M.Cs.', 'Cloud platform, devops, internet of things (IoT), dan system integration.', true),
+    ('DKV', 'Desain Komunikasi Visual', 'Seni & Ekonomi Kreatif', 'Dra. Sri Wahyuni, M.Pd.', 'Desain grafis, UI/UX, visual branding, dan videografi digital.', true)
+ON CONFLICT (kode) DO UPDATE SET
+    nama = EXCLUDED.nama,
+    bidang_keahlian = EXCLUDED.bidang_keahlian,
+    kepala_program = EXCLUDED.kepala_program,
+    deskripsi = EXCLUDED.deskripsi,
+    is_active = EXCLUDED.is_active,
+    updated_at = timezone('utc'::text, now());
+
+-- 6. Aktifkan Realtime Synchronization Supabase
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.master_jurusan;
+    EXCEPTION WHEN duplicate_object THEN
+        NULL;
+    END;
+END $$;
+
+-- 7. Aktifkan Row Level Security (RLS) & Hak Akses Penuh
+ALTER TABLE public.master_jurusan ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE public.master_jurusan TO anon, authenticated;
+
+DROP POLICY IF EXISTS "Public Read Access Master Jurusan" ON public.master_jurusan;
+CREATE POLICY "Public Read Access Master Jurusan" ON public.master_jurusan FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Public Write Access Master Jurusan" ON public.master_jurusan;
+CREATE POLICY "Public Write Access Master Jurusan" ON public.master_jurusan FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+`;
+}
+
 
 
 

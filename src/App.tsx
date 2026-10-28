@@ -745,6 +745,7 @@ export default function App() {
           pesertaList={pesertaList}
           penilaianList={penilaianList}
           masterSiswaList={masterSiswaList}
+          masterJurusanList={masterJurusanList}
           pengujiList={pengujiList}
           onClose={() => setSertifikatMahasiswaId(null)}
           onSelectMahasiswa={(id) => setSertifikatMahasiswaId(id)}

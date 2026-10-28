@@ -12,6 +12,7 @@ import {
   validateScores,
   generateSupabaseSQLSchema,
   generateResetAndSyncSQLScript,
+  generateMasterJurusanSQLScript,
 } from './scoring.ts';
 import type { NilaiKriteriaItem, PenilaianPenguji } from '../types/index.ts';
 
@@ -192,4 +193,17 @@ test('generateResetAndSyncSQLScript produces valid SQL with DELETE policy and re
   assert.ok(sql.includes('CREATE POLICY "Public Write Access Penilaian"'));
   assert.ok(sql.includes('ALTER PUBLICATION supabase_realtime ADD TABLE public.penilaian_sidang'));
 });
+
+test('generateMasterJurusanSQLScript produces valid SQL with kepala_program and all SMK MA jurusans', () => {
+  const sql = generateMasterJurusanSQLScript();
+  assert.ok(sql.includes('CREATE TABLE IF NOT EXISTS public.master_jurusan'));
+  assert.ok(sql.includes('ALTER TABLE public.master_jurusan ADD COLUMN IF NOT EXISTS kepala_program'));
+  assert.ok(sql.includes('ON CONFLICT (kode) DO UPDATE SET'));
+  assert.ok(sql.includes('TBSM'));
+  assert.ok(sql.includes('AKL'));
+  assert.ok(sql.includes('RPL'));
+  assert.ok(sql.includes('TKJ'));
+  assert.ok(sql.includes('ALTER PUBLICATION supabase_realtime ADD TABLE public.master_jurusan'));
+});
+
 

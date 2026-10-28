@@ -18,7 +18,8 @@ import {
   generateSidang2PengujiSQLScript, 
   generatePengujiGuruSQLScript,
   generatePlottingSQLScript,
-  generateResetAndSyncSQLScript 
+  generateResetAndSyncSQLScript,
+  generateMasterJurusanSQLScript 
 } from '../utils/scoring.ts';
 import { saveSupabaseConfig, testSupabaseConnection, generateQuickSyncUrl } from '../lib/supabase.ts';
 
@@ -36,7 +37,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   onConfigUpdated,
 }) => {
   const [activeTab, setActiveTab] = useState<'credentials' | 'sql'>('credentials');
-  const [selectedScript, setSelectedScript] = useState<'update2penguji' | 'penguji_guru' | 'plotting' | 'full' | 'reset_sync'>('reset_sync');
+  const [selectedScript, setSelectedScript] = useState<'update2penguji' | 'penguji_guru' | 'plotting' | 'full' | 'reset_sync' | 'jurusan_kaprodi'>('jurusan_kaprodi');
   const [url, setUrl] = useState(config.url || '');
   const [anonKey, setAnonKey] = useState(config.anonKey || '');
   const [testResult, setTestResult] = useState<{
@@ -59,7 +60,9 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   if (!isOpen) return null;
 
   const currentSQLText = 
-    selectedScript === 'reset_sync'
+    selectedScript === 'jurusan_kaprodi'
+      ? generateMasterJurusanSQLScript()
+      : selectedScript === 'reset_sync'
       ? generateResetAndSyncSQLScript()
       : selectedScript === 'update2penguji'
       ? generateSidang2PengujiSQLScript()
@@ -379,6 +382,17 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
           <div className="mt-4 space-y-3">
             {/* Script Variant Selector */}
             <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-lg text-xs">
+              <button
+                type="button"
+                onClick={() => setSelectedScript('jurusan_kaprodi')}
+                className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                  selectedScript === 'jurusan_kaprodi'
+                    ? 'bg-orange-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                🎓 Master Jurusan &amp; Kaprodi
+              </button>
               <button
                 type="button"
                 onClick={() => setSelectedScript('reset_sync')}

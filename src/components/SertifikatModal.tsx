@@ -19,16 +19,19 @@ import {
   Palette,
   Eye,
   Wallpaper,
-  FileCheck2
+  FileCheck2,
+  Database
 } from 'lucide-react';
-import { MahasiswaSidang, PenilaianPenguji, MasterSiswaPKL, Penguji } from '../types/index.ts';
+import { MahasiswaSidang, PenilaianPenguji, MasterSiswaPKL, MasterJurusan, Penguji } from '../types/index.ts';
 import { calculateFinalAggregate } from '../utils/scoring.ts';
+import { getMasterJurusanList } from '../lib/supabase.ts';
 
 interface SertifikatModalProps {
   mahasiswaId: string | null;
   pesertaList: MahasiswaSidang[];
   penilaianList: PenilaianPenguji[];
   masterSiswaList?: MasterSiswaPKL[];
+  masterJurusanList?: MasterJurusan[];
   pengujiList?: Penguji[];
   onClose: () => void;
   onSelectMahasiswa?: (id: string) => void;
@@ -39,6 +42,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
   pesertaList,
   penilaianList,
   masterSiswaList = [],
+  masterJurusanList = [],
   onClose,
   onSelectMahasiswa,
 }) => {
@@ -213,6 +217,76 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
     localStorage.setItem('sertifikat_mode_logo_jurusan', mode);
   };
 
+  // Internal Jurusan list synced from database
+  const [internalJurusanList, setInternalJurusanList] = useState<MasterJurusan[]>(masterJurusanList);
+  const [isSyncingKaprodi, setIsSyncingKaprodi] = useState(false);
+
+  // Sync internalJurusanList whenever prop changes or on initial mount
+  useEffect(() => {
+    if (masterJurusanList && masterJurusanList.length > 0) {
+      setInternalJurusanList(masterJurusanList);
+    } else {
+      getMasterJurusanList()
+        .then((data) => {
+          if (data && data.length > 0) {
+            setInternalJurusanList(data);
+          }
+        })
+        .catch((err) => console.warn('Gagal memuat master_jurusan:', err));
+    }
+  }, [masterJurusanList]);
+
+  // Helper: Resolve Kaprodi directly from database (master_jurusan.kepala_program)
+  const resolveKaprodiFromDatabase = (prodiName: string | undefined, jurusans: MasterJurusan[]): string => {
+    if (!prodiName) {
+      const firstActive = jurusans.find((j) => j.isActive && j.kepalaProgram?.trim()) || jurusans[0];
+      return firstActive?.kepalaProgram || 'Ahmad Zulfikar, S.T., M.Kom.';
+    }
+
+    const p = prodiName.toLowerCase().trim();
+
+    // 1. Exact match with kode or nama from database
+    const matched = jurusans.find((j) => {
+      const kode = (j.kode || '').toLowerCase().trim();
+      const nama = (j.nama || '').toLowerCase().trim();
+      if (!kode && !nama) return false;
+      return (
+        (kode && (p === kode || p.includes(kode))) ||
+        (nama && (p === nama || p.includes(nama) || nama.includes(p)))
+      );
+    });
+
+    if (matched && matched.kepalaProgram?.trim()) {
+      return matched.kepalaProgram.trim();
+    }
+
+    // 2. Vocational keyword matching fallback to database records
+    const heuristicMatch = jurusans.find((j) => {
+      const k = (j.kode || '').toLowerCase();
+      const n = (j.nama || '').toLowerCase();
+      if ((p.includes('rpl') || p.includes('perangkat') || p.includes('software')) && (k.includes('rpl') || n.includes('perangkat'))) return true;
+      if ((p.includes('tkj') || p.includes('jaringan') || p.includes('komputer')) && (k.includes('tkj') || n.includes('jaringan') || n.includes('komputer'))) return true;
+      if ((p.includes('tbsm') || p.includes('motor') || p.includes('otomotif') || p.includes('sepeda')) && (k.includes('tbsm') || n.includes('motor') || n.includes('otomotif'))) return true;
+      if ((p.includes('dkv') || p.includes('desain') || p.includes('visual')) && (k.includes('dkv') || n.includes('desain') || n.includes('visual'))) return true;
+      if ((p.includes('sija') || p.includes('sistem informasi') || p.includes('aplikasi')) && (k.includes('sija') || n.includes('sistem informasi'))) return true;
+      if ((p.includes('akl') || p.includes('akuntansi')) && (k.includes('akl') || n.includes('akuntansi'))) return true;
+      return false;
+    });
+
+    if (heuristicMatch && heuristicMatch.kepalaProgram?.trim()) {
+      return heuristicMatch.kepalaProgram.trim();
+    }
+
+    // 3. Fallback to any active record with kepalaProgram
+    const anyWithKaprodi = jurusans.find((j) => j.kepalaProgram?.trim());
+    if (anyWithKaprodi) {
+      return anyWithKaprodi.kepalaProgram.trim();
+    }
+
+    // 4. Default fallback
+    return 'Ahmad Zulfikar, S.T., M.Kom.';
+  };
+
   // Editable Certificate Parameters
   const [noSertifikat, setNoSertifikat] = useState('');
   const [tanggalTerbit, setTanggalTerbit] = useState('');
@@ -229,16 +303,14 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
   const [nipKetuaPanitia, setNipKetuaPanitia] = useState(() => {
     return localStorage.getItem('sertifikat_nip_ketua_panitia') || '19800512 200501 1 008';
   });
-  const [namaKaprodi, setNamaKaprodi] = useState(() => {
-    return localStorage.getItem('sertifikat_nama_kaprodi') || 'Ahmad Zulfikar, S.T., M.Kom.';
-  });
+  const [namaKaprodi, setNamaKaprodi] = useState('');
   const [nipKaprodi, setNipKaprodi] = useState(() => {
     return localStorage.getItem('sertifikat_nip_kaprodi') || '19820718 200604 1 012';
   });
   const [namaPimpinanDudi, setNamaPimpinanDudi] = useState('');
   const [jabatanPimpinanDudi, setJabatanPimpinanDudi] = useState('Pimpinan / Pembimbing Industri');
 
-  // Initialize certificate fields whenever active student changes
+  // Initialize certificate fields whenever active student or jurusan list changes
   useEffect(() => {
     if (mahasiswa) {
       const year = new Date().getFullYear();
@@ -254,29 +326,11 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
       
       setNamaPimpinanDudi(mahasiswa.pembimbingDudi || `Pimpinan ${mahasiswa.perusahaan}`);
 
-      // Auto-detect Kaprodi based on student's prodi if not manually overridden
-      const savedCustomKaprodi = localStorage.getItem('sertifikat_nama_kaprodi');
-      if (!savedCustomKaprodi) {
-        const prodiLower = (mahasiswa.prodi || '').toLowerCase();
-        if (prodiLower.includes('rpl') || prodiLower.includes('perangkat')) {
-          setNamaKaprodi('Dr. Ir. Hendra Kurniawan, M.T.');
-          setNipKaprodi('19800512 200501 1 008');
-        } else if (prodiLower.includes('motor') || prodiLower.includes('tbsm') || prodiLower.includes('otomotif')) {
-          setNamaKaprodi('Bambang Prasetyo, S.T.');
-          setNipKaprodi('19830210 200701 1 015');
-        } else if (prodiLower.includes('dkv') || prodiLower.includes('desain')) {
-          setNamaKaprodi('Dra. Sri Wahyuni, M.Pd.');
-          setNipKaprodi('19760314 200112 2 003');
-        } else if (prodiLower.includes('sija')) {
-          setNamaKaprodi('Siti Nurhaliza, S.Kom., M.Cs.');
-          setNipKaprodi('19850920 200802 2 005');
-        } else {
-          setNamaKaprodi('Ahmad Zulfikar, S.T., M.Kom.');
-          setNipKaprodi('19820718 200604 1 012');
-        }
-      }
+      // Update nama Kaprodi otomatis dari data database master_jurusan sesuai jurusan siswa
+      const resolvedKaprodi = resolveKaprodiFromDatabase(mahasiswa.prodi, internalJurusanList);
+      setNamaKaprodi(resolvedKaprodi);
     }
-  }, [mahasiswa?.id, currentIndex]);
+  }, [mahasiswa?.id, currentIndex, internalJurusanList]);
 
   // Keyboard navigation & ESC
   useEffect(() => {
@@ -1257,7 +1311,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
 
                   {/* Belakang Kanan: Kaprodi Jurusan */}
                   <div className="p-2.5 bg-slate-800/80 rounded-xl border border-blue-700/60">
-                    <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center justify-between mb-1">
                       <label className="text-[11px] font-bold text-blue-300">
                         Tanda Tangan Belakang (Kanan):
                       </label>
@@ -1265,27 +1319,48 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                         Muka 2 Kanan
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-400 mb-1.5 font-medium truncate">Kaprodi {mahasiswa.prodi}</p>
+
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <p className="text-[10px] text-slate-300 font-medium truncate">
+                        Jurusan: <span className="text-emerald-400 font-bold">{mahasiswa.prodi}</span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setIsSyncingKaprodi(true);
+                          try {
+                            const fresh = await getMasterJurusanList();
+                            setInternalJurusanList(fresh);
+                            const updated = resolveKaprodiFromDatabase(mahasiswa.prodi, fresh);
+                            setNamaKaprodi(updated);
+                          } catch (err) {
+                            console.warn('Sync kaprodi error:', err);
+                          } finally {
+                            setIsSyncingKaprodi(false);
+                          }
+                        }}
+                        disabled={isSyncingKaprodi}
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/60 hover:bg-blue-800 text-blue-200 border border-blue-600/50 flex items-center gap-1 transition-colors shrink-0"
+                        title="Ambil data Kaprodi terbaru dari database master_jurusan"
+                      >
+                        <RotateCcw className={`w-2.5 h-2.5 ${isSyncingKaprodi ? 'animate-spin' : ''}`} />
+                        <span>{isSyncingKaprodi ? 'Sinkron...' : 'Sync DB'}</span>
+                      </button>
+                    </div>
+
                     <input
                       type="text"
                       value={namaKaprodi}
                       onChange={(e) => {
                         setNamaKaprodi(e.target.value);
-                        localStorage.setItem('sertifikat_nama_kaprodi', e.target.value);
                       }}
                       placeholder="Nama Kaprodi Jurusan"
                       className="w-full p-1.5 mb-1 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs outline-none focus:border-blue-400"
                     />
-                    <input
-                      type="text"
-                      value={nipKaprodi}
-                      onChange={(e) => {
-                        setNipKaprodi(e.target.value);
-                        localStorage.setItem('sertifikat_nip_kaprodi', e.target.value);
-                      }}
-                      placeholder="NIP Kaprodi"
-                      className="w-full p-1 bg-slate-900 border border-slate-700 rounded-lg text-slate-300 font-mono text-[10px] outline-none focus:border-blue-400"
-                    />
+                    <div className="flex items-center gap-1 text-[9px] text-emerald-400">
+                      <Database className="w-2.5 h-2.5 shrink-0" />
+                      <span>Otomatis sinkron dengan database (tabel master_jurusan)</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1528,9 +1603,6 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     <p className="font-black text-slate-950 underline decoration-blue-600 underline-offset-4 text-xs sm:text-[13px]">
                       {namaKepsek}
                     </p>
-                    <p className="text-[10px] font-mono text-slate-600">
-                      NIP. {nipKepsek}
-                    </p>
                   </div>
 
                 </div>
@@ -1577,8 +1649,8 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 z-10"></div>
 
               {/* Header Transkrip: Logo Sekolah (Kiri) - Teks Tengah - Logo Jurusan (Kanan) */}
-              <div className="relative z-10 pt-0.5 pb-1.5 border-b-2 border-slate-900">
-                <div className="flex items-center justify-between gap-3">
+              <div className="relative z-10 pt-0.5 pb-1.5 border-b-2 border-slate-900 px-6 sm:px-12 md:px-16">
+                <div className="flex items-center justify-between gap-3 sm:gap-6">
                   
                   {/* LOGO SEKOLAH (KIRI - TRANSPARAN) */}
                   <div className="w-12 sm:w-14 flex items-center justify-center flex-shrink-0 bg-transparent">
@@ -1586,7 +1658,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   </div>
 
                   {/* KOP TRANSKRIP TENGAH */}
-                  <div className="text-center flex-1">
+                  <div className="text-center flex-1 px-1 sm:px-3">
                     <p className="text-[9.5px] font-bold text-emerald-900 uppercase tracking-widest">
                       SMK MATHLA'UL ANWAR BUARANJATI • TANGERANG
                     </p>
@@ -1601,7 +1673,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   {/* LOGO JURUSAN (KANAN - TRANSPARAN) */}
                   <div className="w-12 sm:w-14 flex items-center justify-center flex-shrink-0 bg-transparent">
                     {modeLogoJurusan === 'both' ? (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         {renderJurusan1Logo("w-8 h-8 sm:w-9 sm:h-9")}
                         {renderJurusan2Logo("w-8 h-8 sm:w-9 sm:h-9")}
                       </div>
@@ -1800,9 +1872,6 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     <p className="font-black text-slate-950 underline decoration-teal-600 underline-offset-4 text-xs sm:text-sm">
                       {namaKetuaPanitia || 'Dr. Ir. Hendra Kurniawan, M.T.'}
                     </p>
-                    <p className="text-[10.5px] font-mono text-slate-700 font-semibold mt-0.5">
-                      NIP. {nipKetuaPanitia || '19800512 200501 1 008'}
-                    </p>
                   </div>
 
                   {/* Right: Head of Department / Kaprodi */}
@@ -1820,9 +1889,6 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
 
                     <p className="font-black text-slate-950 underline decoration-blue-600 underline-offset-4 text-xs sm:text-sm">
                       {namaKaprodi || 'Ahmad Zulfikar, S.T., M.Kom.'}
-                    </p>
-                    <p className="text-[10.5px] font-mono text-slate-700 font-semibold mt-0.5">
-                      NIP. {nipKaprodi || '19820718 200604 1 012'}
                     </p>
                   </div>
                 </div>
