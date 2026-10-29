@@ -395,8 +395,41 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
   const studentNISN = masterSiswa?.nisn || mahasiswa.nim || '0071234567';
   const studentNIS = masterSiswa?.nisn ? `2024.${masterSiswa.nisn.slice(-4)}` : '2024.10.012';
 
-  const handlePrint = () => {
-    window.print();
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const handleDirectPdfDownload = async () => {
+    const element = document.getElementById('certificate-print-container');
+    if (!element) {
+      alert('Elemen sertifikat tidak ditemukan.');
+      return;
+    }
+
+    setIsGeneratingPdf(true);
+    try {
+      // @ts-ignore
+      const html2pdf = (await import('html2pdf.js')).default;
+
+      let filename = `Sertifikat_PKL_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      if (viewMode === 'front') filename = `Sertifikat_Depan_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      if (viewMode === 'back') filename = `Transkrip_Nilai_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      if (viewMode === 'all-fronts') filename = `Semua_Sertifikat_Halaman_1.pdf`;
+      if (viewMode === 'all-backs') filename = `Semua_Transkrip_Halaman_2.pdf`;
+
+      const opt = {
+        margin:       0,
+        filename:     filename,
+        image:        { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, letterRendering: true, logging: false },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true }
+      } as any;
+
+      await html2pdf().from(element).set(opt).save();
+    } catch (err) {
+      console.error('Gagal generate PDF:', err);
+      alert('Terjadi kesalahan saat menghasilkan PDF. Silakan coba lagi.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   // Determine which right logo to show
@@ -624,11 +657,13 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
             {/* Print Trigger */}
             <button
               type="button"
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white text-xs font-bold transition-all shadow-lg shadow-teal-900/40 cursor-pointer active:scale-95"
+              disabled={isGeneratingPdf}
+              onClick={handleDirectPdfDownload}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white text-xs font-bold transition-all shadow-lg shadow-teal-900/40 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+              title="Unduh PDF A4 Landscape Langsung (Tanpa Masuk Dialog Setting)"
             >
               <Printer className="w-4 h-4" />
-              <span>Cetak / PDF A4</span>
+              <span>{isGeneratingPdf ? 'Membuat PDF...' : 'Unduh PDF A4'}</span>
             </button>
 
             <button
@@ -1676,7 +1711,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
         {/* ========================================================================= */}
         {/* CERTIFICATE PREVIEW & PRINT CANVAS                                        */}
         {/* ========================================================================= */}
-        <div className="p-3 sm:p-6 lg:p-8 max-h-[82vh] overflow-y-auto space-y-8 bg-slate-300/80">
+        <div id="certificate-print-container" className="p-3 sm:p-6 lg:p-8 max-h-[82vh] overflow-y-auto space-y-8 bg-slate-300/80">
           
           {/* ======================================================================= */}
           {/* 1. MUKA 1: HALAMAN DEPAN (SERTIFIKAT UTAMA DENGAN BACKGROUND & LOGO TRANSPARAN) */}
