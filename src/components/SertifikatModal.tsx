@@ -61,7 +61,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
   }, [mahasiswa, masterSiswaList]);
 
   // View mode tab: 'both' (2 Muka A4) | 'front' (Muka Depan) | 'back' (Muka Belakang / Transkrip)
-  const [viewMode, setViewMode] = useState<'both' | 'front' | 'back'>('both');
+  const [viewMode, setViewMode] = useState<'both' | 'front' | 'back' | 'all-fronts' | 'all-backs'>('both');
   const [showSettings, setShowSettings] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState<'logo' | 'background' | 'data' | 'barcode'>('background');
   const [fontJudul, setFontJudul] = useState<'certificate' | 'pinyon' | 'cinzel-dec' | 'playfair' | 'cinzel'>(() => {
@@ -517,39 +517,63 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
           </div>
 
           {/* Center Actions: View Mode Switcher */}
-          <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl self-start md:self-auto border border-emerald-800/40 text-xs">
+          <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl self-start md:self-auto border border-emerald-800/40 text-xs flex-wrap">
             <button
               type="button"
               onClick={() => setViewMode('both')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 viewMode === 'both' 
                   ? 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white shadow-md' 
                   : 'text-slate-300 hover:text-white'
               }`}
             >
-              2 Muka (Duplex)
+              2 Muka
             </button>
             <button
               type="button"
               onClick={() => setViewMode('front')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 viewMode === 'front' 
                   ? 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white shadow-md' 
                   : 'text-slate-300 hover:text-white'
               }`}
             >
-              Muka 1: Sertifikat
+              Muka 1
             </button>
             <button
               type="button"
               onClick={() => setViewMode('back')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                 viewMode === 'back' 
                   ? 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white shadow-md' 
                   : 'text-slate-300 hover:text-white'
               }`}
             >
-              Muka 2: Transkrip
+              Muka 2
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('all-fronts')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                viewMode === 'all-fronts' 
+                  ? 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white shadow-md' 
+                  : 'text-slate-300 hover:text-white'
+              }`}
+              title="Cetak Halaman 1 untuk Semua Peserta"
+            >
+              Semua Hal. 1 ({pesertaList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('all-backs')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                viewMode === 'all-backs' 
+                  ? 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white shadow-md' 
+                  : 'text-slate-300 hover:text-white'
+              }`}
+              title="Cetak Halaman 2 untuk Semua Peserta"
+            >
+              Semua Hal. 2 ({pesertaList.length})
             </button>
           </div>
 
@@ -2170,6 +2194,413 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
 
             </div>
           )}
+
+          {/* ======================================================================= */}
+          {/* 3. CETAK SEMUA HALAMAN PERTAMA (ALL-FRONTS)                              */}
+          {/* ======================================================================= */}
+          {viewMode === 'all-fronts' && pesertaList.map((p, idx) => {
+            const pMasterSiswa = masterSiswaList.find(
+              (m) => m.id === p.id || m.nisn === p.nim || m.namaLengkap.toLowerCase() === p.nama.toLowerCase()
+            );
+            const pNisn = pMasterSiswa?.nisn || p.nim || '0071234567';
+            const pUrutan = String(idx + 1).padStart(3, '0');
+            const pAggregate = calculateFinalAggregate(p.id, penilaianList);
+            const pShowJurusan1 = modeLogoJurusan === 'both' || modeLogoJurusan === 'jurusan1' || 
+              (modeLogoJurusan === 'auto' && (p.prodi.toLowerCase().includes('jaringan') || p.prodi.toLowerCase().includes('tkj') || p.prodi.toLowerCase().includes('rpl') || p.prodi.toLowerCase().includes('sija') || !p.prodi.toLowerCase().includes('motor')));
+
+            return (
+              <div key={`all-front-${p.id}`} className="certificate-sheet bg-[#fcfeff] text-slate-900 rounded-2xl shadow-2xl p-6 sm:p-10 relative overflow-hidden mx-auto max-w-[1050px] aspect-[297/210] flex flex-col justify-between select-text border-[6px] border-emerald-900/15 mb-8">
+                {showBackground && bgSertifikatUrl && (
+                  <img 
+                    src={bgSertifikatUrl} 
+                    alt="Background Sertifikat" 
+                    className={`absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0 ${getBgOrientationClass()}`}
+                    style={{ opacity: bgOpacity / 100 }}
+                  />
+                )}
+                <div className="absolute inset-1.5 rounded-xl border-2 border-emerald-700/60 pointer-events-none z-10"></div>
+                <div className="absolute inset-3 rounded-lg border border-teal-500/40 pointer-events-none z-10"></div>
+                <div className="absolute inset-4 rounded-md border-2 border-blue-800/40 pointer-events-none z-10"></div>
+                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 z-10"></div>
+
+                <div className="relative z-10 pt-2 pb-2.5 border-b-2 border-emerald-800/20">
+                  <div className="flex items-center justify-between gap-2 sm:gap-4">
+                    <div className="w-16 sm:w-20 flex items-center justify-center flex-shrink-0 bg-transparent">
+                      {renderSchoolLogo("w-14 h-14 sm:w-16 sm:h-16")}
+                    </div>
+                    <div className="text-center flex-1 px-1 sm:px-2">
+                      <h1 className="text-xl sm:text-2xl md:text-[27px] font-black uppercase tracking-tight leading-tight bg-gradient-to-r from-emerald-900 via-teal-900 to-blue-900 bg-clip-text text-transparent">
+                        SMK MATHLA'UL ANWAR BUARANJATI
+                      </h1>
+                      <div className="inline-flex items-center gap-2 my-0.5">
+                        <span className="h-px w-6 sm:w-10 bg-emerald-600"></span>
+                        <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-emerald-800">
+                          TERAKREDITASI • KABUPATEN TANGERANG - BANTEN
+                        </p>
+                        <span className="h-px w-6 sm:w-10 bg-blue-600"></span>
+                      </div>
+                      <p className="text-[9px] sm:text-[10px] text-slate-600 font-medium">
+                        Jl. Raya Mauk KM. 16, Buaran Jati, Kec. Sukadiri, Kab. Tangerang, Banten 15530
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center flex-shrink-0 bg-transparent">
+                      {modeLogoJurusan === 'both' ? (
+                        <div className="flex items-center gap-2 bg-transparent p-1">
+                          {renderJurusan1Logo("w-11 h-11 sm:w-13 sm:h-13")}
+                          {renderJurusan2Logo("w-11 h-11 sm:w-13 sm:h-13")}
+                        </div>
+                      ) : (
+                        <div className="w-16 sm:w-20 flex items-center justify-center bg-transparent">
+                          {pShowJurusan1 ? renderJurusan1Logo("w-14 h-14 sm:w-16 sm:h-16") : renderJurusan2Logo("w-14 h-14 sm:w-16 sm:h-16")}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative z-10 text-center my-auto py-1 sm:py-2">
+                  <div className="inline-block relative">
+                    <h2 className="text-5xl sm:text-6xl md:text-[68px] lg:text-[76px] font-certificate-script text-slate-950 leading-[0.95] py-1 select-none">
+                      Sertifikat
+                    </h2>
+                    <p className="text-xs sm:text-sm md:text-base font-extrabold tracking-[0.32em] uppercase text-teal-950 font-serif mt-1">
+                      Praktik Kerja Lapangan
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative z-10 text-center space-y-2 my-auto px-2 sm:px-10">
+                  <p className="text-xs sm:text-sm font-bold text-slate-700 tracking-wider">Diberikan Kepada :</p>
+                  <div className="py-0.5">
+                    <h3 className="text-2xl sm:text-3xl md:text-[33px] font-black text-slate-950 uppercase tracking-tight font-serif">
+                      {p.nama}
+                    </h3>
+                    <div className="w-48 h-0.5 bg-gradient-to-r from-transparent via-teal-600 to-transparent mx-auto mt-1 mb-1.5"></div>
+                    <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+                      <span className="px-2.5 py-0.5 rounded-md bg-emerald-50/90 border border-emerald-200 text-emerald-950 font-bold font-mono">
+                        NISN: {pNisn}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-md bg-blue-50/90 border border-blue-200 text-blue-950 font-bold">
+                        Kelas: {p.kelas || 'XII'}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm font-extrabold text-teal-950 uppercase tracking-wide mt-1.5">
+                      Program Keahlian: <span className="text-emerald-800">{p.prodi}</span>
+                    </p>
+                  </div>
+
+                  <p className="text-xs text-slate-700 leading-relaxed max-w-3xl mx-auto">
+                    Telah melaksanakan dan menyelesaikan Program <strong>Praktik Kerja Lapangan (PKL)</strong> serta Ujian Sidang PKL Tahun Pelajaran 2026/2027 pada:
+                  </p>
+
+                  <div className="bg-gradient-to-r from-emerald-50/90 via-teal-50/80 to-blue-50/90 border-2 border-emerald-300/80 rounded-2xl py-2 px-4 max-w-2xl mx-auto shadow-xs">
+                    <p className="text-sm sm:text-base font-black text-slate-950 uppercase tracking-tight">{p.perusahaan}</p>
+                    {p.judulLaporan && (
+                      <p className="text-[11px] text-teal-900 italic mt-0.5 truncate max-w-xl mx-auto font-medium">"{p.judulLaporan}"</p>
+                    )}
+                  </div>
+
+                  <div className="pt-1 flex items-center justify-center gap-2">
+                    <span className="text-xs text-slate-800">Dinyatakan telah memenuhi seluruh aspek kompetensi dan berhak atas predikat:</span>
+                    <span className="px-4 py-1 rounded-full bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 text-white font-black text-xs uppercase tracking-wider">
+                      LULUS ({pAggregate.predikat})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="relative z-10 pt-2 border-t-2 border-emerald-800/20 mt-auto">
+                  <div className="flex items-end justify-between text-xs px-4 sm:px-8">
+                    <div className="flex items-center">
+                      <CertificateBarcode
+                        nisn={pNisn}
+                        urutan={pUrutan}
+                        type={barcodeType}
+                        format={barcodeFormat}
+                        showDetails={false}
+                      />
+                    </div>
+                    <div className="space-y-1 text-center min-w-[260px]">
+                      <p className="text-[11px] text-slate-600 font-medium">{tempatTerbit}, {tanggalTerbit}</p>
+                      <p className="font-extrabold text-slate-900 text-xs sm:text-[13px]">Kepala SMK Mathla'ul Anwar Buaranjati</p>
+                      <div className="h-16 sm:h-20"></div>
+                      <p className="font-black text-slate-950 underline decoration-blue-600 underline-offset-4 text-xs sm:text-[13px]">{namaKepsek}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 z-10"></div>
+              </div>
+            );
+          })}
+
+          {/* ======================================================================= */}
+          {/* 4. CETAK SEMUA HALAMAN KEDUA (ALL-BACKS)                                 */}
+          {/* ======================================================================= */}
+          {viewMode === 'all-backs' && pesertaList.map((p, idx) => {
+            const pMasterSiswa = masterSiswaList.find(
+              (m) => m.id === p.id || m.nisn === p.nim || m.namaLengkap.toLowerCase() === p.nama.toLowerCase()
+            );
+            const pNisn = pMasterSiswa?.nisn || p.nim || '0071234567';
+            const pUrutan = String(idx + 1).padStart(3, '0');
+            const pAggregate = calculateFinalAggregate(p.id, penilaianList);
+            const pEvaluations = penilaianList.filter((ev) => ev.mahasiswaId === p.id);
+            const pShowJurusan1 = modeLogoJurusan === 'both' || modeLogoJurusan === 'jurusan1' || 
+              (modeLogoJurusan === 'auto' && (p.prodi.toLowerCase().includes('jaringan') || p.prodi.toLowerCase().includes('tkj') || p.prodi.toLowerCase().includes('rpl') || p.prodi.toLowerCase().includes('sija') || !p.prodi.toLowerCase().includes('motor')));
+
+            const getPCriteriaScore = (kriteriaId: string): number => {
+              if (pEvaluations.length === 0) return 85;
+              const scores: number[] = [];
+              pEvaluations.forEach((e) => {
+                const item = e.nilaiItems?.find((ni) => ni.kriteriaId === kriteriaId);
+                if (item && typeof item.skor === 'number' && !isNaN(item.skor)) {
+                  scores.push(item.skor);
+                }
+              });
+              if (scores.length === 0) return 85;
+              const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+              return Math.round(avg);
+            };
+
+            const pKaprodi = resolveKaprodiFromDatabase(p.prodi, internalJurusanList);
+
+            return (
+              <div key={`all-back-${p.id}`} className="certificate-sheet bg-white text-slate-900 rounded-2xl shadow-2xl p-3 sm:p-4 lg:p-5 relative overflow-hidden mx-auto max-w-[1050px] aspect-[297/210] flex flex-col justify-between select-text border-[6px] border-slate-300 mb-8">
+                {showBackground && showBgOnBack && bgSertifikatUrl && (
+                  <img 
+                    src={bgSertifikatUrl} 
+                    alt="Background Transkrip" 
+                    className={`absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0 ${getBgOrientationClass()}`}
+                    style={{ opacity: (bgOpacity * 0.8) / 100 }}
+                  />
+                )}
+                <div className="absolute inset-1.5 rounded-xl border-2 border-slate-300 pointer-events-none z-10"></div>
+                <div className="absolute inset-3 rounded-lg border border-teal-500/30 pointer-events-none z-10"></div>
+                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 z-10"></div>
+
+                <div className="relative z-10 pt-0.5 pb-1.5 border-b-2 border-slate-900 px-2 sm:px-4 md:px-6">
+                  <div className="flex items-center justify-between gap-3 sm:gap-6">
+                    <div className="w-12 sm:w-14 flex items-center justify-center flex-shrink-0 bg-transparent">
+                      {renderSchoolLogo("w-10 h-10 sm:w-12 sm:h-12")}
+                    </div>
+                    <div className="text-center flex-1 px-1 sm:px-3">
+                      <p className="text-[9.5px] font-bold text-emerald-900 uppercase tracking-widest">
+                        SMK MATHLA'UL ANWAR BUARANJATI
+                      </p>
+                      <h3 className="text-sm sm:text-base md:text-lg font-black uppercase tracking-tight text-slate-950">
+                        DAFTAR NILAI DAN CAPAIAN KOMPETENSI PRAKTIK KERJA LAPANGAN
+                      </h3>
+                      <p className="text-[10px] sm:text-xs text-slate-600 font-medium">
+                        Lampiran Transkrip Capaian Kompetensi Praktik Kerja Lapangan
+                      </p>
+                    </div>
+                    <div className="w-12 sm:w-14 flex items-center justify-center flex-shrink-0 bg-transparent">
+                      {modeLogoJurusan === 'both' ? (
+                        <div className="flex items-center gap-1.5">
+                          {renderJurusan1Logo("w-8 h-8 sm:w-9 sm:h-9")}
+                          {renderJurusan2Logo("w-8 h-8 sm:w-9 sm:h-9")}
+                        </div>
+                      ) : (
+                        pShowJurusan1 ? renderJurusan1Logo("w-10 h-10 sm:w-12 sm:h-12") : renderJurusan2Logo("w-10 h-10 sm:w-12 sm:h-12")
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative z-10 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5 text-[10px] sm:text-[11px] py-1 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1">
+                  <div>
+                    <span className="text-slate-500">Nama: </span>
+                    <span className="font-bold text-slate-950">{p.nama}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">NISN: </span>
+                    <span className="font-mono font-bold text-slate-950">{pNisn}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Kompetensi: </span>
+                    <span className="font-bold text-emerald-900">{p.prodi}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Tempat DUDI: </span>
+                    <span className="font-bold text-slate-950 truncate">{p.perusahaan}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Pembimbing: </span>
+                    <span className="font-bold text-slate-950">{p.pembimbingDudi || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Tahun Pelajaran: </span>
+                    <span className="font-bold text-slate-950">2026 / 2027</span>
+                  </div>
+                </div>
+
+                <div className="relative z-10 my-auto py-0.5">
+                  <table className="w-full text-left border-collapse text-[10px] sm:text-[11px] border border-slate-300 bg-white/95">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-emerald-800 via-teal-800 to-blue-900 text-white font-extrabold uppercase border-b border-slate-400 text-center">
+                        <th className="py-1 px-1.5 border-r border-teal-700/60 w-8">No</th>
+                        <th className="py-1 px-2.5 border-r border-teal-700/60 text-left">Komponen / Aspek Penilaian Kompetensi</th>
+                        <th className="py-1 px-1.5 border-r border-teal-700/60 w-16">Bobot</th>
+                        <th className="py-1 px-1.5 border-r border-teal-700/60 w-20">Nilai (0–100)</th>
+                        <th className="py-1 px-1.5 border-r border-teal-700/60 w-20">Poin Bobot</th>
+                        <th className="py-1 px-2.5">Kualifikasi Capaian</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="bg-emerald-50/90 font-bold border-b border-slate-300 text-emerald-950">
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-300">I</td>
+                        <td className="py-0.5 px-2.5 border-r border-slate-300" colSpan={5}>
+                          ASPEK BUKU AGENDA &amp; JURNAL KEGIATAN PKL DI INDUSTRI (BOBOT 50%)
+                        </td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">1</td>
+                        <td className="py-0.5 px-2.5 border-r border-slate-200">Disiplin dan Kehadiran di Lingkungan Kerja PKL</td>
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">10%</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{getPCriteriaScore('k1_agenda_disiplin')}</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{((getPCriteriaScore('k1_agenda_disiplin') * 0.1)).toFixed(1)}</td>
+                        <td className="py-0.5 px-2.5 text-slate-600">Sangat Disiplin &amp; Tepat Waktu</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">2</td>
+                        <td className="py-0.5 px-2.5 border-r border-slate-200">Kerjasama dan Komunikasi Interpersonal dengan Tim</td>
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">10%</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{getPCriteriaScore('k2_agenda_kerjasama')}</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{((getPCriteriaScore('k2_agenda_kerjasama') * 0.1)).toFixed(1)}</td>
+                        <td className="py-0.5 px-2.5 text-slate-600">Komunikatif &amp; Adaptif</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">3</td>
+                        <td className="py-0.5 px-2.5 border-r border-slate-200">Inisiatif dan Kreativitas Penyelesaian Tugas</td>
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">10%</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{getPCriteriaScore('k3_agenda_inisiatif')}</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{((getPCriteriaScore('k3_agenda_inisiatif') * 0.1)).toFixed(1)}</td>
+                        <td className="py-0.5 px-2.5 text-slate-600">Responsif &amp; Inisiatif Tinggi</td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">4</td>
+                        <td className="py-0.5 px-2.5 border-r border-slate-200">Tanggung Jawab dan Ketepatan Pengisian Agenda</td>
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">10%</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{getPCriteriaScore('k4_agenda_tanggungjawab')}</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{((getPCriteriaScore('k4_agenda_tanggungjawab') * 0.1)).toFixed(1)}</td>
+                        <td className="py-0.5 px-2.5 text-slate-600">Bertanggung Jawab Penuh</td>
+                      </tr>
+                      <tr className="border-b border-slate-300">
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">5</td>
+                        <td className="py-0.5 px-2.5 border-r border-slate-200">Kebersihan, K3, dan Kerapian Hasil Pekerjaan</td>
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">10%</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{getPCriteriaScore('k5_agenda_kebersihan')}</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{((getPCriteriaScore('k5_agenda_kebersihan') * 0.1)).toFixed(1)}</td>
+                        <td className="py-0.5 px-2.5 text-slate-600">Menjaga Standar K3 Industri</td>
+                      </tr>
+                      <tr className="bg-emerald-100/80 font-bold border-b-2 border-slate-300 text-slate-900">
+                        <td className="py-1 px-2.5 text-right border-r border-slate-300" colSpan={2}>
+                          SUBTOTAL NILAI ASPEK BUKU AGENDA PKL (A)
+                        </td>
+                        <td className="py-1 px-1.5 text-center border-r border-slate-300">50%</td>
+                        <td className="py-1 px-1.5 text-center font-mono border-r border-slate-300">{pAggregate.nilaiJurnalPkl.toFixed(1)}</td>
+                        <td className="py-1 px-1.5 text-center font-mono border-r border-slate-300 text-emerald-950 font-black">{pAggregate.poinJurnalPkl50.toFixed(2)}</td>
+                        <td className="py-1 px-2.5 font-semibold text-emerald-900">Kontribusi: 50%</td>
+                      </tr>
+
+                      <tr className="bg-blue-50/90 font-bold border-b border-slate-300 text-blue-950">
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-300">II</td>
+                        <td className="py-0.5 px-2.5 border-r border-slate-300" colSpan={5}>
+                          ASPEK UJIAN SIDANG LISAN DEWAN PENGUJI (BOBOT 50%)
+                        </td>
+                      </tr>
+                      <tr className="border-b border-slate-200">
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">1</td>
+                        <td className="py-0.5 px-2.5 border-r border-slate-200">Presentasi, Artikulasi &amp; Sistematika Penyampaian Laporan</td>
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">25%</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{getPCriteriaScore('k6_sidang_presentasi')}</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{((getPCriteriaScore('k6_sidang_presentasi') * 0.25)).toFixed(1)}</td>
+                        <td className="py-0.5 px-2.5 text-slate-600">Penyajian Runtut &amp; Jelas</td>
+                      </tr>
+                      <tr className="border-b border-slate-300">
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">2</td>
+                        <td className="py-0.5 px-2.5 border-r border-slate-200">Penguasaan Materi Teknis Kejuruan &amp; Tanya Jawab</td>
+                        <td className="py-0.5 px-1.5 text-center border-r border-slate-200">25%</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{getPCriteriaScore('k7_sidang_tanyajawab')}</td>
+                        <td className="py-0.5 px-1.5 text-center font-mono border-r border-slate-200">{((getPCriteriaScore('k7_sidang_tanyajawab') * 0.25)).toFixed(1)}</td>
+                        <td className="py-0.5 px-2.5 text-slate-600">Menguasai Praktik &amp; Teori Kejuruan</td>
+                      </tr>
+                      <tr className="bg-blue-100/80 font-bold border-b-2 border-slate-400 text-slate-900">
+                        <td className="py-1 px-2.5 text-right border-r border-slate-300" colSpan={2}>
+                          SUBTOTAL NILAI UJIAN SIDANG GABUNGAN DEWAN PENGUJI (B)
+                        </td>
+                        <td className="py-1 px-1.5 text-center border-r border-slate-300">50%</td>
+                        <td className="py-1 px-1.5 text-center font-mono border-r border-slate-300">{pAggregate.nilaiSidangGabungan.toFixed(1)}</td>
+                        <td className="py-1 px-1.5 text-center font-mono border-r border-slate-300 text-blue-950 font-black">{pAggregate.poinSidang50.toFixed(2)}</td>
+                        <td className="py-1 px-2.5 font-semibold text-blue-900">Kontribusi: 50%</td>
+                      </tr>
+
+                      <tr className="bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 text-white font-black text-xs sm:text-sm border-b-2 border-slate-900">
+                        <td className="py-1.5 px-2.5 text-right border-r border-teal-500" colSpan={2}>
+                          NILAI AKHIR KUMULATIF SIDANG PKL (A + B)
+                        </td>
+                        <td className="py-1.5 px-1.5 text-center border-r border-teal-500">100%</td>
+                        <td className="py-1.5 px-1.5 text-center font-mono border-r border-teal-500 text-sm sm:text-base">{pAggregate.nilaiAkhirAngka.toFixed(2)}</td>
+                        <td className="py-1.5 px-1.5 text-center font-mono border-r border-teal-500 text-sm sm:text-base text-yellow-300">[{pAggregate.nilaiAkhirHuruf}]</td>
+                        <td className="py-1.5 px-2.5 text-white uppercase font-black tracking-wide">
+                          {pAggregate.predikat}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-1 bg-slate-50/90 rounded-lg border border-slate-200 text-[9.5px] sm:text-[10px] my-1">
+                  <div className="flex items-center gap-2 sm:gap-3 text-slate-600 font-mono">
+                    <span className="font-bold text-slate-800 font-sans">Standar KKM:</span>
+                    <span>A (85–100)</span>
+                    <span>•</span>
+                    <span>B (70–84)</span>
+                    <span>•</span>
+                    <span>C (60–69)</span>
+                  </div>
+                  {showBarcodeOnBack && (
+                    <div className="flex items-center gap-1.5 font-mono text-[9px] text-slate-700 bg-white/90 px-2 py-0.5 rounded border border-slate-300">
+                      <span className="font-sans font-bold text-slate-800">No. Seri:</span>
+                      <span className="font-bold text-teal-900">
+                        {barcodeFormat === 'prefix' ? `SMKMA-${pNisn}-${pUrutan}` : barcodeFormat === 'full' ? `PKL-2026-${pNisn}-${pUrutan}` : `${pNisn}-${pUrutan}`}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-emerald-800 font-bold">Hasil Sidang:</span>
+                    <span className="font-black px-2 py-0.5 rounded bg-emerald-100 text-emerald-950 border border-emerald-300 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      LULUS
+                    </span>
+                  </div>
+                </div>
+
+                <div className="relative z-10 pt-2 border-t-2 border-slate-900 mt-1">
+                  <div className="grid grid-cols-2 text-center text-xs">
+                    <div className="flex flex-col items-center">
+                      <p className="text-[11px] text-slate-600">Mengetahui,</p>
+                      <p className="font-extrabold text-slate-900 text-xs sm:text-sm">Ketua Panitia Sidang PKL</p>
+                      <div className="h-16 sm:h-20"></div>
+                      <p className="font-black text-slate-950 underline decoration-teal-600 underline-offset-4 text-xs sm:text-sm">
+                        {namaKetuaPanitia || 'Dr. Ir. Hendra Kurniawan, M.T.'}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <p className="text-[11px] text-slate-600">{tempatTerbit}, {tanggalTerbit}</p>
+                      <p className="font-extrabold text-slate-900 text-xs sm:text-sm">Ketua Program Keahlian (Kaprodi)</p>
+                      <p className="text-[10px] text-emerald-800 font-bold">{p.prodi}</p>
+                      <div className="h-16 sm:h-20"></div>
+                      <p className="font-black text-slate-950 underline decoration-blue-600 underline-offset-4 text-xs sm:text-sm">
+                        {pKaprodi}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 z-10"></div>
+              </div>
+            );
+          })}
 
         </div>
 
