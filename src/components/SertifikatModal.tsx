@@ -405,6 +405,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
     }
 
     setIsGeneratingPdf(true);
+    let pdfWrapper: HTMLElement | null = null;
     try {
       // @ts-ignore
       const html2pdf = (await import('html2pdf.js')).default;
@@ -416,7 +417,11 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
         return;
       }
 
-      const pdfWrapper = document.createElement('div');
+      pdfWrapper = document.createElement('div');
+      pdfWrapper.style.position = 'fixed';
+      pdfWrapper.style.left = '-9999px';
+      pdfWrapper.style.top = '0';
+      pdfWrapper.style.zIndex = '-9999';
       pdfWrapper.style.background = '#ffffff';
       pdfWrapper.style.width = '297mm';
       pdfWrapper.style.margin = '0';
@@ -432,8 +437,10 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
         clonedSheet.style.borderRadius = '0';
         clonedSheet.style.border = 'none';
         clonedSheet.style.pageBreakAfter = idx < sheets.length - 1 ? 'always' : 'auto';
-        pdfWrapper.appendChild(clonedSheet);
+        pdfWrapper!.appendChild(clonedSheet);
       });
+
+      document.body.appendChild(pdfWrapper);
 
       let filename = `Sertifikat_PKL_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
       if (viewMode === 'front') filename = `Sertifikat_Depan_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
@@ -454,6 +461,9 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
       console.error('Gagal generate PDF:', err);
       alert('Terjadi kesalahan saat menghasilkan PDF. Silakan coba lagi.');
     } finally {
+      if (pdfWrapper && pdfWrapper.parentNode) {
+        pdfWrapper.parentNode.removeChild(pdfWrapper);
+      }
       setIsGeneratingPdf(false);
     }
   };
