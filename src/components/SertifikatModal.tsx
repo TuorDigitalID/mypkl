@@ -444,21 +444,32 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
           .certificate-sheet {
             box-shadow: 0 10px 25px rgba(0,0,0,0.2) !important;
             margin: 0 auto !important;
-            page-break-after: always;
-            break-after: page;
+            page-break-inside: avoid !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            break-inside: avoid !important;
           }
           @media print {
             body {
-              background: #ffffff;
-              padding: 0;
+              background: #ffffff !important;
+              padding: 0 !important;
+              margin: 0 !important;
             }
             .no-print {
               display: none !important;
             }
             .certificate-sheet {
+              width: 297mm !important;
+              height: 210mm !important;
+              max-height: 210mm !important;
+              box-sizing: border-box !important;
               box-shadow: none !important;
               margin: 0 !important;
               border-radius: 0 !important;
+              page-break-inside: avoid !important;
+              page-break-after: always !important;
+              break-after: page !important;
+              break-inside: avoid !important;
             }
           }
           .print-toolbar {
@@ -501,7 +512,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
     `;
 
     sheets.forEach((sheet) => {
-      htmlContent += `<div class="certificate-sheet" style="width: 297mm; height: 210mm; box-sizing: border-box; background: #ffffff; position: relative; overflow: hidden;">` + sheet.innerHTML + `</div>`;
+      htmlContent += `<div class="certificate-sheet" style="width: 297mm; height: 210mm; max-height: 210mm; box-sizing: border-box; background: #ffffff; position: relative; overflow: hidden; page-break-inside: avoid; page-break-after: always; break-after: page; break-inside: avoid;">` + sheet.innerHTML + `</div>`;
     });
 
     htmlContent += `
