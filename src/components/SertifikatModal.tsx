@@ -398,8 +398,8 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const handleDirectPdfDownload = async () => {
-    const element = document.getElementById('certificate-print-container');
-    if (!element) {
+    const container = document.getElementById('certificate-print-container');
+    if (!container) {
       alert('Elemen sertifikat tidak ditemukan.');
       return;
     }
@@ -408,6 +408,32 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
     try {
       // @ts-ignore
       const html2pdf = (await import('html2pdf.js')).default;
+
+      const sheets = container.querySelectorAll('.certificate-sheet');
+      if (sheets.length === 0) {
+        alert('Tidak ada lembar sertifikat yang ditemukan.');
+        setIsGeneratingPdf(false);
+        return;
+      }
+
+      const pdfWrapper = document.createElement('div');
+      pdfWrapper.style.background = '#ffffff';
+      pdfWrapper.style.width = '297mm';
+      pdfWrapper.style.margin = '0';
+      pdfWrapper.style.padding = '0';
+
+      sheets.forEach((sheet, idx) => {
+        const clonedSheet = sheet.cloneNode(true) as HTMLElement;
+        clonedSheet.style.boxShadow = 'none';
+        clonedSheet.style.margin = '0 auto';
+        clonedSheet.style.width = '297mm';
+        clonedSheet.style.height = '210mm';
+        clonedSheet.style.maxWidth = 'none';
+        clonedSheet.style.borderRadius = '0';
+        clonedSheet.style.border = 'none';
+        clonedSheet.style.pageBreakAfter = idx < sheets.length - 1 ? 'always' : 'auto';
+        pdfWrapper.appendChild(clonedSheet);
+      });
 
       let filename = `Sertifikat_PKL_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
       if (viewMode === 'front') filename = `Sertifikat_Depan_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
@@ -423,7 +449,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true }
       } as any;
 
-      await html2pdf().from(element).set(opt).save();
+      await html2pdf().from(pdfWrapper).set(opt).save();
     } catch (err) {
       console.error('Gagal generate PDF:', err);
       alert('Terjadi kesalahan saat menghasilkan PDF. Silakan coba lagi.');
