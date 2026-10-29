@@ -1860,7 +1860,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                       urutan={effectiveUrutan}
                       type={barcodeType}
                       format={barcodeFormat}
-                      showDetails={true}
+                      showDetails={false}
                     />
                   </div>
 
@@ -1931,7 +1931,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   {/* KOP TRANSKRIP TENGAH */}
                   <div className="text-center flex-1 px-1 sm:px-3">
                     <p className="text-[9.5px] font-bold text-emerald-900 uppercase tracking-widest">
-                      SMK MATHLA'UL ANWAR BUARANJATI • TANGERANG
+                      SMK MATHLA'UL ANWAR BUARANJATI
                     </p>
                     <h3 className="text-sm sm:text-base md:text-lg font-black uppercase tracking-tight text-slate-950">
                       DAFTAR NILAI DAN CAPAIAN KOMPETENSI PRAKTIK KERJA LAPANGAN
