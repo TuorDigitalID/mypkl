@@ -397,75 +397,127 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
 
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  const handleDirectPdfDownload = async () => {
+  const handleOpenPrintTab = () => {
     const container = document.getElementById('certificate-print-container');
     if (!container) {
       alert('Elemen sertifikat tidak ditemukan.');
       return;
     }
 
-    setIsGeneratingPdf(true);
-    let pdfWrapper: HTMLElement | null = null;
-    try {
-      // @ts-ignore
-      const html2pdf = (await import('html2pdf.js')).default;
-
-      const sheets = container.querySelectorAll('.certificate-sheet');
-      if (sheets.length === 0) {
-        alert('Tidak ada lembar sertifikat yang ditemukan.');
-        setIsGeneratingPdf(false);
-        return;
-      }
-
-      pdfWrapper = document.createElement('div');
-      pdfWrapper.style.position = 'fixed';
-      pdfWrapper.style.left = '-9999px';
-      pdfWrapper.style.top = '0';
-      pdfWrapper.style.zIndex = '-9999';
-      pdfWrapper.style.background = '#ffffff';
-      pdfWrapper.style.width = '297mm';
-      pdfWrapper.style.margin = '0';
-      pdfWrapper.style.padding = '0';
-
-      sheets.forEach((sheet, idx) => {
-        const clonedSheet = sheet.cloneNode(true) as HTMLElement;
-        clonedSheet.style.boxShadow = 'none';
-        clonedSheet.style.margin = '0 auto';
-        clonedSheet.style.width = '297mm';
-        clonedSheet.style.height = '210mm';
-        clonedSheet.style.maxWidth = 'none';
-        clonedSheet.style.borderRadius = '0';
-        clonedSheet.style.border = 'none';
-        clonedSheet.style.pageBreakAfter = idx < sheets.length - 1 ? 'always' : 'auto';
-        pdfWrapper!.appendChild(clonedSheet);
-      });
-
-      document.body.appendChild(pdfWrapper);
-
-      let filename = `Sertifikat_PKL_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-      if (viewMode === 'front') filename = `Sertifikat_Depan_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-      if (viewMode === 'back') filename = `Transkrip_Nilai_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-      if (viewMode === 'all-fronts') filename = `Semua_Sertifikat_Halaman_1.pdf`;
-      if (viewMode === 'all-backs') filename = `Semua_Transkrip_Halaman_2.pdf`;
-
-      const opt = {
-        margin:       0,
-        filename:     filename,
-        image:        { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, letterRendering: true, logging: false },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true }
-      } as any;
-
-      await html2pdf().from(pdfWrapper).set(opt).save();
-    } catch (err) {
-      console.error('Gagal generate PDF:', err);
-      alert('Terjadi kesalahan saat menghasilkan PDF. Silakan coba lagi.');
-    } finally {
-      if (pdfWrapper && pdfWrapper.parentNode) {
-        pdfWrapper.parentNode.removeChild(pdfWrapper);
-      }
-      setIsGeneratingPdf(false);
+    const sheets = container.querySelectorAll('.certificate-sheet');
+    if (sheets.length === 0) {
+      alert('Tidak ada lembar sertifikat yang ditemukan.');
+      return;
     }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Pop-up diblokir oleh browser. Mohon izinkan pop-up untuk mencetak sertifikat.');
+      return;
+    }
+
+    const stylesHTML = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(node => node.outerHTML)
+      .join('\n');
+
+    let htmlContent = `
+      <!DOCTYPE html>
+      <html lang="id">
+      <head>
+        <meta charset="UTF-8">
+        <title>Cetak Sertifikat PKL - A4 Landscape</title>
+        ${stylesHTML}
+        <style>
+          @page {
+            size: A4 landscape;
+            margin: 0;
+          }
+          body {
+            background: #e2e8f0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+          }
+          .certificate-sheet {
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2) !important;
+            margin: 0 auto !important;
+            page-break-after: always;
+            break-after: page;
+          }
+          @media print {
+            body {
+              background: #ffffff;
+              padding: 0;
+            }
+            .no-print {
+              display: none !important;
+            }
+            .certificate-sheet {
+              box-shadow: none !important;
+              margin: 0 !important;
+              border-radius: 0 !important;
+            }
+          }
+          .print-toolbar {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 9999;
+            background: #0f172a;
+            color: #ffffff;
+            padding: 10px 20px;
+            border-radius: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            font-family: system-ui, sans-serif;
+            font-size: 14px;
+          }
+          .print-toolbar button {
+            background: linear-gradient(to right, #059669, #2563eb);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+          }
+          .print-toolbar button:hover {
+            opacity: 0.9;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="print-toolbar no-print">
+          <span>Format A4 Landscape (Siap Cetak / Simpan PDF)</span>
+          <button onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+          <button onclick="window.close()" style="background: #475569;">Tutup</button>
+        </div>
+        <div style="height: 50px;" class="no-print"></div>
+    `;
+
+    sheets.forEach((sheet) => {
+      htmlContent += `<div class="certificate-sheet" style="width: 297mm; height: 210mm; box-sizing: border-box; background: #ffffff; position: relative; overflow: hidden;">` + sheet.innerHTML + `</div>`;
+    });
+
+    htmlContent += `
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.focus();
+      }, 500);
+    };
   };
 
   // Determine which right logo to show
@@ -693,13 +745,12 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
             {/* Print Trigger */}
             <button
               type="button"
-              disabled={isGeneratingPdf}
-              onClick={handleDirectPdfDownload}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white text-xs font-bold transition-all shadow-lg shadow-teal-900/40 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-wait"
-              title="Unduh PDF A4 Landscape Langsung (Tanpa Masuk Dialog Setting)"
+              onClick={handleOpenPrintTab}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white text-xs font-bold transition-all shadow-lg shadow-teal-900/40 cursor-pointer active:scale-95"
+              title="Buka Halaman Tab Baru untuk Cetak atau Simpan PDF"
             >
               <Printer className="w-4 h-4" />
-              <span>{isGeneratingPdf ? 'Membuat PDF...' : 'Unduh PDF A4'}</span>
+              <span>Buka Tab Cetak</span>
             </button>
 
             <button
