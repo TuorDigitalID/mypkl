@@ -21,8 +21,12 @@ import {
   Wallpaper,
   FileCheck2,
   Database,
-  Barcode as BarcodeIcon
+  Barcode as BarcodeIcon,
+  Download,
+  Loader2
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { MahasiswaSidang, PenilaianPenguji, MasterSiswaPKL, MasterJurusan, Penguji } from '../types/index.ts';
 import { calculateFinalAggregate } from '../utils/scoring.ts';
 import { getMasterJurusanList } from '../lib/supabase.ts';
@@ -396,6 +400,110 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
   const studentNIS = masterSiswa?.nisn ? `2024.${masterSiswa.nisn.slice(-4)}` : '2024.10.012';
 
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Directly downloads clean, high-resolution A4 landscape PDF file without opening preview/print dialog
+  const handleDirectDownloadPdf = async () => {
+    const container = document.getElementById('certificate-print-container');
+    if (!container) {
+      alert('Elemen sertifikat tidak ditemukan.');
+      return;
+    }
+
+    const sheets = container.querySelectorAll<HTMLElement>('.certificate-sheet');
+    if (sheets.length === 0) {
+      alert('Tidak ada lembar sertifikat yang ditemukan.');
+      return;
+    }
+
+    setIsGeneratingPdf(true);
+    setDownloadProgress({ current: 0, total: sheets.length });
+
+    try {
+      // 1. Ensure custom web fonts are fully ready
+      if (document.fonts) {
+        await document.fonts.ready;
+      }
+
+      // 2. Pre-convert all images in sheets to Base64 data URLs to eliminate any CORS / canvas taint issues
+      for (const sheet of Array.from(sheets)) {
+        const imgs = sheet.querySelectorAll('img');
+        for (const img of Array.from(imgs)) {
+          if (img.src && !img.src.startsWith('data:')) {
+            try {
+              const res = await fetch(img.src);
+              const blob = await res.blob();
+              const b64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = () => resolve(img.src);
+                reader.readAsDataURL(blob);
+              });
+              img.src = b64;
+            } catch (e) {
+              console.warn('Image convert warning:', e);
+            }
+          }
+        }
+      }
+
+      // 3. Initialize jsPDF in A4 Landscape (297mm x 210mm)
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true,
+      });
+
+      // 4. Render each sheet with html2canvas and place it into PDF
+      for (let i = 0; i < sheets.length; i++) {
+        setDownloadProgress({ current: i + 1, total: sheets.length });
+        const sheet = sheets[i];
+
+        const canvas = await html2canvas(sheet, {
+          scale: 2, // 2x high resolution for sharp print quality
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          windowWidth: 1280,
+          onclone: (_clonedDoc, clonedElement) => {
+            // Strip preview styling (rounded corners, shadows, borders)
+            // so the certificate spans the entire A4 canvas edge-to-edge
+            clonedElement.style.border = 'none';
+            clonedElement.style.borderRadius = '0px';
+            clonedElement.style.boxShadow = 'none';
+            clonedElement.style.margin = '0px';
+          }
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.96);
+
+        if (i > 0) {
+          pdf.addPage('a4', 'landscape');
+        }
+
+        // Add image to cover EXACTLY 297mm x 210mm from top-left (0, 0)
+        // This guarantees FULL A4 with ZERO margin and ZERO bottom blank space!
+        pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+      }
+
+      // 5. Filename & direct download
+      let filename = `Sertifikat_PKL_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      if (viewMode === 'front') filename = `Sertifikat_Depan_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      if (viewMode === 'back') filename = `Transkrip_Nilai_${mahasiswa.nama.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      if (viewMode === 'all-fronts') filename = `Semua_Sertifikat_Halaman_1.pdf`;
+      if (viewMode === 'all-backs') filename = `Semua_Transkrip_Halaman_2.pdf`;
+
+      pdf.save(filename);
+    } catch (err) {
+      console.error('Gagal membuat PDF:', err);
+      alert('Terjadi kesalahan saat mengunduh PDF. Silakan coba lagi.');
+    } finally {
+      setIsGeneratingPdf(false);
+      setDownloadProgress(null);
+    }
+  };
 
   const handleOpenPrintTab = () => {
     const container = document.getElementById('certificate-print-container');
@@ -778,15 +886,40 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               <span>Background &amp; Logo</span>
             </button>
 
-            {/* Print Trigger */}
+            {/* Direct Download PDF Button (Primary) */}
+            <button
+              type="button"
+              disabled={isGeneratingPdf}
+              onClick={handleDirectDownloadPdf}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600 hover:from-emerald-600 hover:to-blue-700 text-white text-xs font-black transition-all shadow-lg shadow-teal-900/50 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+              title="Download File PDF Langsung (Full A4 Landscape Presisi Tanpa Dialog Cetak)"
+            >
+              {isGeneratingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>
+                    {downloadProgress 
+                      ? `Memproses ${downloadProgress.current}/${downloadProgress.total}...` 
+                      : 'Membuat PDF...'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Download PDF A4</span>
+                </>
+              )}
+            </button>
+
+            {/* Print Trigger (Secondary) */}
             <button
               type="button"
               onClick={handleOpenPrintTab}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white text-xs font-bold transition-all shadow-lg shadow-teal-900/40 cursor-pointer active:scale-95"
-              title="Cetak atau Simpan sebagai PDF"
+              className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-all cursor-pointer"
+              title="Cetak Langsung ke Mesin Printer"
             >
-              <Printer className="w-4 h-4" />
-              <span>🖨️ Cetak / Simpan PDF</span>
+              <Printer className="w-3.5 h-3.5 text-slate-400" />
+              <span>Cetak</span>
             </button>
 
             <button
