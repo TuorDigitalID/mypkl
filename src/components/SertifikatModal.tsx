@@ -440,19 +440,25 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
           }
           .certificate-sheet {
             width: 297mm !important;
+            min-height: 210mm !important;
             height: 210mm !important;
             max-height: 210mm !important;
             box-sizing: border-box !important;
             background: #ffffff !important;
             position: relative !important;
-            overflow: hidden !important;
             box-shadow: 0 10px 25px rgba(0,0,0,0.2) !important;
             margin: 0 auto 20px auto !important;
             page-break-inside: avoid !important;
+            page-break-before: always !important;
             page-break-after: always !important;
+            break-before: page !important;
             break-after: page !important;
             break-inside: avoid !important;
             display: block !important;
+          }
+          .certificate-sheet:first-of-type {
+            page-break-before: avoid !important;
+            break-before: avoid !important;
           }
           @media print {
             body {
@@ -467,16 +473,23 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
             .certificate-sheet {
               width: 297mm !important;
               height: 210mm !important;
+              min-height: 210mm !important;
               max-height: 210mm !important;
               box-sizing: border-box !important;
               box-shadow: none !important;
               margin: 0 auto !important;
               border-radius: 0 !important;
               page-break-inside: avoid !important;
+              page-break-before: always !important;
               page-break-after: always !important;
+              break-before: page !important;
               break-after: page !important;
               break-inside: avoid !important;
               display: block !important;
+            }
+            .certificate-sheet:first-of-type {
+              page-break-before: avoid !important;
+              break-before: avoid !important;
             }
             .certificate-sheet:last-of-type {
               page-break-after: avoid !important;
