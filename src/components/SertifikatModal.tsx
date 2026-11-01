@@ -1326,7 +1326,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-400 mb-2">
-                        Logo SMK Mathla'ul Anwar Buaranjati tanpa kotak latar belakang (100% transparan).
+                        Logo SMKS Mathla'ul Anwar Buaranjati tanpa kotak latar belakang (100% transparan).
                       </p>
 
                       <div className="flex items-center gap-3 bg-slate-900/90 p-2.5 rounded-xl border border-slate-700 mb-2.5">
@@ -2142,7 +2142,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   {/* KOP TEKS TENGAH RESMI */}
                   <div className="text-center flex-1 px-1 sm:px-2">
                     <h1 className="text-xl sm:text-2xl md:text-[27px] font-black uppercase tracking-tight leading-tight bg-gradient-to-r from-emerald-900 via-teal-900 to-blue-900 bg-clip-text text-transparent">
-                      SMK MATHLA'UL ANWAR BUARANJATI
+                      SMKS MATHLA'UL ANWAR BUARANJATI
                     </h1>
                     <div className="inline-flex items-center gap-2 my-0.5">
                       <span className="h-px w-6 sm:w-10 bg-emerald-600"></span>
@@ -2248,11 +2248,11 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     />
                   </div>
 
-                  {/* Right: Kepala SMK Mathla'ul Anwar Buaranjati */}
+                  {/* Right: Kepala SMKS Mathla'ul Anwar Buaranjati */}
                   <div className="space-y-1 text-center min-w-[260px]">
                     <p className="text-[11px] text-slate-600 font-medium">{tempatTerbit}, {tanggalTerbit}</p>
                     <p className="font-extrabold text-slate-900 text-xs sm:text-[13px]">
-                      Kepala SMK Mathla'ul Anwar Buaranjati
+                      Kepala SMKS Mathla'ul Anwar Buaranjati
                     </p>
                     <div className="h-16 sm:h-20"></div>
                     <p className="font-black text-slate-950 underline decoration-blue-600 underline-offset-4 text-xs sm:text-[13px]">
@@ -2315,7 +2315,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   {/* KOP TRANSKRIP TENGAH */}
                   <div className="text-center flex-1 px-1 sm:px-3">
                     <p className="text-[9.5px] font-bold text-emerald-900 uppercase tracking-widest">
-                      SMK MATHLA'UL ANWAR BUARANJATI
+                      SMKS MATHLA'UL ANWAR BUARANJATI
                     </p>
                     <h3 className="text-sm sm:text-base md:text-lg font-black uppercase tracking-tight text-slate-950">
                       DAFTAR NILAI DAN CAPAIAN KOMPETENSI PRAKTIK KERJA LAPANGAN
@@ -2620,7 +2620,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     </div>
                     <div className="text-center flex-1 px-1 sm:px-2">
                       <h1 className="text-xl sm:text-2xl md:text-[27px] font-black uppercase tracking-tight leading-tight bg-gradient-to-r from-emerald-900 via-teal-900 to-blue-900 bg-clip-text text-transparent">
-                        SMK MATHLA'UL ANWAR BUARANJATI
+                        SMKS MATHLA'UL ANWAR BUARANJATI
                       </h1>
                       <div className="inline-flex items-center gap-2 my-0.5">
                         <span className="h-px w-6 sm:w-10 bg-emerald-600"></span>
@@ -2703,7 +2703,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     </div>
                     <div className="space-y-1 text-center min-w-[260px]">
                       <p className="text-[11px] text-slate-600 font-medium">{tempatTerbit}, {tanggalTerbit}</p>
-                      <p className="font-extrabold text-slate-900 text-xs sm:text-[13px]">Kepala SMK Mathla'ul Anwar Buaranjati</p>
+                      <p className="font-extrabold text-slate-900 text-xs sm:text-[13px]">Kepala SMKS Mathla'ul Anwar Buaranjati</p>
                       <div className="h-16 sm:h-20"></div>
                       <p className="font-black text-slate-950 underline decoration-blue-600 underline-offset-4 text-xs sm:text-[13px]">{namaKepsek}</p>
                     </div>
@@ -2766,7 +2766,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     </div>
                     <div className="text-center flex-1 px-1 sm:px-3">
                       <p className="text-[9.5px] font-bold text-emerald-900 uppercase tracking-widest">
-                        SMK MATHLA'UL ANWAR BUARANJATI
+                        SMKS MATHLA'UL ANWAR BUARANJATI
                       </p>
                       <h3 className="text-sm sm:text-base md:text-lg font-black uppercase tracking-tight text-slate-950">
                         DAFTAR NILAI DAN CAPAIAN KOMPETENSI PRAKTIK KERJA LAPANGAN

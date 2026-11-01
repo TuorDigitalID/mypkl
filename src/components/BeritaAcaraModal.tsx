@@ -158,7 +158,7 @@ export const BeritaAcaraModal: React.FC<BeritaAcaraModalProps> = ({
           {/* KOP SURAT RESMI */}
           <div className="text-center pb-4 border-b-2 border-slate-900 mb-6">
             <h1 className="text-lg sm:text-xl font-black uppercase text-slate-900 tracking-tight">
-              SMK MATHLA'UL ANWAR BUARANJATI
+              SMKS MATHLA'UL ANWAR BUARANJATI
             </h1>
             <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase tracking-wide mt-0.5">
               Panitia Ujian Sidang Praktik Kerja Lapangan (PKL) Ta. 2026/2027
