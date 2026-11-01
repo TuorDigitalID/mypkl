@@ -2340,30 +2340,26 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                 </div>
               </div>
 
-              {/* Student Identification Info Card (Compact 3-Column Layout) */}
-              <div className="relative z-10 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5 text-[10px] sm:text-[11px] py-1 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1 backdrop-blur-xs">
-                <div>
-                  <span className="text-slate-500">Nama: </span>
-                  <span className="font-bold text-slate-950">{mahasiswa.nama}</span>
+              {/* Student Identification Info Card (Balanced Layout without Pembimbing) */}
+              <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-[10px] sm:text-[11px] py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1 backdrop-blur-xs">
+                <div className="sm:col-span-2 flex items-center gap-1">
+                  <span className="text-slate-500 shrink-0">Nama:</span>
+                  <span className="font-bold text-slate-950 truncate">{mahasiswa.nama}</span>
                 </div>
-                <div>
-                  <span className="text-slate-500">NISN: </span>
+                <div className="flex items-center gap-1 sm:justify-end">
+                  <span className="text-slate-500 shrink-0">NISN:</span>
                   <span className="font-mono font-bold text-slate-950">{studentNISN}</span>
                 </div>
-                <div>
-                  <span className="text-slate-500">Kompetensi: </span>
-                  <span className="font-bold text-emerald-900">{mahasiswa.prodi}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 shrink-0">Kompetensi:</span>
+                  <span className="font-bold text-emerald-900 truncate">{mahasiswa.prodi}</span>
                 </div>
-                <div>
-                  <span className="text-slate-500">Tempat DUDI: </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 shrink-0">Tempat DUDI:</span>
                   <span className="font-bold text-slate-950 truncate">{mahasiswa.perusahaan}</span>
                 </div>
-                <div>
-                  <span className="text-slate-500">Pembimbing: </span>
-                  <span className="font-bold text-slate-950">{mahasiswa.pembimbingDudi || '-'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Tahun Pelajaran: </span>
+                <div className="flex items-center gap-1 sm:justify-end">
+                  <span className="text-slate-500 shrink-0">Tahun Pelajaran:</span>
                   <span className="font-bold text-slate-950">2026 / 2027</span>
                 </div>
               </div>
@@ -2788,29 +2784,25 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   </div>
                 </div>
 
-                <div className="relative z-10 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5 text-[10px] sm:text-[11px] py-1 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1">
-                  <div>
-                    <span className="text-slate-500">Nama: </span>
-                    <span className="font-bold text-slate-950">{p.nama}</span>
+                <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-[10px] sm:text-[11px] py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1">
+                  <div className="sm:col-span-2 flex items-center gap-1">
+                    <span className="text-slate-500 shrink-0">Nama:</span>
+                    <span className="font-bold text-slate-950 truncate">{p.nama}</span>
                   </div>
-                  <div>
-                    <span className="text-slate-500">NISN: </span>
+                  <div className="flex items-center gap-1 sm:justify-end">
+                    <span className="text-slate-500 shrink-0">NISN:</span>
                     <span className="font-mono font-bold text-slate-950">{pNisn}</span>
                   </div>
-                  <div>
-                    <span className="text-slate-500">Kompetensi: </span>
-                    <span className="font-bold text-emerald-900">{p.prodi}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500 shrink-0">Kompetensi:</span>
+                    <span className="font-bold text-emerald-900 truncate">{p.prodi}</span>
                   </div>
-                  <div>
-                    <span className="text-slate-500">Tempat DUDI: </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500 shrink-0">Tempat DUDI:</span>
                     <span className="font-bold text-slate-950 truncate">{p.perusahaan}</span>
                   </div>
-                  <div>
-                    <span className="text-slate-500">Pembimbing: </span>
-                    <span className="font-bold text-slate-950">{p.pembimbingDudi || '-'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500">Tahun Pelajaran: </span>
+                  <div className="flex items-center gap-1 sm:justify-end">
+                    <span className="text-slate-500 shrink-0">Tahun Pelajaran:</span>
                     <span className="font-bold text-slate-950">2026 / 2027</span>
                   </div>
                 </div>
