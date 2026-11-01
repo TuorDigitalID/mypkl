@@ -748,6 +748,52 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
     }
   };
 
+  // Render Dynamic Certificate Title respecting chosen font (applies to single and bulk all-pages view)
+  const renderCertificateTitle = (font = fontJudul) => {
+    return (
+      <div className="relative z-10 text-center my-auto py-1 sm:py-2">
+        <div className="inline-block relative">
+          {font === 'certificate' ? (
+            <div className="flex flex-col items-center">
+              <h2 className="text-5xl sm:text-6xl md:text-[68px] lg:text-[76px] font-certificate-script text-slate-950 leading-[0.95] py-1 select-none drop-shadow-xs tracking-normal">
+                Sertifikat
+              </h2>
+              <p className="text-xs sm:text-sm md:text-base font-extrabold tracking-[0.32em] uppercase text-teal-950 font-serif mt-1">
+                Praktik Kerja Lapangan
+              </p>
+            </div>
+          ) : font === 'pinyon' ? (
+            <div className="flex flex-col items-center">
+              <h2 className="text-5xl sm:text-6xl md:text-[66px] lg:text-[72px] font-pinyon text-slate-950 leading-[0.95] py-1 select-none drop-shadow-xs">
+                Sertifikat
+              </h2>
+              <p className="text-xs sm:text-sm md:text-base font-extrabold tracking-[0.32em] uppercase text-teal-950 font-serif mt-1">
+                Praktik Kerja Lapangan
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <h2 className={`text-2xl sm:text-3xl md:text-[34px] lg:text-[37px] font-black uppercase tracking-[0.12em] text-slate-950 py-1 ${
+                font === 'cinzel-dec' 
+                  ? 'font-cinzel-decorative' 
+                  : font === 'cinzel' 
+                  ? 'font-cinzel' 
+                  : 'font-playfair'
+              } drop-shadow-xs leading-tight`}>
+                SERTIFIKAT PRAKTIK KERJA LAPANGAN
+              </h2>
+            </div>
+          )}
+          <div className="flex items-center justify-center gap-3 mt-1.5">
+            <span className="h-0.5 w-16 sm:w-28 bg-gradient-to-r from-transparent via-emerald-600 to-teal-500 rounded-full"></span>
+            <span className="text-teal-700 text-xs">✦</span>
+            <span className="h-0.5 w-16 sm:w-28 bg-gradient-to-r from-teal-500 via-blue-600 to-transparent rounded-full"></span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div 
       onClick={(e) => {
@@ -1510,14 +1556,14 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">
                       Pilihan Font Judul Sertifikat:
                     </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
                       <button
                         type="button"
                         onClick={() => {
                           setFontJudul('certificate');
                           localStorage.setItem('sertifikat_font_judul', 'certificate');
                         }}
-                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
                           fontJudul === 'certificate'
                             ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xs ring-1 ring-emerald-300'
                             : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700'
@@ -1531,7 +1577,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                           setFontJudul('pinyon');
                           localStorage.setItem('sertifikat_font_judul', 'pinyon');
                         }}
-                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
                           fontJudul === 'pinyon'
                             ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xs ring-1 ring-emerald-300'
                             : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700'
@@ -1545,7 +1591,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                           setFontJudul('cinzel-dec');
                           localStorage.setItem('sertifikat_font_judul', 'cinzel-dec');
                         }}
-                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
                           fontJudul === 'cinzel-dec'
                             ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xs ring-1 ring-emerald-300'
                             : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700'
@@ -1556,10 +1602,24 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                       <button
                         type="button"
                         onClick={() => {
+                          setFontJudul('cinzel');
+                          localStorage.setItem('sertifikat_font_judul', 'cinzel');
+                        }}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
+                          fontJudul === 'cinzel'
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xs ring-1 ring-emerald-300'
+                            : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700'
+                        }`}
+                      >
+                        Cinzel Serif
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
                           setFontJudul('playfair');
                           localStorage.setItem('sertifikat_font_judul', 'playfair');
                         }}
-                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
                           fontJudul === 'playfair'
                             ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xs ring-1 ring-emerald-300'
                             : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700'
@@ -2072,44 +2132,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               </div>
 
               {/* Title Section with Certificate Font */}
-              <div className="relative z-10 text-center my-auto py-1 sm:py-2">
-                <div className="inline-block relative">
-                  {fontJudul === 'certificate' ? (
-                    <div className="flex flex-col items-center">
-                      <h2 className="text-5xl sm:text-6xl md:text-[68px] lg:text-[76px] font-certificate-script text-slate-950 leading-[0.95] py-1 select-none drop-shadow-xs tracking-normal">
-                        Sertifikat
-                      </h2>
-                      <p className="text-xs sm:text-sm md:text-base font-extrabold tracking-[0.32em] uppercase text-teal-950 font-serif mt-1">
-                        Praktik Kerja Lapangan
-                      </p>
-                    </div>
-                  ) : fontJudul === 'pinyon' ? (
-                    <div className="flex flex-col items-center">
-                      <h2 className="text-5xl sm:text-6xl md:text-[66px] lg:text-[72px] font-pinyon text-slate-950 leading-[0.95] py-1 select-none drop-shadow-xs">
-                        Sertifikat
-                      </h2>
-                      <p className="text-xs sm:text-sm md:text-base font-extrabold tracking-[0.32em] uppercase text-teal-950 font-serif mt-1">
-                        Praktik Kerja Lapangan
-                      </p>
-                    </div>
-                  ) : (
-                    <h2 className={`text-2xl sm:text-3xl md:text-[34px] lg:text-[37px] font-black uppercase tracking-[0.12em] text-slate-950 ${
-                      fontJudul === 'cinzel-dec' 
-                        ? 'font-cinzel-decorative' 
-                        : fontJudul === 'cinzel' 
-                        ? 'font-cinzel' 
-                        : 'font-playfair'
-                    } drop-shadow-xs leading-tight`}>
-                      SERTIFIKAT PRAKTIK KERJA LAPANGAN
-                    </h2>
-                  )}
-                  <div className="flex items-center justify-center gap-3 mt-1.5">
-                    <span className="h-0.5 w-16 sm:w-28 bg-gradient-to-r from-transparent via-emerald-600 to-teal-500 rounded-full"></span>
-                    <span className="text-teal-700 text-xs">✦</span>
-                    <span className="h-0.5 w-16 sm:w-28 bg-gradient-to-r from-teal-500 via-blue-600 to-transparent rounded-full"></span>
-                  </div>
-                </div>
-              </div>
+              {renderCertificateTitle()}
 
               {/* Statement & Awardee Credentials */}
               <div className="relative z-10 text-center space-y-2 my-auto px-2 sm:px-10">
@@ -2512,6 +2535,36 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                 <div className="absolute inset-1.5 rounded-xl border-2 border-emerald-700/60 pointer-events-none z-10"></div>
                 <div className="absolute inset-3 rounded-lg border border-teal-500/40 pointer-events-none z-10"></div>
                 <div className="absolute inset-4 rounded-md border-2 border-blue-800/40 pointer-events-none z-10"></div>
+                
+                {/* 4 Luxury Corner Ornaments in Emerald-Blue Gradient */}
+                <div className="absolute top-4 left-4 w-14 h-14 border-t-4 border-l-4 border-emerald-700 rounded-tl-xl pointer-events-none flex items-start justify-start p-1 z-10">
+                  <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-emerald-500 to-blue-600"></div>
+                </div>
+                <div className="absolute top-4 right-4 w-14 h-14 border-t-4 border-r-4 border-blue-700 rounded-tr-xl pointer-events-none flex items-start justify-end p-1 z-10">
+                  <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-blue-500 to-emerald-600"></div>
+                </div>
+                <div className="absolute bottom-4 left-4 w-14 h-14 border-b-4 border-l-4 border-emerald-700 rounded-bl-xl pointer-events-none flex items-end justify-start p-1 z-10">
+                  <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-emerald-500 to-blue-600"></div>
+                </div>
+                <div className="absolute bottom-4 right-4 w-14 h-14 border-b-4 border-r-4 border-blue-700 rounded-br-xl pointer-events-none flex items-end justify-end p-1 z-10">
+                  <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-blue-500 to-emerald-600"></div>
+                </div>
+
+                {/* Center Transparent Watermark Logo Sekolah */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
+                  {logoSekolah ? (
+                    <img
+                      src={logoSekolah}
+                      alt="Watermark Logo Sekolah"
+                      className="w-[300px] h-[300px] sm:w-[380px] sm:h-[380px] object-contain opacity-[0.055] mix-blend-multiply pointer-events-none select-none"
+                    />
+                  ) : (
+                    <div className="opacity-[0.035] pointer-events-none flex flex-col items-center justify-center">
+                      <GraduationCap className="w-[380px] h-[380px] text-teal-900" />
+                    </div>
+                  )}
+                </div>
+
                 <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 z-10"></div>
 
                 <div className="relative z-10 pt-2 pb-2.5 border-b-2 border-emerald-800/20">
@@ -2549,16 +2602,8 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   </div>
                 </div>
 
-                <div className="relative z-10 text-center my-auto py-1 sm:py-2">
-                  <div className="inline-block relative">
-                    <h2 className="text-5xl sm:text-6xl md:text-[68px] lg:text-[76px] font-certificate-script text-slate-950 leading-[0.95] py-1 select-none">
-                      Sertifikat
-                    </h2>
-                    <p className="text-xs sm:text-sm md:text-base font-extrabold tracking-[0.32em] uppercase text-teal-950 font-serif mt-1">
-                      Praktik Kerja Lapangan
-                    </p>
-                  </div>
-                </div>
+                {/* Title Section with Dynamic Font */}
+                {renderCertificateTitle()}
 
                 <div className="relative z-10 text-center space-y-2 my-auto px-2 sm:px-10">
                   <p className="text-xs sm:text-sm font-bold text-slate-700 tracking-wider">Diberikan Kepada :</p>
