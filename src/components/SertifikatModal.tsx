@@ -25,7 +25,7 @@ import {
   Download,
   Loader2
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { MahasiswaSidang, PenilaianPenguji, MasterSiswaPKL, MasterJurusan, Penguji } from '../types/index.ts';
 import { calculateFinalAggregate } from '../utils/scoring.ts';
@@ -426,22 +426,31 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
       }
 
       // 2. Pre-convert all images in sheets to Base64 data URLs to eliminate any CORS / canvas taint issues
+      const imageCache = new Map<string, string>();
       for (const sheet of Array.from(sheets)) {
         const imgs = sheet.querySelectorAll('img');
         for (const img of Array.from(imgs)) {
-          if (img.src && !img.src.startsWith('data:')) {
-            try {
-              const res = await fetch(img.src);
-              const blob = await res.blob();
-              const b64 = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.onerror = () => resolve(img.src);
-                reader.readAsDataURL(blob);
-              });
-              img.src = b64;
-            } catch (e) {
-              console.warn('Image convert warning:', e);
+          const src = img.getAttribute('src');
+          if (src && !src.startsWith('data:')) {
+            if (imageCache.has(src)) {
+              img.src = imageCache.get(src)!;
+            } else {
+              try {
+                const res = await fetch(src, { mode: 'cors' });
+                if (res.ok) {
+                  const blob = await res.blob();
+                  const b64 = await new Promise<string>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.onerror = () => resolve(src);
+                    reader.readAsDataURL(blob);
+                  });
+                  imageCache.set(src, b64);
+                  img.src = b64;
+                }
+              } catch (e) {
+                console.warn('Image convert warning for:', src, e);
+              }
             }
           }
         }
@@ -455,25 +464,49 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
         compress: true,
       });
 
-      // 4. Render each sheet with html2canvas and place it into PDF
+      // 4. Render each sheet with html2canvas-pro and place it into PDF
       for (let i = 0; i < sheets.length; i++) {
         setDownloadProgress({ current: i + 1, total: sheets.length });
         const sheet = sheets[i];
 
         const canvas = await html2canvas(sheet, {
-          scale: 2, // 2x high resolution for sharp print quality
+          scale: 2, // 2x high resolution for sharp print quality (2376 x 1680)
           useCORS: true,
-          allowTaint: true,
+          allowTaint: false, // CRITICAL: NEVER allow taint so canvas.toDataURL never throws SecurityError
           backgroundColor: '#ffffff',
           logging: false,
-          windowWidth: 1280,
           onclone: (_clonedDoc, clonedElement) => {
             // Strip preview styling (rounded corners, shadows, borders)
-            // so the certificate spans the entire A4 canvas edge-to-edge
+            // and force exact A4 Landscape pixel proportions (1188px x 840px = 1.414 aspect ratio)
+            clonedElement.style.width = '1188px';
+            clonedElement.style.minHeight = '840px';
+            clonedElement.style.height = '840px';
+            clonedElement.style.maxHeight = '840px';
+            clonedElement.style.display = 'flex';
+            clonedElement.style.flexDirection = 'column';
+            clonedElement.style.justifyContent = 'space-between';
             clonedElement.style.border = 'none';
             clonedElement.style.borderRadius = '0px';
             clonedElement.style.boxShadow = 'none';
             clonedElement.style.margin = '0px';
+            clonedElement.style.boxSizing = 'border-box';
+            clonedElement.style.overflow = 'hidden';
+
+            // Clean up any mix-blend-mode or backdrop-filter that could disrupt canvas rendering
+            const allNodes = clonedElement.querySelectorAll<HTMLElement>('*');
+            allNodes.forEach((node) => {
+              if (node.style) {
+                if (node.style.mixBlendMode && node.style.mixBlendMode !== 'normal') {
+                  node.style.mixBlendMode = 'normal';
+                }
+                if (node.style.backdropFilter) {
+                  node.style.backdropFilter = 'none';
+                }
+              }
+              if (node.classList?.contains('mix-blend-multiply')) {
+                node.classList.remove('mix-blend-multiply');
+              }
+            });
           }
         });
 
@@ -496,9 +529,14 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
       if (viewMode === 'all-backs') filename = `Semua_Transkrip_Halaman_2.pdf`;
 
       pdf.save(filename);
-    } catch (err) {
-      console.error('Gagal membuat PDF:', err);
-      alert('Terjadi kesalahan saat mengunduh PDF. Silakan coba lagi.');
+    } catch (err: any) {
+      console.error('Gagal membuat PDF langsung:', err);
+      const openPrint = window.confirm(
+        'Gagal mengunduh file secara otomatis (' + (err?.message || 'Error browser canvas') + '). Buka halaman Cetak / Simpan PDF?'
+      );
+      if (openPrint) {
+        handleOpenPrintTab();
+      }
     } finally {
       setIsGeneratingPdf(false);
       setDownloadProgress(null);
@@ -562,7 +600,11 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
             break-before: page !important;
             break-after: page !important;
             break-inside: avoid !important;
-            display: block !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            overflow: hidden !important;
+            padding: 6mm 10mm !important;
           }
           .certificate-sheet:first-of-type {
             page-break-before: avoid !important;
@@ -593,7 +635,11 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               break-before: page !important;
               break-after: page !important;
               break-inside: avoid !important;
-              display: block !important;
+              display: flex !important;
+              flex-direction: column !important;
+              justify-content: space-between !important;
+              overflow: hidden !important;
+              padding: 6mm 10mm !important;
             }
             .certificate-sheet:first-of-type {
               page-break-before: avoid !important;
