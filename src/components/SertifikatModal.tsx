@@ -436,24 +436,30 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
             background: #e2e8f0;
             margin: 0;
             padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
+            display: block;
           }
           .certificate-sheet {
+            width: 297mm !important;
+            height: 210mm !important;
+            max-height: 210mm !important;
+            box-sizing: border-box !important;
+            background: #ffffff !important;
+            position: relative !important;
+            overflow: hidden !important;
             box-shadow: 0 10px 25px rgba(0,0,0,0.2) !important;
-            margin: 0 auto !important;
+            margin: 0 auto 20px auto !important;
             page-break-inside: avoid !important;
             page-break-after: always !important;
             break-after: page !important;
             break-inside: avoid !important;
+            display: block !important;
           }
           @media print {
             body {
               background: #ffffff !important;
               padding: 0 !important;
               margin: 0 !important;
+              display: block !important;
             }
             .no-print {
               display: none !important;
@@ -464,12 +470,17 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               max-height: 210mm !important;
               box-sizing: border-box !important;
               box-shadow: none !important;
-              margin: 0 !important;
+              margin: 0 auto !important;
               border-radius: 0 !important;
               page-break-inside: avoid !important;
               page-break-after: always !important;
               break-after: page !important;
               break-inside: avoid !important;
+              display: block !important;
+            }
+            .certificate-sheet:last-of-type {
+              page-break-after: avoid !important;
+              break-after: avoid !important;
             }
           }
           .print-toolbar {
@@ -512,7 +523,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
     `;
 
     sheets.forEach((sheet) => {
-      htmlContent += `<div class="certificate-sheet" style="width: 297mm; height: 210mm; max-height: 210mm; box-sizing: border-box; background: #ffffff; position: relative; overflow: hidden; page-break-inside: avoid; page-break-after: always; break-after: page; break-inside: avoid;">` + sheet.innerHTML + `</div>`;
+      htmlContent += `<div class="certificate-sheet">` + sheet.innerHTML + `</div>`;
     });
 
     htmlContent += `
