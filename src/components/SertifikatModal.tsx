@@ -457,12 +457,22 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
       }
 
       // 3. Initialize jsPDF in A4 Landscape (297mm x 210mm)
+      // 3. Initialize jsPDF in exact A4 Landscape (297mm x 210mm / 29.7 cm x 21.0 cm)
+      const A4_WIDTH_MM = 297;
+      const A4_HEIGHT_MM = 210;
+
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
-        format: 'a4',
+        format: [A4_WIDTH_MM, A4_HEIGHT_MM],
         compress: true,
       });
+
+      // Exact pixel dimensions representing 297mm x 210mm (aspect ratio 1.4142857)
+      // 4 pixels per millimeter = 1188px x 840px
+      // With scale: 2.5, canvas renders at exactly 10 pixels per millimeter (2970px x 2100px = crisp 254 DPI print quality)
+      const TARGET_WIDTH = 1188;
+      const TARGET_HEIGHT = 840;
 
       // 4. Render each sheet with html2canvas-pro and place it into PDF
       for (let i = 0; i < sheets.length; i++) {
@@ -470,18 +480,46 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
         const sheet = sheets[i];
 
         const canvas = await html2canvas(sheet, {
-          scale: 2, // 2x high resolution for sharp print quality (2376 x 1680)
+          scale: 2.5, // 2970 x 2100 px (exact 10 px/mm, high-res 254 DPI)
+          width: TARGET_WIDTH,
+          height: TARGET_HEIGHT,
+          windowWidth: TARGET_WIDTH,
+          windowHeight: TARGET_HEIGHT,
+          x: 0,
+          y: 0,
+          scrollX: 0,
+          scrollY: 0,
           useCORS: true,
           allowTaint: false, // CRITICAL: NEVER allow taint so canvas.toDataURL never throws SecurityError
           backgroundColor: '#ffffff',
           logging: false,
-          onclone: (_clonedDoc, clonedElement) => {
-            // Strip preview styling (rounded corners, shadows, borders)
-            // and force exact A4 Landscape pixel proportions (1188px x 840px = 1.414 aspect ratio)
-            clonedElement.style.width = '1188px';
-            clonedElement.style.minHeight = '840px';
-            clonedElement.style.height = '840px';
-            clonedElement.style.maxHeight = '840px';
+          onclone: (clonedDoc, clonedElement) => {
+            // Isolate clonedElement into clonedDoc.body at top: 0, left: 0
+            if (clonedElement.parentElement) {
+              clonedElement.parentElement.removeChild(clonedElement);
+            }
+            clonedDoc.body.innerHTML = '';
+            clonedDoc.body.style.margin = '0px';
+            clonedDoc.body.style.padding = '0px';
+            clonedDoc.body.style.width = `${TARGET_WIDTH}px`;
+            clonedDoc.body.style.minWidth = `${TARGET_WIDTH}px`;
+            clonedDoc.body.style.maxWidth = `${TARGET_WIDTH}px`;
+            clonedDoc.body.style.height = `${TARGET_HEIGHT}px`;
+            clonedDoc.body.style.minHeight = `${TARGET_HEIGHT}px`;
+            clonedDoc.body.style.maxHeight = `${TARGET_HEIGHT}px`;
+            clonedDoc.body.style.overflow = 'hidden';
+            clonedDoc.body.style.backgroundColor = '#ffffff';
+
+            // Force exact A4 Landscape proportions and strip UI preview styling (shadows, borders, corners)
+            clonedElement.style.position = 'absolute';
+            clonedElement.style.top = '0px';
+            clonedElement.style.left = '0px';
+            clonedElement.style.width = `${TARGET_WIDTH}px`;
+            clonedElement.style.minWidth = `${TARGET_WIDTH}px`;
+            clonedElement.style.maxWidth = `${TARGET_WIDTH}px`;
+            clonedElement.style.height = `${TARGET_HEIGHT}px`;
+            clonedElement.style.minHeight = `${TARGET_HEIGHT}px`;
+            clonedElement.style.maxHeight = `${TARGET_HEIGHT}px`;
             clonedElement.style.display = 'flex';
             clonedElement.style.flexDirection = 'column';
             clonedElement.style.justifyContent = 'space-between';
@@ -491,6 +529,8 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
             clonedElement.style.margin = '0px';
             clonedElement.style.boxSizing = 'border-box';
             clonedElement.style.overflow = 'hidden';
+
+            clonedDoc.body.appendChild(clonedElement);
 
             // Clean up any mix-blend-mode or backdrop-filter that could disrupt canvas rendering
             const allNodes = clonedElement.querySelectorAll<HTMLElement>('*');
@@ -510,15 +550,18 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
           }
         });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.96);
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
 
         if (i > 0) {
-          pdf.addPage('a4', 'landscape');
+          pdf.addPage([A4_WIDTH_MM, A4_HEIGHT_MM], 'landscape');
         }
 
-        // Add image to cover EXACTLY 297mm x 210mm from top-left (0, 0)
-        // This guarantees FULL A4 with ZERO margin and ZERO bottom blank space!
-        pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+        const pageWidth = pdf.internal.pageSize.getWidth() || A4_WIDTH_MM;
+        const pageHeight = pdf.internal.pageSize.getHeight() || A4_HEIGHT_MM;
+
+        // Add image to cover EXACTLY 297mm x 210mm (29.7 cm x 21.0 cm) from top-left (0, 0)
+        // Guarantees 100% full A4 coverage with zero blank gaps!
+        pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
       }
 
       // 5. Filename & direct download
@@ -571,18 +614,19 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
       <html lang="id">
       <head>
         <meta charset="UTF-8">
-        <title>Cetak Sertifikat PKL - A4 Landscape</title>
+        <title>Cetak Sertifikat PKL - A4 Landscape (29.7 cm x 21.0 cm)</title>
         ${stylesHTML}
         <style>
           @page {
-            size: A4 landscape;
-            margin: 0;
+            size: 297mm 210mm;
+            margin: 0mm;
           }
-          body {
+          html, body {
             background: #e2e8f0;
             margin: 0;
             padding: 20px;
             display: block;
+            width: auto;
           }
           .certificate-sheet {
             width: 297mm !important;
@@ -611,11 +655,14 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
             break-before: avoid !important;
           }
           @media print {
-            body {
+            html, body {
               background: #ffffff !important;
               padding: 0 !important;
               margin: 0 !important;
-              display: block !important;
+              width: 297mm !important;
+              height: 210mm !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             .no-print {
               display: none !important;
@@ -627,8 +674,9 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               max-height: 210mm !important;
               box-sizing: border-box !important;
               box-shadow: none !important;
-              margin: 0 auto !important;
+              margin: 0 !important;
               border-radius: 0 !important;
+              border: none !important;
               page-break-inside: avoid !important;
               page-break-before: always !important;
               page-break-after: always !important;
@@ -682,7 +730,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
       </head>
       <body>
         <div class="print-toolbar no-print">
-          <span>Format A4 Landscape (Pilih "Simpan sebagai PDF" di tujuan cetak)</span>
+          <span>Format A4 Landscape 29.7 cm × 21.0 cm (Pilih "Simpan sebagai PDF" di tujuan cetak)</span>
           <button onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
           <button onclick="window.close()" style="background: #475569;">Tutup</button>
         </div>
