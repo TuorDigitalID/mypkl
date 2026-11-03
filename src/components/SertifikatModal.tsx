@@ -765,19 +765,19 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
   const showJurusan2 = modeLogoJurusan === 'both' || modeLogoJurusan === 'jurusan2' || 
     (modeLogoJurusan === 'auto' && (mahasiswa.prodi.toLowerCase().includes('motor') || mahasiswa.prodi.toLowerCase().includes('tbsm') || mahasiswa.prodi.toLowerCase().includes('otomotif') || mahasiswa.prodi.toLowerCase().includes('akl') || mahasiswa.prodi.toLowerCase().includes('akuntansi')));
 
-  // Render Transparent School Logo
-  const renderSchoolLogo = (sizeClass = "w-14 h-14 sm:w-16 sm:h-16") => {
+  // Render Transparent School Logo (Preserves natural aspect ratio without distortion)
+  const renderSchoolLogo = (sizeClass = "h-14 sm:h-16 w-auto max-w-[76px] sm:max-w-[88px]") => {
     if (logoSekolah) {
       return (
         <img 
           src={logoSekolah} 
           alt="Logo Sekolah" 
-          className={`${sizeClass} object-contain bg-transparent ${isLogoSekolahMultiply ? 'mix-blend-multiply' : ''}`}
+          className={`${sizeClass} object-contain bg-transparent aspect-auto shrink-0 ${isLogoSekolahMultiply ? 'mix-blend-multiply' : ''}`}
         />
       );
     }
     return (
-      <div className={`${sizeClass} bg-transparent flex flex-col items-center justify-center relative flex-shrink-0`}>
+      <div className="w-14 h-14 sm:w-16 sm:h-16 bg-transparent flex flex-col items-center justify-center relative flex-shrink-0">
         <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-emerald-700/80 bg-transparent flex items-center justify-center text-emerald-800">
           <GraduationCap className="w-7 h-7 sm:w-8 sm:h-8 text-emerald-700" />
         </div>
@@ -785,20 +785,20 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
     );
   };
 
-  // Render Transparent Jurusan 1 Logo
-  const renderJurusan1Logo = (sizeClass = "w-12 h-12 sm:w-14 sm:h-14") => {
+  // Render Transparent Jurusan 1 Logo (Preserves natural aspect ratio without distortion)
+  const renderJurusan1Logo = (sizeClass = "h-12 sm:h-14 w-auto max-w-[60px] sm:max-w-[70px]") => {
     if (logoJurusan1) {
       return (
         <img 
           src={logoJurusan1} 
           alt={namaJurusan1} 
-          className={`${sizeClass} object-contain bg-transparent ${isLogoJurusanMultiply ? 'mix-blend-multiply' : ''}`}
+          className={`${sizeClass} object-contain bg-transparent aspect-auto shrink-0 ${isLogoJurusanMultiply ? 'mix-blend-multiply' : ''}`}
           title={namaJurusan1}
         />
       );
     }
     return (
-      <div className={`${sizeClass} bg-transparent flex flex-col items-center justify-center relative flex-shrink-0`}>
+      <div className="w-11 h-11 sm:w-13 sm:h-13 bg-transparent flex flex-col items-center justify-center relative flex-shrink-0">
         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-cyan-600/80 bg-transparent flex items-center justify-center text-cyan-800">
           <Cpu className="w-6 h-6 text-cyan-700" />
         </div>
@@ -806,20 +806,20 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
     );
   };
 
-  // Render Transparent Jurusan 2 Logo
-  const renderJurusan2Logo = (sizeClass = "w-12 h-12 sm:w-14 sm:h-14") => {
+  // Render Transparent Jurusan 2 Logo (Preserves natural aspect ratio without distortion)
+  const renderJurusan2Logo = (sizeClass = "h-12 sm:h-14 w-auto max-w-[60px] sm:max-w-[70px]") => {
     if (logoJurusan2) {
       return (
         <img 
           src={logoJurusan2} 
           alt={namaJurusan2} 
-          className={`${sizeClass} object-contain bg-transparent ${isLogoJurusanMultiply ? 'mix-blend-multiply' : ''}`}
+          className={`${sizeClass} object-contain bg-transparent aspect-auto shrink-0 ${isLogoJurusanMultiply ? 'mix-blend-multiply' : ''}`}
           title={namaJurusan2}
         />
       );
     }
     return (
-      <div className={`${sizeClass} bg-transparent flex flex-col items-center justify-center relative flex-shrink-0`}>
+      <div className="w-11 h-11 sm:w-13 sm:h-13 bg-transparent flex flex-col items-center justify-center relative flex-shrink-0">
         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-blue-600/80 bg-transparent flex items-center justify-center text-blue-800">
           <Wrench className="w-6 h-6 text-blue-700" />
         </div>
@@ -2166,7 +2166,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   <img
                     src={logoSekolah}
                     alt="Watermark Logo Sekolah"
-                    className="w-[300px] h-[300px] sm:w-[380px] sm:h-[380px] object-contain opacity-[0.055] mix-blend-multiply pointer-events-none select-none"
+                    className="max-w-[340px] max-h-[340px] sm:max-w-[380px] sm:max-h-[380px] w-auto h-auto object-contain opacity-[0.055] mix-blend-multiply pointer-events-none select-none aspect-auto"
                   />
                 ) : (
                   <div className="opacity-[0.035] pointer-events-none flex flex-col items-center justify-center">
@@ -2182,9 +2182,9 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               <div className="relative z-10 pt-2 pb-2.5 border-b-2 border-emerald-800/20">
                 <div className="flex items-center justify-between gap-2 sm:gap-4">
                   
-                  {/* LOGO SEKOLAH (KIRI - 100% TRANSPARAN) */}
-                  <div className="w-16 sm:w-20 flex items-center justify-center flex-shrink-0 bg-transparent">
-                    {renderSchoolLogo("w-14 h-14 sm:w-16 sm:h-16")}
+                  {/* LOGO SEKOLAH (KIRI - 100% TRANSPARAN, TIDAK GEPENG) */}
+                  <div className="w-20 sm:w-24 flex items-center justify-center flex-shrink-0 bg-transparent">
+                    {renderSchoolLogo("h-14 sm:h-16 w-auto max-w-[76px] sm:max-w-[88px]")}
                   </div>
 
                   {/* KOP TEKS TENGAH RESMI */}
@@ -2204,20 +2204,22 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     </p>
                   </div>
 
-                  {/* LOGO JURUSAN (KANAN - DUA JURUSAN) */}
-                  <div className="flex items-center justify-center flex-shrink-0 bg-transparent">
+                  {/* LOGO JURUSAN (KANAN - DUA JURUSAN, TIDAK GEPENG) */}
+                  <div className="w-24 sm:w-28 flex items-center justify-center flex-shrink-0 bg-transparent">
                     {modeLogoJurusan === 'both' ? (
-                      <div className="flex items-center gap-2 bg-transparent p-1">
+                      <div className="flex items-center justify-center gap-2 bg-transparent p-1">
                         <div className="flex items-center justify-center">
-                          {renderJurusan1Logo("w-11 h-11 sm:w-13 sm:h-13")}
+                          {renderJurusan1Logo("h-11 sm:h-13 w-auto max-w-[50px] sm:max-w-[56px]")}
                         </div>
                         <div className="flex items-center justify-center">
-                          {renderJurusan2Logo("w-11 h-11 sm:w-13 sm:h-13")}
+                          {renderJurusan2Logo("h-11 sm:h-13 w-auto max-w-[50px] sm:max-w-[56px]")}
                         </div>
                       </div>
                     ) : (
-                      <div className="w-16 sm:w-20 flex items-center justify-center bg-transparent">
-                        {showJurusan1 ? renderJurusan1Logo("w-14 h-14 sm:w-16 sm:h-16") : renderJurusan2Logo("w-14 h-14 sm:w-16 sm:h-16")}
+                      <div className="w-20 sm:w-24 flex items-center justify-center bg-transparent">
+                        {showJurusan1 
+                          ? renderJurusan1Logo("h-14 sm:h-16 w-auto max-w-[70px] sm:max-w-[80px]") 
+                          : renderJurusan2Logo("h-14 sm:h-16 w-auto max-w-[70px] sm:max-w-[80px]")}
                       </div>
                     )}
                   </div>
@@ -2388,27 +2390,34 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                 </div>
               </div>
 
-              {/* Student Identification Info Card (Balanced Layout without Pembimbing) */}
-              <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-[10px] sm:text-[11px] py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1 backdrop-blur-xs">
-                <div className="sm:col-span-2 flex items-center gap-1">
-                  <span className="text-slate-500 shrink-0">Nama:</span>
-                  <span className="font-bold text-slate-950 truncate">{mahasiswa.nama}</span>
+              {/* Student Identification Info Card (Full Text / Tanpa Singkatan) */}
+              <div className="relative z-10 py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1 backdrop-blur-xs text-[10px] sm:text-[11px] leading-tight space-y-1">
+                {/* Baris 1: Nama Lengkap & NISN */}
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-slate-500 shrink-0 font-medium">Nama:</span>
+                    <span className="font-bold text-slate-950 uppercase tracking-tight">{mahasiswa.nama}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                    <span className="text-slate-500 font-medium">NISN:</span>
+                    <span className="font-mono font-bold text-slate-950">{studentNISN}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 sm:justify-end">
-                  <span className="text-slate-500 shrink-0">NISN:</span>
-                  <span className="font-mono font-bold text-slate-950">{studentNISN}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-slate-500 shrink-0">Kompetensi:</span>
-                  <span className="font-bold text-emerald-900 truncate">{mahasiswa.prodi}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-slate-500 shrink-0">Tempat DUDI:</span>
-                  <span className="font-bold text-slate-950 truncate">{mahasiswa.perusahaan}</span>
-                </div>
-                <div className="flex items-center gap-1 sm:justify-end">
-                  <span className="text-slate-500 shrink-0">Tahun Pelajaran:</span>
-                  <span className="font-bold text-slate-950">2026 / 2027</span>
+
+                {/* Baris 2: Program Keahlian / Kompetensi, Tempat DUDI (Di Tengah), Tahun Pelajaran */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-2 pt-0.5 border-t border-teal-200/50">
+                  <div className="flex items-center gap-1.5 min-w-0 justify-start">
+                    <span className="text-slate-500 shrink-0 font-medium">Kompetensi:</span>
+                    <span className="font-bold text-emerald-900">{mahasiswa.prodi}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 min-w-0 justify-center text-center">
+                    <span className="text-slate-500 shrink-0 font-medium">Tempat DUDI:</span>
+                    <span className="font-bold text-slate-950">{mahasiswa.perusahaan}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 justify-end ml-auto sm:ml-0">
+                    <span className="text-slate-500 font-medium">Tahun Pelajaran:</span>
+                    <span className="font-bold text-slate-950">2026 / 2027</span>
+                  </div>
                 </div>
               </div>
 
@@ -2646,7 +2655,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     <img
                       src={logoSekolah}
                       alt="Watermark Logo Sekolah"
-                      className="w-[300px] h-[300px] sm:w-[380px] sm:h-[380px] object-contain opacity-[0.055] mix-blend-multiply pointer-events-none select-none"
+                      className="max-w-[340px] max-h-[340px] sm:max-w-[380px] sm:max-h-[380px] w-auto h-auto object-contain opacity-[0.055] mix-blend-multiply pointer-events-none select-none aspect-auto"
                     />
                   ) : (
                     <div className="opacity-[0.035] pointer-events-none flex flex-col items-center justify-center">
@@ -2659,8 +2668,9 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
 
                 <div className="relative z-10 pt-2 pb-2.5 border-b-2 border-emerald-800/20">
                   <div className="flex items-center justify-between gap-2 sm:gap-4">
-                    <div className="w-16 sm:w-20 flex items-center justify-center flex-shrink-0 bg-transparent">
-                      {renderSchoolLogo("w-14 h-14 sm:w-16 sm:h-16")}
+                    {/* LOGO SEKOLAH (KIRI - 100% TRANSPARAN, TIDAK GEPENG) */}
+                    <div className="w-20 sm:w-24 flex items-center justify-center flex-shrink-0 bg-transparent">
+                      {renderSchoolLogo("h-14 sm:h-16 w-auto max-w-[76px] sm:max-w-[88px]")}
                     </div>
                     <div className="text-center flex-1 px-1 sm:px-2">
                       <h1 className="text-xl sm:text-2xl md:text-[27px] font-black uppercase tracking-tight leading-tight bg-gradient-to-r from-emerald-900 via-teal-900 to-blue-900 bg-clip-text text-transparent">
@@ -2677,15 +2687,22 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                         Jl. Raya Mauk KM. 16, Buaran Jati, Kec. Sukadiri, Kab. Tangerang, Banten 15530
                       </p>
                     </div>
-                    <div className="flex items-center justify-center flex-shrink-0 bg-transparent">
+                    {/* LOGO JURUSAN (KANAN - DUA JURUSAN, TIDAK GEPENG) */}
+                    <div className="w-24 sm:w-28 flex items-center justify-center flex-shrink-0 bg-transparent">
                       {modeLogoJurusan === 'both' ? (
-                        <div className="flex items-center gap-2 bg-transparent p-1">
-                          {renderJurusan1Logo("w-11 h-11 sm:w-13 sm:h-13")}
-                          {renderJurusan2Logo("w-11 h-11 sm:w-13 sm:h-13")}
+                        <div className="flex items-center justify-center gap-2 bg-transparent p-1">
+                          <div className="flex items-center justify-center">
+                            {renderJurusan1Logo("h-11 sm:h-13 w-auto max-w-[50px] sm:max-w-[56px]")}
+                          </div>
+                          <div className="flex items-center justify-center">
+                            {renderJurusan2Logo("h-11 sm:h-13 w-auto max-w-[50px] sm:max-w-[56px]")}
+                          </div>
                         </div>
                       ) : (
-                        <div className="w-16 sm:w-20 flex items-center justify-center bg-transparent">
-                          {pShowJurusan1 ? renderJurusan1Logo("w-14 h-14 sm:w-16 sm:h-16") : renderJurusan2Logo("w-14 h-14 sm:w-16 sm:h-16")}
+                        <div className="w-20 sm:w-24 flex items-center justify-center bg-transparent">
+                          {pShowJurusan1 
+                            ? renderJurusan1Logo("h-14 sm:h-16 w-auto max-w-[70px] sm:max-w-[80px]") 
+                            : renderJurusan2Logo("h-14 sm:h-16 w-auto max-w-[70px] sm:max-w-[80px]")}
                         </div>
                       )}
                     </div>
@@ -2832,26 +2849,34 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   </div>
                 </div>
 
-                <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-[10px] sm:text-[11px] py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1">
-                  <div className="sm:col-span-2 flex items-center gap-1">
-                    <span className="text-slate-500 shrink-0">Nama:</span>
-                    <span className="font-bold text-slate-950 truncate">{p.nama}</span>
+                {/* Student Identification Info Card (Full Text / Tanpa Singkatan) */}
+                <div className="relative z-10 py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1 backdrop-blur-xs text-[10px] sm:text-[11px] leading-tight space-y-1">
+                  {/* Baris 1: Nama Lengkap & NISN */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-slate-500 shrink-0 font-medium">Nama:</span>
+                      <span className="font-bold text-slate-950 uppercase tracking-tight">{p.nama}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                      <span className="text-slate-500 font-medium">NISN:</span>
+                      <span className="font-mono font-bold text-slate-950">{pNisn}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 sm:justify-end">
-                    <span className="text-slate-500 shrink-0">NISN:</span>
-                    <span className="font-mono font-bold text-slate-950">{pNisn}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-500 shrink-0">Kompetensi:</span>
-                    <span className="font-bold text-emerald-900 truncate">{p.prodi}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-slate-500 shrink-0">Tempat DUDI:</span>
-                    <span className="font-bold text-slate-950 truncate">{p.perusahaan}</span>
-                  </div>
-                  <div className="flex items-center gap-1 sm:justify-end">
-                    <span className="text-slate-500 shrink-0">Tahun Pelajaran:</span>
-                    <span className="font-bold text-slate-950">2026 / 2027</span>
+
+                  {/* Baris 2: Program Keahlian / Kompetensi, Tempat DUDI (Di Tengah), Tahun Pelajaran */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-2 pt-0.5 border-t border-teal-200/50">
+                    <div className="flex items-center gap-1.5 min-w-0 justify-start">
+                      <span className="text-slate-500 shrink-0 font-medium">Kompetensi:</span>
+                      <span className="font-bold text-emerald-900">{p.prodi}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 min-w-0 justify-center text-center">
+                      <span className="text-slate-500 shrink-0 font-medium">Tempat DUDI:</span>
+                      <span className="font-bold text-slate-950">{p.perusahaan}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 justify-end ml-auto sm:ml-0">
+                      <span className="text-slate-500 font-medium">Tahun Pelajaran:</span>
+                      <span className="font-bold text-slate-950">2026 / 2027</span>
+                    </div>
                   </div>
                 </div>
 
