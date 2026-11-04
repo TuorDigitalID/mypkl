@@ -2390,40 +2390,42 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                 </div>
               </div>
 
-              {/* Student Identification Info Card (Full Text / Tanpa Singkatan) */}
-              <div className="relative z-10 py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1 backdrop-blur-xs text-[10px] sm:text-[11px] leading-tight space-y-1">
-                {/* Baris 1: Nama Lengkap & NISN */}
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-slate-500 shrink-0 font-medium">Nama:</span>
-                    <span className="font-bold text-slate-950 uppercase tracking-tight">{mahasiswa.nama}</span>
+              {/* Academic Transcript Main Section (Identitas + Tabel Nilai + KKM terpadu proporsional tanpa rongga lebar) */}
+              <div className="relative z-10 flex flex-col my-auto space-y-1.5 sm:space-y-2">
+                {/* Student Identification Info Card (Full Text / Tanpa Singkatan) */}
+                <div className="py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 backdrop-blur-xs text-[10px] sm:text-[11px] leading-tight space-y-1">
+                  {/* Baris 1: Nama Lengkap & NISN */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-slate-500 shrink-0 font-medium">Nama:</span>
+                      <span className="font-bold text-slate-950 uppercase tracking-tight">{mahasiswa.nama}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                      <span className="text-slate-500 font-medium">NISN:</span>
+                      <span className="font-mono font-bold text-slate-950">{studentNISN}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                    <span className="text-slate-500 font-medium">NISN:</span>
-                    <span className="font-mono font-bold text-slate-950">{studentNISN}</span>
+
+                  {/* Baris 2: Program Keahlian / Kompetensi, Tempat DUDI (Di Tengah), Tahun Pelajaran */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-2 pt-0.5 border-t border-teal-200/50">
+                    <div className="flex items-center gap-1.5 min-w-0 justify-start">
+                      <span className="text-slate-500 shrink-0 font-medium">Kompetensi:</span>
+                      <span className="font-bold text-emerald-900">{mahasiswa.prodi}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 min-w-0 justify-center text-center">
+                      <span className="text-slate-500 shrink-0 font-medium">Tempat DUDI:</span>
+                      <span className="font-bold text-slate-950">{mahasiswa.perusahaan}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 justify-end ml-auto sm:ml-0">
+                      <span className="text-slate-500 font-medium">Tahun Pelajaran:</span>
+                      <span className="font-bold text-slate-950">2026 / 2027</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Baris 2: Program Keahlian / Kompetensi, Tempat DUDI (Di Tengah), Tahun Pelajaran */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-2 pt-0.5 border-t border-teal-200/50">
-                  <div className="flex items-center gap-1.5 min-w-0 justify-start">
-                    <span className="text-slate-500 shrink-0 font-medium">Kompetensi:</span>
-                    <span className="font-bold text-emerald-900">{mahasiswa.prodi}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 min-w-0 justify-center text-center">
-                    <span className="text-slate-500 shrink-0 font-medium">Tempat DUDI:</span>
-                    <span className="font-bold text-slate-950">{mahasiswa.perusahaan}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0 justify-end ml-auto sm:ml-0">
-                    <span className="text-slate-500 font-medium">Tahun Pelajaran:</span>
-                    <span className="font-bold text-slate-950">2026 / 2027</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Official Score Breakdown Table (Streamlined Row Heights) */}
-              <div className="relative z-10 my-auto py-0.5">
-                <table className="w-full text-left border-collapse text-[10px] sm:text-[11px] border border-slate-300 bg-white/95">
+                {/* Official Score Breakdown Table */}
+                <div className="w-full">
+                  <table className="w-full text-left border-collapse text-[10px] sm:text-[11px] border border-slate-300 bg-white/95">
                   <thead>
                     <tr className="bg-gradient-to-r from-emerald-800 via-teal-800 to-blue-900 text-white font-extrabold uppercase border-b border-slate-400 text-center">
                       <th className="py-1 px-1.5 border-r border-teal-700/60 w-8">No</th>
@@ -2541,8 +2543,8 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                 </table>
               </div>
 
-              {/* Compact Conversion Legend & Final Status Row */}
-              <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-1 bg-slate-50/90 rounded-lg border border-slate-200 text-[9.5px] sm:text-[10px] my-1 backdrop-blur-xs">
+              {/* Compact Conversion Legend & Final Status Row (Menempel rapi di bawah tabel) */}
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1 bg-slate-50/90 rounded-lg border border-slate-200 text-[9.5px] sm:text-[10px] backdrop-blur-xs">
                 <div className="flex items-center gap-2 sm:gap-3 text-slate-600 font-mono">
                   <span className="font-bold text-slate-800 font-sans">Standar KKM:</span>
                   <span>A (85–100)</span>
@@ -2569,6 +2571,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   </span>
                 </div>
               </div>
+            </div>
 
               {/* Footer Signatures: Ketua Panitia Sidang PKL (Kiri) & Kaprodi Jurusan (Kanan) with Generous Signing Room */}
               <div className="relative z-10 pt-2 border-t-2 border-slate-900 mt-1">
@@ -2849,39 +2852,42 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   </div>
                 </div>
 
-                {/* Student Identification Info Card (Full Text / Tanpa Singkatan) */}
-                <div className="relative z-10 py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 mt-1 backdrop-blur-xs text-[10px] sm:text-[11px] leading-tight space-y-1">
-                  {/* Baris 1: Nama Lengkap & NISN */}
-                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-slate-500 shrink-0 font-medium">Nama:</span>
-                      <span className="font-bold text-slate-950 uppercase tracking-tight">{p.nama}</span>
+                {/* Academic Transcript Main Section (Identitas + Tabel Nilai + KKM terpadu proporsional tanpa rongga lebar) */}
+                <div className="relative z-10 flex flex-col my-auto space-y-1.5 sm:space-y-2">
+                  {/* Student Identification Info Card (Full Text / Tanpa Singkatan) */}
+                  <div className="py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 backdrop-blur-xs text-[10px] sm:text-[11px] leading-tight space-y-1">
+                    {/* Baris 1: Nama Lengkap & NISN */}
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-slate-500 shrink-0 font-medium">Nama:</span>
+                        <span className="font-bold text-slate-950 uppercase tracking-tight">{p.nama}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                        <span className="text-slate-500 font-medium">NISN:</span>
+                        <span className="font-mono font-bold text-slate-950">{pNisn}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                      <span className="text-slate-500 font-medium">NISN:</span>
-                      <span className="font-mono font-bold text-slate-950">{pNisn}</span>
+
+                    {/* Baris 2: Program Keahlian / Kompetensi, Tempat DUDI (Di Tengah), Tahun Pelajaran */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-2 pt-0.5 border-t border-teal-200/50">
+                      <div className="flex items-center gap-1.5 min-w-0 justify-start">
+                        <span className="text-slate-500 shrink-0 font-medium">Kompetensi:</span>
+                        <span className="font-bold text-emerald-900">{p.prodi}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 min-w-0 justify-center text-center">
+                        <span className="text-slate-500 shrink-0 font-medium">Tempat DUDI:</span>
+                        <span className="font-bold text-slate-950">{p.perusahaan}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 justify-end ml-auto sm:ml-0">
+                        <span className="text-slate-500 font-medium">Tahun Pelajaran:</span>
+                        <span className="font-bold text-slate-950">2026 / 2027</span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Baris 2: Program Keahlian / Kompetensi, Tempat DUDI (Di Tengah), Tahun Pelajaran */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-2 pt-0.5 border-t border-teal-200/50">
-                    <div className="flex items-center gap-1.5 min-w-0 justify-start">
-                      <span className="text-slate-500 shrink-0 font-medium">Kompetensi:</span>
-                      <span className="font-bold text-emerald-900">{p.prodi}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 min-w-0 justify-center text-center">
-                      <span className="text-slate-500 shrink-0 font-medium">Tempat DUDI:</span>
-                      <span className="font-bold text-slate-950">{p.perusahaan}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0 justify-end ml-auto sm:ml-0">
-                      <span className="text-slate-500 font-medium">Tahun Pelajaran:</span>
-                      <span className="font-bold text-slate-950">2026 / 2027</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="relative z-10 my-auto py-0.5">
-                  <table className="w-full text-left border-collapse text-[10px] sm:text-[11px] border border-slate-300 bg-white/95">
+                  {/* Official Score Breakdown Table */}
+                  <div className="w-full">
+                    <table className="w-full text-left border-collapse text-[10px] sm:text-[11px] border border-slate-300 bg-white/95">
                     <thead>
                       <tr className="bg-gradient-to-r from-emerald-800 via-teal-800 to-blue-900 text-white font-extrabold uppercase border-b border-slate-400 text-center">
                         <th className="py-1 px-1.5 border-r border-teal-700/60 w-8">No</th>
@@ -2996,7 +3002,8 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   </table>
                 </div>
 
-                <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-1 bg-slate-50/90 rounded-lg border border-slate-200 text-[9.5px] sm:text-[10px] my-1">
+                {/* Compact Conversion Legend & Final Status Row (Menempel rapi di bawah tabel) */}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1 bg-slate-50/90 rounded-lg border border-slate-200 text-[9.5px] sm:text-[10px]">
                   <div className="flex items-center gap-2 sm:gap-3 text-slate-600 font-mono">
                     <span className="font-bold text-slate-800 font-sans">Standar KKM:</span>
                     <span>A (85–100)</span>
@@ -3021,6 +3028,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                     </span>
                   </div>
                 </div>
+              </div>
 
                 <div className="relative z-10 pt-2 border-t-2 border-slate-900 mt-1">
                   <div className="grid grid-cols-2 text-center text-xs">
