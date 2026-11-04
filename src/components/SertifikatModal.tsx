@@ -532,7 +532,12 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
 
             clonedDoc.body.appendChild(clonedElement);
 
-            // Clean up any mix-blend-mode or backdrop-filter that could disrupt canvas rendering
+            // Optimasi posisi tanda tangan halaman 2 (Transkrip) agar naik dan sesuai hasil preview (tidak mepet bawah)
+            const page2Sig = clonedElement.querySelector<HTMLElement>('.page2-signatures');
+            if (page2Sig) {
+              page2Sig.style.marginTop = 'auto';
+              page2Sig.style.marginBottom = '95px';
+            }
             const allNodes = clonedElement.querySelectorAll<HTMLElement>('*');
             allNodes.forEach((node) => {
               if (node.style) {
@@ -653,6 +658,10 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
           .certificate-sheet:first-of-type {
             page-break-before: avoid !important;
             break-before: avoid !important;
+          }
+          .certificate-sheet .page2-signatures {
+            margin-top: auto !important;
+            margin-bottom: 24mm !important;
           }
           @media print {
             html, body {
@@ -2574,7 +2583,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
             </div>
 
               {/* Footer Signatures: Ketua Panitia Sidang PKL (Kiri) & Kaprodi Jurusan (Kanan) - Posisi lurus sejajar & rapih */}
-              <div className="relative z-10 pt-1 mt-auto mb-2 sm:mb-4">
+              <div className="page2-signatures relative z-10 pt-1 mt-auto mb-8 sm:mb-12 lg:mb-16">
                 <div className="grid grid-cols-2 gap-x-4 text-center text-xs">
                   {/* Row 1, Col 1: Header Ketua Panitia */}
                   <div className="flex flex-col items-center justify-start">
@@ -3031,7 +3040,7 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               </div>
 
                 {/* Footer Signatures: Ketua Panitia Sidang PKL (Kiri) & Kaprodi Jurusan (Kanan) - Posisi lurus sejajar & rapih */}
-                <div className="relative z-10 pt-1 mt-auto mb-2 sm:mb-4">
+                <div className="page2-signatures relative z-10 pt-1 mt-auto mb-8 sm:mb-12 lg:mb-16">
                   <div className="grid grid-cols-2 gap-x-4 text-center text-xs">
                     {/* Row 1, Col 1: Header Ketua Panitia */}
                     <div className="flex flex-col items-center justify-start">
