@@ -2390,8 +2390,8 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                 </div>
               </div>
 
-              {/* Academic Transcript Main Section (Identitas + Tabel Nilai + KKM terpadu proporsional tanpa rongga lebar) */}
-              <div className="relative z-10 flex flex-col my-auto space-y-1.5 sm:space-y-2">
+              {/* Academic Transcript Main Section (Rapat dengan garis atas Kop & terpadu proporsional) */}
+              <div className="relative z-10 flex flex-col mt-1 sm:mt-1.5 space-y-1.5 sm:space-y-2">
                 {/* Student Identification Info Card (Full Text / Tanpa Singkatan) */}
                 <div className="py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 backdrop-blur-xs text-[10px] sm:text-[11px] leading-tight space-y-1">
                   {/* Baris 1: Nama Lengkap & NISN */}
@@ -2573,40 +2573,40 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
               </div>
             </div>
 
-              {/* Footer Signatures: Ketua Panitia Sidang PKL (Kiri) & Kaprodi Jurusan (Kanan) with Generous Signing Room */}
-              <div className="relative z-10 pt-2 border-t-2 border-slate-900 mt-1">
-                <div className="grid grid-cols-2 text-center text-xs">
-                  {/* Left: Committee Chair */}
-                  <div className="flex flex-col items-center">
+              {/* Footer Signatures: Ketua Panitia Sidang PKL (Kiri) & Kaprodi Jurusan (Kanan) - Posisi lurus sejajar & rapih */}
+              <div className="relative z-10 pt-1 mt-auto mb-2 sm:mb-4">
+                <div className="grid grid-cols-2 gap-x-4 text-center text-xs">
+                  {/* Row 1, Col 1: Header Ketua Panitia */}
+                  <div className="flex flex-col items-center justify-start">
                     <p className="text-[11px] text-slate-600">Mengetahui,</p>
                     <p className="font-extrabold text-slate-900 text-xs sm:text-sm">Ketua Panitia Sidang PKL</p>
-                    
-                    {/* Clear space for physical stamp and signature */}
-                    <div className="h-16 sm:h-20"></div>
+                  </div>
 
+                  {/* Row 1, Col 2: Header Kaprodi */}
+                  <div className="flex flex-col items-center justify-start">
+                    <p className="text-[11px] text-slate-600">{tempatTerbit}, {tanggalTerbit}</p>
+                    <p className="font-extrabold text-slate-900 text-xs sm:text-sm">Ketua Program Keahlian (Kaprodi)</p>
+                    <p className="text-[10px] text-emerald-800 font-bold leading-tight">{mahasiswa.prodi}</p>
+                  </div>
+
+                  {/* Row 2: Ruang Tanda Tangan (Kedua kolom memiliki tinggi baris yang sama persis) */}
+                  <div className="h-10 sm:h-12"></div>
+                  <div className="h-10 sm:h-12"></div>
+
+                  {/* Row 3: Nama Penandatangan (Pasti 100% sejajar dan lurus pada garis horizontal yang sama) */}
+                  <div className="flex flex-col items-center justify-center">
                     <p className="font-black text-slate-950 underline decoration-teal-600 underline-offset-4 text-xs sm:text-sm">
                       {namaKetuaPanitia || 'Dr. Ir. Hendra Kurniawan, M.T.'}
                     </p>
                   </div>
 
-                  {/* Right: Head of Department / Kaprodi */}
-                  <div className="flex flex-col items-center">
-                    <p className="text-[11px] text-slate-600">{tempatTerbit}, {tanggalTerbit}</p>
-                    <p className="font-extrabold text-slate-900 text-xs sm:text-sm">Ketua Program Keahlian (Kaprodi)</p>
-                    <p className="text-[10px] text-emerald-800 font-bold">{mahasiswa.prodi}</p>
-                    
-                    {/* Clear space for physical signature */}
-                    <div className="h-16 sm:h-20"></div>
-
+                  <div className="flex flex-col items-center justify-center">
                     <p className="font-black text-slate-950 underline decoration-blue-600 underline-offset-4 text-xs sm:text-sm">
                       {namaKaprodi || 'Ahmad Zulfikar, S.T., M.Kom.'}
                     </p>
                   </div>
                 </div>
               </div>
-
-              {/* Bottom Decorative Bar */}
-              <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 z-10"></div>
 
             </div>
           )}
@@ -2852,8 +2852,8 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                   </div>
                 </div>
 
-                {/* Academic Transcript Main Section (Identitas + Tabel Nilai + KKM terpadu proporsional tanpa rongga lebar) */}
-                <div className="relative z-10 flex flex-col my-auto space-y-1.5 sm:space-y-2">
+                {/* Academic Transcript Main Section (Rapat dengan garis atas Kop & terpadu proporsional) */}
+                <div className="relative z-10 flex flex-col mt-1 sm:mt-1.5 space-y-1.5 sm:space-y-2">
                   {/* Student Identification Info Card (Full Text / Tanpa Singkatan) */}
                   <div className="py-1.5 px-3 bg-gradient-to-r from-emerald-50/70 via-slate-50/80 to-blue-50/70 rounded-lg border border-teal-200/80 backdrop-blur-xs text-[10px] sm:text-[11px] leading-tight space-y-1">
                     {/* Baris 1: Nama Lengkap & NISN */}
@@ -3030,29 +3030,40 @@ export const SertifikatModal: React.FC<SertifikatModalProps> = ({
                 </div>
               </div>
 
-                <div className="relative z-10 pt-2 border-t-2 border-slate-900 mt-1">
-                  <div className="grid grid-cols-2 text-center text-xs">
-                    <div className="flex flex-col items-center">
+                {/* Footer Signatures: Ketua Panitia Sidang PKL (Kiri) & Kaprodi Jurusan (Kanan) - Posisi lurus sejajar & rapih */}
+                <div className="relative z-10 pt-1 mt-auto mb-2 sm:mb-4">
+                  <div className="grid grid-cols-2 gap-x-4 text-center text-xs">
+                    {/* Row 1, Col 1: Header Ketua Panitia */}
+                    <div className="flex flex-col items-center justify-start">
                       <p className="text-[11px] text-slate-600">Mengetahui,</p>
                       <p className="font-extrabold text-slate-900 text-xs sm:text-sm">Ketua Panitia Sidang PKL</p>
-                      <div className="h-16 sm:h-20"></div>
+                    </div>
+
+                    {/* Row 1, Col 2: Header Kaprodi */}
+                    <div className="flex flex-col items-center justify-start">
+                      <p className="text-[11px] text-slate-600">{tempatTerbit}, {tanggalTerbit}</p>
+                      <p className="font-extrabold text-slate-900 text-xs sm:text-sm">Ketua Program Keahlian (Kaprodi)</p>
+                      <p className="text-[10px] text-emerald-800 font-bold leading-tight">{p.prodi}</p>
+                    </div>
+
+                    {/* Row 2: Ruang Tanda Tangan (Kedua kolom memiliki tinggi baris yang sama persis) */}
+                    <div className="h-10 sm:h-12"></div>
+                    <div className="h-10 sm:h-12"></div>
+
+                    {/* Row 3: Nama Penandatangan (Pasti 100% sejajar dan lurus pada garis horizontal yang sama) */}
+                    <div className="flex flex-col items-center justify-center">
                       <p className="font-black text-slate-950 underline decoration-teal-600 underline-offset-4 text-xs sm:text-sm">
                         {namaKetuaPanitia || 'Dr. Ir. Hendra Kurniawan, M.T.'}
                       </p>
                     </div>
-                    <div className="flex flex-col items-center">
-                      <p className="text-[11px] text-slate-600">{tempatTerbit}, {tanggalTerbit}</p>
-                      <p className="font-extrabold text-slate-900 text-xs sm:text-sm">Ketua Program Keahlian (Kaprodi)</p>
-                      <p className="text-[10px] text-emerald-800 font-bold">{p.prodi}</p>
-                      <div className="h-16 sm:h-20"></div>
+
+                    <div className="flex flex-col items-center justify-center">
                       <p className="font-black text-slate-950 underline decoration-blue-600 underline-offset-4 text-xs sm:text-sm">
                         {pKaprodi}
                       </p>
                     </div>
                   </div>
                 </div>
-
-                <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600 z-10"></div>
               </div>
             );
           })}
